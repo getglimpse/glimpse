@@ -1,0 +1,90 @@
+.vp-doc img.diagram {
+  display: block;
+  width: min(100%, var(--diagram-width, 520px));
+  max-width: 100%;
+  max-height: var(--diagram-max-height, none);
+  height: auto;
+  margin: 1.25rem auto;
+  box-sizing: border-box;
+  object-fit: contain;
+}
+
+.vp-doc img.diagram-xs {
+  --diagram-width: 280px;
+}
+
+.vp-doc img.diagram-sm {
+  --diagram-width: 360px;
+}
+
+.vp-doc img.diagram-md {
+  --diagram-width: 520px;
+}
+
+.vp-doc img.diagram-lg {
+  --diagram-width: 680px;
+}
+
+.vp-doc img.diagram-xl {
+  --diagram-width: 860px;
+}
+
+.vp-doc img.diagram-full {
+  --diagram-width: 100%;
+}
+
+.vp-doc img.diagram-short {
+  --diagram-max-height: 280px;
+}
+
+.vp-doc img.diagram-tall {
+  --diagram-max-height: 420px;
+}
+
+.vp-doc img.diagram-very-tall {
+  --diagram-max-height: 560px;
+}
+
+.vp-doc .diagram-scroll {
+  max-width: 100%;
+  max-height: var(--diagram-scroll-height, 520px);
+  margin: 1.25rem 0;
+  overflow: auto;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+  background: var(--vp-c-bg-soft);
+}
+
+.vp-doc .diagram-scroll > img.diagram {
+  max-width: none;
+  max-height: none;
+  margin: 0;
+}
+
+.vp-doc .diagram-scroll.diagram-scroll-sm {
+  --diagram-scroll-height: 360px;
+}
+
+.vp-doc .diagram-scroll.diagram-scroll-lg {
+  --diagram-scroll-height: 680px;
+}
+
+.vp-doc img.diagram-left {
+  margin-left: 0;
+}
+
+.vp-doc img.diagram-right {
+  margin-right: 0;
+}
+
+.vp-doc img.diagram.diagram-dark {
+  display: none;
+}
+
+.dark .vp-doc img.diagram.diagram-light {
+  display: none;
+}
+
+.dark .vp-doc img.diagram.diagram-dark {
+  display: block;
+}

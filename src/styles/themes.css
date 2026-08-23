@@ -1,0 +1,214 @@
+/* ==========================================================================
+   Built-in Themes
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Nordic Blue (Default)
+   -------------------------------------------------------------------------- */
+
+:root,
+[data-theme="nord"] {
+  /* ===== shadcn ===== */
+
+  --background: #2e3440;
+  --foreground: #eceff4;
+
+  --card: #3b4252;
+  --card-foreground: #eceff4;
+
+  --popover: #3b4252;
+  --popover-foreground: #eceff4;
+
+  --primary: #88c0d0;
+  --primary-foreground: #2e3440;
+
+  --secondary: #3b4252;
+  --secondary-foreground: #eceff4;
+
+  --muted: #3b4252;
+  --muted-foreground: #d8dee9;
+
+  --accent: #88c0d0;
+  --accent-foreground: #2e3440;
+
+  --destructive: #ef4444;
+
+  --border: rgba(255, 255, 255, 0.08);
+  --input: rgba(255, 255, 255, 0.08);
+  --ring: #88c0d0;
+
+  --chart-1: #88c0d0;
+  --chart-2: #81a1c1;
+  --chart-3: #5e81ac;
+  --chart-4: #8fbcbb;
+  --chart-5: #bf616a;
+
+  --radius: 0.625rem;
+
+  --sidebar: #2e3440;
+  --sidebar-foreground: #eceff4;
+  --sidebar-primary: #88c0d0;
+  --sidebar-primary-foreground: #2e3440;
+  --sidebar-accent: #3b4252;
+  --sidebar-accent-foreground: #eceff4;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-ring: #88c0d0;
+
+  /* ===== Glimpse ===== */
+
+  --app-bg: #2e3440;
+  --header-bg: #3b4252;
+  --sidebar-bg: #2e3440;
+  --main-bg: #3b4252;
+  --status-bg: #242933;
+
+  --text-main: #eceff4;
+  --text-muted: #d8dee9;
+  --text-accent: #2e3440;
+  --placeholder: rgba(216, 222, 233, 0.3);
+
+  --item-hover: rgba(255, 255, 255, 0.05);
+  --glass-bg: rgba(59, 66, 82, 0.8);
+  --scrollbar: rgba(136, 192, 208, 0.3);
+  --iframe-bg: #eceff4;
+}
+
+/* --------------------------------------------------------------------------
+   Glimpse Dark
+   -------------------------------------------------------------------------- */
+
+[data-theme="dark"] {
+  /* ===== shadcn ===== */
+
+  --background: #121212;
+  --foreground: #e0e0e0;
+
+  --card: #1a1a1a;
+  --card-foreground: #e0e0e0;
+
+  --popover: #1a1a1a;
+  --popover-foreground: #e0e0e0;
+
+  --primary: #2563eb;
+  --primary-foreground: #ffffff;
+
+  --secondary: #161616;
+  --secondary-foreground: #e0e0e0;
+
+  --muted: #161616;
+  --muted-foreground: rgba(224, 224, 224, 0.5);
+
+  --accent: #2563eb;
+  --accent-foreground: #ffffff;
+
+  --destructive: #ef4444;
+
+  --border: rgba(255, 255, 255, 0.08);
+  --input: rgba(255, 255, 255, 0.08);
+  --ring: #2563eb;
+
+  --chart-1: #2563eb;
+  --chart-2: #3b82f6;
+  --chart-3: #60a5fa;
+  --chart-4: #93c5fd;
+  --chart-5: #bfdbfe;
+
+  --radius: 0.625rem;
+
+  --sidebar: #161616;
+  --sidebar-foreground: #e0e0e0;
+  --sidebar-primary: #2563eb;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #1a1a1a;
+  --sidebar-accent-foreground: #e0e0e0;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-ring: #2563eb;
+
+  /* ===== Glimpse ===== */
+
+  --app-bg: #121212;
+  --header-bg: #1a1a1a;
+  --sidebar-bg: #161616;
+  --main-bg: #0f0f0f;
+  --status-bg: #0a0a0a;
+
+  --text-main: #e0e0e0;
+  --text-muted: rgba(224, 224, 224, 0.5);
+  --text-accent: #ffffff;
+  --placeholder: rgba(255, 255, 255, 0.15);
+
+  --item-hover: rgba(255, 255, 255, 0.05);
+  --glass-bg: rgba(26, 26, 26, 0.7);
+  --scrollbar: rgba(255, 255, 255, 0.2);
+  --iframe-bg: #ffffff;
+}
+
+/* --------------------------------------------------------------------------
+   Paper Focus
+   -------------------------------------------------------------------------- */
+
+[data-theme="sepia"] {
+  /* ===== shadcn ===== */
+
+  --background: #f4ecd8;
+  --foreground: #433422;
+
+  --card: #fbf7eb;
+  --card-foreground: #433422;
+
+  --popover: #fbf7eb;
+  --popover-foreground: #433422;
+
+  --primary: #9b703f;
+  --primary-foreground: #fbf7eb;
+
+  --secondary: #ede4cd;
+  --secondary-foreground: #433422;
+
+  --muted: #ede4cd;
+  --muted-foreground: rgba(67, 52, 34, 0.6);
+
+  --accent: #9b703f;
+  --accent-foreground: #fbf7eb;
+
+  --destructive: #dc2626;
+
+  --border: rgba(0, 0, 0, 0.08);
+  --input: rgba(0, 0, 0, 0.08);
+  --ring: #9b703f;
+
+  --chart-1: #9b703f;
+  --chart-2: #b08968;
+  --chart-3: #c8ad7f;
+  --chart-4: #ddb892;
+  --chart-5: #e6ccb2;
+
+  --radius: 0.625rem;
+
+  --sidebar: #f4ecd8;
+  --sidebar-foreground: #433422;
+  --sidebar-primary: #9b703f;
+  --sidebar-primary-foreground: #fbf7eb;
+  --sidebar-accent: #ede4cd;
+  --sidebar-accent-foreground: #433422;
+  --sidebar-border: rgba(0, 0, 0, 0.08);
+  --sidebar-ring: #9b703f;
+
+  /* ===== Glimpse ===== */
+
+  --app-bg: #f4ecd8;
+  --header-bg: #ede4cd;
+  --sidebar-bg: #f4ecd8;
+  --main-bg: #fbf7eb;
+  --status-bg: #e5dbc1;
+
+  --text-main: #433422;
+  --text-muted: rgba(67, 52, 34, 0.6);
+  --text-accent: #fbf7eb;
+  --placeholder: rgba(67, 52, 34, 0.2);
+
+  --item-hover: rgba(0, 0, 0, 0.03);
+  --glass-bg: rgba(237, 228, 205, 0.8);
+  --scrollbar: rgba(155, 112, 63, 0.2);
+  --iframe-bg: #fbf7eb;
+}

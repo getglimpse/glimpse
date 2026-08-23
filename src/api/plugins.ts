@@ -1,0 +1,46 @@
+import { invoke } from "@tauri-apps/api/core";
+
+import type {
+  PluginAssetSource,
+  GlimpsePlugin,
+  PluginDiscoveryReport,
+  PluginEntrypointSource,
+  PluginInstallResult,
+  PluginTrustStatus,
+  PluginUninstallResult,
+} from "@/types";
+
+export const pluginsApi = {
+  getManifests: () => invoke<GlimpsePlugin[]>("get_plugin_manifests"),
+  getDiscoveryReport: () =>
+    invoke<PluginDiscoveryReport>("get_plugin_discovery_report"),
+  openFolder: () => invoke<void>("open_plugins_folder"),
+  installFromPath: (sourcePath: string, replace = false) =>
+    invoke<PluginInstallResult>("install_plugin_from_path", {
+      sourcePath,
+      replace,
+    }),
+  uninstall: (pluginId: string) =>
+    invoke<PluginUninstallResult>("uninstall_plugin", {
+      pluginId,
+    }),
+  getTrustStatus: (pluginId: string) =>
+    invoke<PluginTrustStatus>("get_plugin_trust_status", {
+      pluginId,
+    }),
+  setTrust: (pluginId: string, trusted: boolean) =>
+    invoke<PluginTrustStatus>("set_plugin_trust", {
+      pluginId,
+      trusted,
+    }),
+  getEntrypointSource: (pluginId: string, entrypoint: "main" | "page") =>
+    invoke<PluginEntrypointSource>("get_plugin_entrypoint_source", {
+      pluginId,
+      entrypoint,
+    }),
+  getAssetSource: (pluginId: string, asset: "styles") =>
+    invoke<PluginAssetSource>("get_plugin_asset_source", {
+      pluginId,
+      asset,
+    }),
+};
