@@ -14,7 +14,7 @@
 //! If the production schema changes, update `store::schema.rs` first.
 //! Test fixtures should reuse that schema instead of redefining it.
 
-use crate::models::{IndexItem, OpenAction, Preview};
+use crate::models::{DefaultAction, IndexItem, Preview};
 use crate::search::sqlite::sql as sqlite_sql;
 use crate::search::SearchResult;
 use crate::store::item_mapper::map_search_result;
@@ -75,12 +75,6 @@ pub fn insert_test_item(conn: &Connection, item: &IndexItem) {
         ),
     };
 
-    let (open_type, open_url, open_command_path) = match &item.open {
-        Some(OpenAction::External { url }) => (Some("external"), Some(url.clone()), None),
-        Some(OpenAction::Command { path }) => (Some("command"), None, Some(path.clone())),
-        None => (None, None, None),
-    };
-
     conn.execute(
         item_sql::UPSERT_ITEM,
         params![
@@ -91,9 +85,12 @@ pub fn insert_test_item(conn: &Connection, item: &IndexItem) {
             preview_type,
             preview_content,
             preview_url,
-            open_type,
-            open_url,
-            open_command_path,
+            item.url.as_deref(),
+            item.command.as_deref(),
+            item.default_action.as_ref().map(|action| match action {
+                DefaultAction::Url => "url",
+                DefaultAction::Command => "command",
+            }),
         ],
     )
     .unwrap();
@@ -167,9 +164,9 @@ pub fn map_test_search_result(conn: &Connection, row: TestSearchResultRow) -> Se
             preview_type TEXT,
             preview_content TEXT,
             preview_url TEXT,
-            open_type TEXT,
-            open_url TEXT,
-            open_command_path TEXT,
+            item_url TEXT,
+            item_command TEXT,
+            default_action TEXT,
             rank REAL,
             tags_str TEXT,
             aliases_str TEXT
@@ -190,9 +187,9 @@ pub fn map_test_search_result(conn: &Connection, row: TestSearchResultRow) -> Se
             preview_type,
             preview_content,
             preview_url,
-            open_type,
-            open_url,
-            open_command_path,
+            item_url,
+            item_command,
+            default_action,
             rank,
             tags_str,
             aliases_str
@@ -209,9 +206,9 @@ pub fn map_test_search_result(conn: &Connection, row: TestSearchResultRow) -> Se
             row.preview_type,
             row.preview_content,
             row.preview_url,
-            row.open_type,
-            row.open_url,
-            row.open_command_path,
+            row.item_url,
+            row.item_command,
+            row.default_action,
             row.rank,
             row.tags_str,
             row.aliases_str,
@@ -241,9 +238,9 @@ pub struct TestSearchResultRow {
     pub preview_type: String,
     pub preview_content: Option<String>,
     pub preview_url: Option<String>,
-    pub open_type: Option<String>,
-    pub open_url: Option<String>,
-    pub open_command_path: Option<String>,
+    pub item_url: Option<String>,
+    pub item_command: Option<String>,
+    pub default_action: Option<String>,
     pub rank: f64,
     pub tags_str: Option<String>,
     pub aliases_str: Option<String>,
@@ -261,9 +258,9 @@ impl Default for TestSearchResultRow {
             preview_type: "local".to_string(),
             preview_content: Some("hello rust".to_string()),
             preview_url: None,
-            open_type: None,
-            open_url: None,
-            open_command_path: None,
+            item_url: None,
+            item_command: None,
+            default_action: None,
             rank: 0.0,
             tags_str: None,
             aliases_str: None,

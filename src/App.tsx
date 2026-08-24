@@ -921,7 +921,8 @@ export default function App() {
                 onOpenCommandHistory={() => {
                   openPreviewTab(COMMAND_HISTORY_ITEM);
                 }}
-                onOpenItem={shortcutHandlers.openActiveItem}
+                onUrlAction={shortcutHandlers.openActiveUrlAction}
+                onCommandAction={shortcutHandlers.openActiveCommandAction}
                 onTagCloudTagSelect={handleTagCloudTagSelect}
                 onFileEditorChange={updateFileEditorTab}
                 onCloseTab={closePreviewTab}

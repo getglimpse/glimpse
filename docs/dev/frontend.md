@@ -86,7 +86,7 @@ Supported preview modes include:
 - internal page
 - plugin viewer
 
-Preview tabs are managed by frontend state. The backend provides the preview payload and open actions attached to each indexed item.
+Preview tabs are managed by frontend state. The backend provides the preview payload and item actions attached to each indexed item.
 
 ## Plugins
 

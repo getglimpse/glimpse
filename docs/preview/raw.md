@@ -29,8 +29,7 @@ Markdown Preview renders the document body. Raw Preview shows the file exactly a
 ```yaml
 ---
 title: Git
-open.type: command
-open.path: git
+command: git
 ---
 ```
 

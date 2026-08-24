@@ -24,7 +24,7 @@ Glimpse は現在 beta 版です。
 - 高速なインクリメンタルローカル検索
 - Markdown、Glimpse JSON、画像、Raw file のライブプレビュー
 - 複数の検索結果を開いておけるプレビュータブ
-- frontmatter メタデータ対応 (`title`, `tags`, `aliases`, `star`, `hidden`, `open.*`)
+- frontmatter メタデータ対応 (`title`, `tags`, `aliases`, `star`, `hidden`, `url`, `command`)
 - 絞り込みしやすい検索クエリ構文
 - キーボード中心の操作
 - 複数フォルダを検索対象にできる Target Group

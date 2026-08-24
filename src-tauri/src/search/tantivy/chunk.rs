@@ -92,6 +92,10 @@ pub(super) fn item_index_chunks(item: &IndexItem) -> Vec<IndexChunk<'_>> {
 }
 
 fn preview_body(item: &IndexItem) -> &str {
+    if let Some(content) = item.search_content.as_deref() {
+        return content;
+    }
+
     match &item.preview {
         Preview::Markdown { content } | Preview::Raw { content } => content.as_str(),
         Preview::External { .. } | Preview::PluginViewer { .. } => "",

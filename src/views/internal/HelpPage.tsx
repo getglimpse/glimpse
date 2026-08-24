@@ -115,19 +115,19 @@ export const HelpPage = () => {
             description={LL.helpPage.metadata.fields.hidden()}
           />
           <HelpRow
-            command="open.type: command"
+            command="command"
             description={LL.helpPage.metadata.fields.commandOpenType()}
           />
           <HelpRow
-            command="open.path"
+            command="defaultAction: command"
             description={LL.helpPage.metadata.fields.openPath()}
           />
           <HelpRow
-            command="open.type: external"
+            command="url"
             description={LL.helpPage.metadata.fields.externalOpenType()}
           />
           <HelpRow
-            command="open.url"
+            command="iframe"
             description={LL.helpPage.metadata.fields.openUrl()}
           />
           <HelpRow
@@ -146,8 +146,7 @@ aliases:
   - code
   - vscode
 star: true
-open.type: command
-open.path: code
+command: code .
 ---
 
 # VS Code
@@ -204,19 +203,19 @@ Searchable markdown body becomes the preview.`}</CodeSnippet>
             description={LL.helpPage.jsonIndex.itemDesc()}
           />
           <HelpRow
-            command="metadata.tags"
+            command="tags"
             description={LL.helpPage.jsonIndex.metadataTags()}
           />
           <HelpRow
-            command="metadata.aliases"
+            command="aliases"
             description={LL.helpPage.jsonIndex.metadataAliases()}
           />
           <HelpRow
-            command="metadata.star"
+            command="star"
             description={LL.helpPage.jsonIndex.metadataStar()}
           />
           <HelpRow
-            command="metadata.hidden"
+            command="hidden"
             description={LL.helpPage.jsonIndex.metadataHidden()}
           />
           <HelpRow
@@ -224,7 +223,7 @@ Searchable markdown body becomes the preview.`}</CodeSnippet>
             description={LL.helpPage.jsonIndex.iframe()}
           />
           <HelpRow
-            command="open"
+            command="command"
             description={LL.helpPage.jsonIndex.openOverride()}
           />
         </Section>
@@ -236,23 +235,16 @@ Searchable markdown body becomes the preview.`}</CodeSnippet>
       "title": "Rust Book",
       "url": "https://doc.rust-lang.org/book/",
       "desc": "Official Rust documentation",
-      "metadata": {
-        "tags": ["rust", "docs"],
-        "aliases": ["rustbook"],
-        "star": true
-      },
+      "tags": ["rust", "docs"],
+      "aliases": ["rustbook"],
+      "star": true,
       "iframe": false
     },
     {
       "title": "VS Code",
       "desc": "Open a workspace in VS Code",
-      "metadata": {
-        "tags": ["editor"]
-      },
-      "open": {
-        "type": "command",
-        "path": "code"
-      }
+      "tags": ["editor"],
+      "command": "code ."
     }
   ]
 }`}</CodeSnippet>

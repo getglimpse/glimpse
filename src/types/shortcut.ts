@@ -91,4 +91,6 @@ export type ShortcutHandlers = Record<
   () => void
 > & {
   openPluginActionPage: (page: PluginInternalPage) => void;
+  openActiveUrlAction: () => void;
+  openActiveCommandAction: () => void;
 };

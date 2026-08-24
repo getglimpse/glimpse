@@ -15,7 +15,7 @@
 //! services.
 
 use crate::models::stats::{AppStats, TagCloudEntry};
-use crate::models::{IndexItem, OpenAction, Preview};
+use crate::models::{DefaultAction, IndexItem, Preview};
 use crate::search::{SearchError, SearchResult, SourceFingerprint, SourceReplacement};
 use crate::store::{item_mapper::map_search_result, item_sql as sql};
 use chrono::Utc;
@@ -125,11 +125,10 @@ pub fn upsert_item(tx: &Transaction, item: &IndexItem) -> Result<(), SearchError
         ),
     };
 
-    let (open_type, open_url, open_command_path) = match &item.open {
-        Some(OpenAction::External { url }) => (Some("external"), Some(url.clone()), None),
-        Some(OpenAction::Command { path }) => (Some("command"), None, Some(path.clone())),
-        None => (None, None, None),
-    };
+    let default_action = item.default_action.as_ref().map(|action| match action {
+        DefaultAction::Url => "url",
+        DefaultAction::Command => "command",
+    });
 
     tx.execute(
         sql::UPSERT_ITEM,
@@ -141,9 +140,9 @@ pub fn upsert_item(tx: &Transaction, item: &IndexItem) -> Result<(), SearchError
             preview_type,
             preview_content,
             preview_url,
-            open_type,
-            open_url,
-            open_command_path,
+            item.url.as_deref(),
+            item.command.as_deref(),
+            default_action,
         ],
     )
     .map_err(|e| SearchError::DbError(e.to_string()))?;
@@ -464,12 +463,12 @@ pub fn get_app_stats(conn: &Connection) -> Result<AppStats, SearchError> {
 
         command_items: count(
             conn,
-            "SELECT COUNT(*) FROM items WHERE open_type = 'command'",
+            "SELECT COUNT(*) FROM items WHERE item_command IS NOT NULL AND item_command != ''",
         )?,
 
         external_open_items: count(
             conn,
-            "SELECT COUNT(*) FROM items WHERE open_type = 'external'",
+            "SELECT COUNT(*) FROM items WHERE item_url IS NOT NULL AND item_url != ''",
         )?,
 
         star_items: count(
@@ -537,7 +536,7 @@ mod tests {
 
     use chrono::Utc;
 
-    use crate::models::{IndexItem, OpenAction, Preview};
+    use crate::models::{DefaultAction, IndexItem, Preview};
     use crate::test_utils::fixtures::create_test_db;
 
     fn sample_item() -> IndexItem {
@@ -552,9 +551,7 @@ mod tests {
         .with_tags(vec!["rust".to_string(), "tauri".to_string()])
         .with_aliases(vec!["rs".to_string(), "rustlang".to_string()])
         .set_star(true)
-        .with_open_action(OpenAction::External {
-            url: "https://tauri.app".to_string(),
-        })
+        .with_url("https://tauri.app".to_string())
     }
 
     #[test]
@@ -816,9 +813,7 @@ mod tests {
                     url: "https://example.com".to_string(),
                 },
             )
-            .with_open_action(OpenAction::External {
-                url: "https://example.com".to_string(),
-            });
+            .with_url("https://example.com".to_string());
 
             let command = IndexItem::new(
                 "command-1",
@@ -828,9 +823,8 @@ mod tests {
                     content: "run command".to_string(),
                 },
             )
-            .with_open_action(OpenAction::Command {
-                path: "code".to_string(),
-            });
+            .with_command("code".to_string())
+            .with_default_action(Some(DefaultAction::Command));
 
             upsert_item(&tx, &markdown).unwrap();
             upsert_item(&tx, &raw).unwrap();

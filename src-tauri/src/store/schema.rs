@@ -52,7 +52,7 @@ use tracing::{debug, info, warn};
 /// Glimpse is still pre-alpha, so schema mismatch intentionally destroys
 /// and recreates the whole database instead of running incremental
 /// migrations.
-pub const DB_VERSION: i32 = 8;
+pub const DB_VERSION: i32 = 9;
 
 /// Applies SQLite PRAGMA settings used by Glimpse.
 ///
@@ -204,7 +204,7 @@ DROP TABLE IF EXISTS search_index;
 ///
 /// - `items`
 ///   Stores stable [`IndexItem`] core fields:
-///   title, source path, timestamps, preview data, and open action.
+///   title, source path, timestamps, preview data, URL, command, and default action.
 ///
 /// - `item_metadata`
 ///   Stores scalar metadata such as starred state and boost.
@@ -237,9 +237,9 @@ CREATE TABLE items (
     preview_content TEXT,
     preview_url TEXT,
 
-    open_type TEXT,
-    open_url TEXT,
-    open_command_path TEXT
+    item_url TEXT,
+    item_command TEXT,
+    default_action TEXT
 );
 
 CREATE TABLE item_metadata (

@@ -4,7 +4,7 @@
 //!
 //! Responsibilities:
 //!
-//! - Sanitize `OpenAction::Command` values.
+//! - Sanitize command metadata values.
 //! - Reject obviously unsafe command strings.
 //! - Resolve command paths to canonical paths.
 //! - Validate that the resolved path is an existing file.
@@ -25,9 +25,9 @@
 //! Typical execution flow:
 //!
 //! ```text
-//! metadata open: command
+//! metadata command
 //!         ↓
-//! sanitize_open_action()
+//! sanitize_command()
 //!         ↓
 //! resolve_command_path()
 //!         ↓
@@ -61,8 +61,6 @@ use std::path::{Path, PathBuf};
 
 use tracing::{debug, warn};
 
-use crate::models::OpenAction;
-
 /// Characters that are not allowed in command metadata.
 ///
 /// These characters are commonly used by shells for:
@@ -80,45 +78,27 @@ use crate::models::OpenAction;
 /// ```
 const DISALLOWED_COMMAND_PATH_CHARS: &[char] = &[';', '|', '&'];
 
-/// Sanitizes metadata open actions.
+/// Sanitizes metadata command values.
 ///
-/// Only `OpenAction::Command` is inspected.
-///
-/// Unsafe commands are removed entirely:
-///
-/// ```text
-/// open:
-///   type: command
-///   path: "notepad.exe & calc.exe"
-///
-/// -> None
-/// ```
-///
-/// Safe commands are preserved unchanged.
-///
-/// Other open action variants are returned as-is.
-pub fn sanitize_open_action(open: Option<OpenAction>) -> Option<OpenAction> {
-    match open {
-        Some(OpenAction::Command { path }) => {
-            debug!(path = %path, "sanitizing command open action");
+/// Unsafe commands are removed entirely.
+pub fn sanitize_command(command: Option<String>) -> Option<String> {
+    let command = command?;
 
-            match validate_command_path_string(&path) {
-                Ok(()) => {
-                    debug!(path = %path, "command path string accepted");
-                    Some(OpenAction::Command { path })
-                }
-                Err(reason) => {
-                    warn!(
-                        path = %path,
-                        reason = %reason,
-                        "rejected unsafe command path"
-                    );
-                    None
-                }
-            }
+    debug!(command = %command, "sanitizing command metadata");
+
+    match validate_command_path_string(&command) {
+        Ok(()) => {
+            debug!(command = %command, "command string accepted");
+            Some(command)
         }
-
-        other => other,
+        Err(reason) => {
+            warn!(
+                command = %command,
+                reason = %reason,
+                "rejected unsafe command"
+            );
+            None
+        }
     }
 }
 
@@ -340,39 +320,19 @@ mod tests {
     }
 
     #[test]
-    fn sanitize_open_action_removes_unsafe_command_path() {
-        let open = Some(OpenAction::Command {
-            path: r"C:\Windows\System32\notepad.exe & calc.exe".to_string(),
-        });
+    fn sanitize_command_removes_unsafe_command() {
+        let command = Some(r"C:\Windows\System32\notepad.exe & calc.exe".to_string());
 
-        assert!(sanitize_open_action(open).is_none());
+        assert!(sanitize_command(command).is_none());
     }
 
     #[test]
-    fn sanitize_open_action_keeps_safe_command_path() {
-        let open = Some(OpenAction::Command {
-            path: r"C:\Windows\System32\notepad.exe".to_string(),
-        });
+    fn sanitize_command_keeps_safe_command() {
+        let command = Some(r"C:\Windows\System32\notepad.exe".to_string());
 
         assert_eq!(
-            sanitize_open_action(open),
-            Some(OpenAction::Command {
-                path: r"C:\Windows\System32\notepad.exe".to_string(),
-            })
-        );
-    }
-
-    #[test]
-    fn sanitize_open_action_keeps_external_action() {
-        let open = Some(OpenAction::External {
-            url: "https://example.com".to_string(),
-        });
-
-        assert_eq!(
-            sanitize_open_action(open),
-            Some(OpenAction::External {
-                url: "https://example.com".to_string(),
-            })
+            sanitize_command(command),
+            Some(r"C:\Windows\System32\notepad.exe".to_string())
         );
     }
 }

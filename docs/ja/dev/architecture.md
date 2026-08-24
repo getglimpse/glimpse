@@ -2,7 +2,7 @@
 
 Glimpse は React、TypeScript、Rust、SQLite、Tauri で構成された local-first のデスクトップ検索ランチャーです。
 
-主な設計目標は、検索、プレビュー、open action を高速に保ちつつ、ローカルファイルとプラグインコードをユーザーの明示的な管理下に置くことです。
+主な設計目標は、検索、プレビュー、item action を高速に保ちつつ、ローカルファイルとプラグインコードをユーザーの明示的な管理下に置くことです。
 
 ## 全体像
 
@@ -90,7 +90,7 @@ src-tauri/src/utils
 3. frontend API wrapper 経由で structured request を送ります。
 4. backend search command を実行します。
 5. active search backend から matching item IDs と scores を返します。
-6. canonical item metadata、preview payload、open action を読み込みます。
+6. canonical item metadata、preview payload、item action を読み込みます。
 7. 検索結果を描画し、選択中 item の preview を読み込みます。
 
 parsed query が `:` または `/` で始まる場合、Internal Page search はフロントエンドで処理されます。

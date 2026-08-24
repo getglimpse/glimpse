@@ -16,7 +16,7 @@ All indexed items appear in the same search workflow.
 
 Use Markdown for notes, project documents, command references, and other content that benefits from rendered preview.
 
-Markdown files can define frontmatter metadata such as `title`, `tags`, `aliases`, `star`, `hidden`, and `open.*`.
+Markdown files can define frontmatter metadata such as `title`, `tags`, `aliases`, `star`, `hidden`, `url`, and `command`.
 
 ## Glimpse JSON
 
@@ -33,7 +33,7 @@ Only `.gjson` files are parsed as Glimpse JSON indexes. Ordinary `.json` files a
 
 ## Commands
 
-Command launchers use `open` actions. They can be defined in Markdown frontmatter or in `.gjson` items.
+Command launchers use `command`. They can be defined in Markdown frontmatter or in `.gjson` items.
 
 See [Running Commands](./command.md) for details.
 

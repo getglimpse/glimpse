@@ -22,10 +22,8 @@ const getItemIcon = (item: IndexItem) => {
   }
 
   if (
-    item.open?.type === "pluginAction" ||
-    (item.preview.type === "internal" &&
-      (item.preview.page === "plugin" ||
-        isPluginInternalPage(item.preview.page)))
+    item.preview.type === "internal" &&
+    (item.preview.page === "plugin" || isPluginInternalPage(item.preview.page))
   ) {
     return Plug;
   }
@@ -44,7 +42,9 @@ const getItemIcon = (item: IndexItem) => {
 const shouldShowDate = (item: IndexItem) => item.preview.type !== "internal";
 
 const getItemSubtitle = (item: IndexItem) =>
-  item.preview.type === "external" ? item.preview.url : (item.sourcePath ?? "");
+  item.preview.type === "external"
+    ? item.preview.url
+    : (item.url ?? item.sourcePath ?? "");
 
 const getSnippetLabel = (snippet: SearchSnippet, LL: TranslationFunctions) => {
   switch (snippet.source) {

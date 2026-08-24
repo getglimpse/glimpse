@@ -47,20 +47,12 @@ pub struct AppStats {
 
     /// Number of command-launcher items.
     ///
-    /// Items whose open action is:
-    ///
-    /// ```text
-    /// OpenAction::Command
-    /// ```
+    /// Items with an item command.
     pub command_items: i64,
 
     /// Number of items that open external URLs.
     ///
-    /// Items whose open action is:
-    ///
-    /// ```text
-    /// OpenAction::External
-    /// ```
+    /// Items with an item URL.
     pub external_open_items: i64,
 
     /// Number of starred items.

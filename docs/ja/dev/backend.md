@@ -27,7 +27,7 @@ Command は `lib.rs` で明示的に登録されます。
 | Module | Examples | Responsibility |
 | ------ | -------- | -------------- |
 | `about` | `get_about_info` | アプリ metadata |
-| `action` | `run_item_command` | command open action |
+| `action` | `run_item_command` | command item action |
 | `command_log` | `get_command_execution_logs` | command history log |
 | `file` | `read_text_file`, `read_binary_file`, `create_markdown_file` | file access と Markdown edit |
 | `indexing` | `get_indexing_stats`, `full_scan`, `cleanup_missing_source_paths` | index maintenance |
@@ -75,7 +75,7 @@ default workspace は初回起動時にユーザーの Documents folder 配下�
 - file access に対する Target Group path constraint
 - plugin file API に対する active-tab / target-group scope
 - plugin trust fingerprint
-- command open-action sanitization
+- command action sanitization
 - command lookup、blacklist/whitelist policy、trusted directories
 
 新しい command からこれらの helper を迂回しないでください。

@@ -14,9 +14,9 @@ SELECT
     i.preview_type,
     NULL AS preview_content,
     i.preview_url,
-    i.open_type,
-    i.open_url,
-    i.open_command_path,
+    i.item_url,
+    i.item_command,
+    i.default_action,
     0.0 AS rank,
     '' AS tags_str,
     '' AS aliases_str
@@ -53,9 +53,9 @@ SELECT
         ELSE NULL
     END AS preview_content,
     i.preview_url,
-    i.open_type,
-    i.open_url,
-    i.open_command_path,
+    i.item_url,
+    i.item_command,
+    i.default_action,
     ?2 AS rank,
     COALESCE(
         (
@@ -88,9 +88,9 @@ INSERT OR REPLACE INTO items (
     preview_type,
     preview_content,
     preview_url,
-    open_type,
-    open_url,
-    open_command_path
+    item_url,
+    item_command,
+    default_action
 )
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 "#;

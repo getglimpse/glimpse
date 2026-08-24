@@ -10,9 +10,11 @@
 //! - `aliases`
 //! - `star`
 //! - `hidden`
-//! - `open.type`
-//! - `open.path`
-//! - `open.url`
+//! - `desc` / `description`
+//! - `url`
+//! - `iframe`
+//! - `command`
+//! - `defaultAction`
 //!
 //! Supported list syntaxes:
 //!
@@ -27,8 +29,8 @@
 //! It does not aim to be a complete YAML parser.
 
 use crate::{
-    models::{IndexMetadata, OpenAction},
-    store::parser::common::{normalize_string_vec, unquote},
+    models::{DefaultAction, IndexMetadata},
+    store::parser::common::{normalize_http_url, normalize_string_vec, unquote},
 };
 
 /// Parsed Markdown frontmatter metadata.
@@ -54,14 +56,20 @@ pub struct Frontmatter {
     /// - hidden state
     pub metadata: IndexMetadata,
 
-    /// Optional custom open action.
-    ///
-    /// Built from frontmatter fields such as:
-    ///
-    /// - `open.type`
-    /// - `open.path`
-    /// - `open.url`
-    pub open: Option<OpenAction>,
+    /// Optional searchable description.
+    pub desc: Option<String>,
+
+    /// Optional item URL.
+    pub url: Option<String>,
+
+    /// Whether the URL should be shown as an iframe preview.
+    pub iframe: bool,
+
+    /// Optional item command.
+    pub command: Option<String>,
+
+    /// Optional explicit default action.
+    pub default_action: Option<DefaultAction>,
 }
 
 /// Active multiline list parser state.
@@ -137,23 +145,33 @@ fn is_top_level(raw_line: &str) -> bool {
 /// Supported syntax:
 ///
 /// ```yaml
+/// tags: rust
 /// tags: ["rust", "tauri"]
+/// aliases: docs
 /// aliases: ["docs", "note"]
 /// ```
 ///
 /// Returns `None` when the line does not match the requested key.
 fn parse_inline_list(line: &str, key: &str) -> Option<Vec<String>> {
-    let prefix = format!("{}: [", key);
+    let prefix = format!("{}:", key);
 
     if !line.starts_with(&prefix) {
         return None;
     }
 
-    let inner = line
-        .trim_start_matches(&format!("{}:", key))
-        .trim()
-        .trim_start_matches('[')
-        .trim_end_matches(']');
+    let value = line.trim_start_matches(&prefix).trim();
+
+    if value.is_empty() {
+        return None;
+    }
+
+    if !(value.starts_with('[') && value.ends_with(']')) {
+        let value = unquote(value).to_string();
+
+        return (!value.is_empty()).then_some(vec![value]);
+    }
+
+    let inner = value.trim_start_matches('[').trim_end_matches(']');
 
     Some(
         inner
@@ -239,7 +257,7 @@ fn starts_inline_comment(value: &str, index: usize) -> bool {
 /// - Scalar fields such as `title:` and `star:`
 /// - Inline lists such as `tags: ["rust", "tauri"]`
 /// - Block-style lists such as `tags:` followed by `- item`
-/// - Simple open actions using `open.type`, `open.path`, and `open.url`
+/// - Simple actions using `url`, `command`, and `defaultAction`
 ///
 /// # Return value
 ///
@@ -286,10 +304,6 @@ pub fn parse_frontmatter(content: &str) -> (Frontmatter, &str) {
 
     let mut active_list: Option<ActiveList> = None;
 
-    let mut open_type: Option<String> = None;
-    let mut open_path: Option<String> = None;
-    let mut open_url: Option<String> = None;
-
     for raw_line in yaml_block.lines() {
         let line = raw_line.trim();
         let top_level = is_top_level(raw_line);
@@ -328,7 +342,7 @@ pub fn parse_frontmatter(content: &str) -> (Frontmatter, &str) {
         // star
         // -----------------------------
 
-        if line.starts_with("star:") || line.starts_with("pinned:") {
+        if line.starts_with("star:") {
             if line
                 .split_once(':')
                 .map(|(_, value)| parse_bool(value))
@@ -371,35 +385,73 @@ pub fn parse_frontmatter(content: &str) -> (Frontmatter, &str) {
         }
 
         // -----------------------------
-        // open action
+        // description
         // -----------------------------
 
-        if line.starts_with("open.type:") {
-            let value = unquote(line.trim_start_matches("open.type:").trim());
+        if line.starts_with("description:") {
+            let value = unquote(line.trim_start_matches("description:").trim());
 
             if !value.is_empty() {
-                open_type = Some(value.to_string());
+                fm.desc = Some(value.to_string());
             }
 
             continue;
         }
 
-        if line.starts_with("open.path:") {
-            let value = unquote(line.trim_start_matches("open.path:").trim());
+        if line.starts_with("desc:") {
+            let value = unquote(line.trim_start_matches("desc:").trim());
 
-            if !value.is_empty() {
-                open_path = Some(value.to_string());
+            if !value.is_empty() && fm.desc.is_none() {
+                fm.desc = Some(value.to_string());
             }
 
             continue;
         }
 
-        if line.starts_with("open.url:") {
-            let value = unquote(line.trim_start_matches("open.url:").trim());
+        // -----------------------------
+        // actions
+        // -----------------------------
+
+        if line.starts_with("url:") {
+            let value = unquote(line.trim_start_matches("url:").trim());
+
+            if let Some(url) = normalize_http_url(value) {
+                fm.url = Some(url);
+            }
+
+            continue;
+        }
+
+        if line.starts_with("iframe:") {
+            fm.iframe = line
+                .split_once(':')
+                .map(|(_, value)| parse_bool(value))
+                .unwrap_or(false);
+
+            continue;
+        }
+
+        if line.starts_with("command:") {
+            let value = unquote(line.trim_start_matches("command:").trim());
 
             if !value.is_empty() {
-                open_url = Some(value.to_string());
+                fm.command = Some(value.to_string());
             }
+
+            continue;
+        }
+
+        if line.starts_with("defaultAction:") || line.starts_with("default_action:") {
+            let value = line
+                .split_once(':')
+                .map(|(_, value)| unquote(value.trim()))
+                .unwrap_or_default();
+
+            fm.default_action = match value {
+                "url" => Some(DefaultAction::Url),
+                "command" => Some(DefaultAction::Command),
+                _ => None,
+            };
 
             continue;
         }
@@ -443,14 +495,6 @@ pub fn parse_frontmatter(content: &str) -> (Frontmatter, &str) {
     // -----------------------------
     // normalization
     // -----------------------------
-
-    fm.open = match open_type.as_deref() {
-        Some("command") => open_path.map(|path| OpenAction::Command { path }),
-
-        Some("external") => open_url.map(|url| OpenAction::External { url }),
-
-        _ => None,
-    };
 
     normalize_string_vec(&mut fm.metadata.tags);
     normalize_string_vec(&mut fm.metadata.aliases);
@@ -510,7 +554,7 @@ title: test
     }
 
     #[test]
-    fn parses_legacy_pinned_true() {
+    fn ignores_legacy_pinned() {
         let input = r#"---
 pinned: true
 ---
@@ -518,7 +562,7 @@ pinned: true
 
         let (fm, _) = parse_frontmatter(input);
 
-        assert!(fm.metadata.star);
+        assert!(!fm.metadata.star);
     }
 
     #[test]
@@ -602,6 +646,18 @@ tags: ["rust", "tauri"]
     }
 
     #[test]
+    fn parses_single_inline_tag() {
+        let input = r#"---
+tags: rust
+---
+"#;
+
+        let (fm, _) = parse_frontmatter(input);
+
+        assert_eq!(fm.metadata.tags, vec!["rust"]);
+    }
+
+    #[test]
     fn parses_inline_tags_with_single_quotes() {
         let input = r#"---
 tags: ['rust', 'tauri']
@@ -611,6 +667,18 @@ tags: ['rust', 'tauri']
         let (fm, _) = parse_frontmatter(input);
 
         assert_eq!(fm.metadata.tags, vec!["rust", "tauri",]);
+    }
+
+    #[test]
+    fn parses_single_inline_alias() {
+        let input = r#"---
+aliases: rs
+---
+"#;
+
+        let (fm, _) = parse_frontmatter(input);
+
+        assert_eq!(fm.metadata.aliases, vec!["rs"]);
     }
 
     // -----------------------------
@@ -793,44 +861,51 @@ hello
         assert_eq!(body.trim(), "hello");
     }
 
-    //
     #[test]
-    fn parses_command_open_action() {
+    fn parses_command_action() {
         let input = r#"---
 title: Open Notepad
-open.type: command
-open.path: C:\Windows\System32\notepad.exe
+command: C:\Windows\System32\notepad.exe
+defaultAction: command
 ---
 "#;
 
         let (fm, _) = parse_frontmatter(input);
 
-        match fm.open {
-            Some(OpenAction::Command { path }) => {
-                assert_eq!(path, r#"C:\Windows\System32\notepad.exe"#);
-            }
-
-            _ => panic!("expected command open action"),
-        }
+        assert_eq!(
+            fm.command.as_deref(),
+            Some(r#"C:\Windows\System32\notepad.exe"#)
+        );
+        assert_eq!(fm.default_action, Some(DefaultAction::Command));
     }
 
     #[test]
-    fn parses_external_open_action() {
+    fn parses_url_action() {
         let input = r#"---
 title: Rust
-open.type: external
-open.url: https://www.rust-lang.org
+url: https://www.rust-lang.org
+iframe: true
+defaultAction: url
 ---
 "#;
 
         let (fm, _) = parse_frontmatter(input);
 
-        match fm.open {
-            Some(OpenAction::External { url }) => {
-                assert_eq!(url, "https://www.rust-lang.org");
-            }
+        assert_eq!(fm.url.as_deref(), Some("https://www.rust-lang.org/"));
+        assert!(fm.iframe);
+        assert_eq!(fm.default_action, Some(DefaultAction::Url));
+    }
 
-            _ => panic!("expected external open action"),
-        }
+    #[test]
+    fn description_wins_over_desc() {
+        let input = r#"---
+desc: short
+description: long
+---
+"#;
+
+        let (fm, _) = parse_frontmatter(input);
+
+        assert_eq!(fm.desc.as_deref(), Some("long"));
     }
 }

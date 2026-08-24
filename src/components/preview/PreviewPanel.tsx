@@ -65,7 +65,8 @@ type Props = {
   onInspectItem: (item: IndexItem) => void;
   onHelpItemPage?: (itemPage: string) => void;
   onOpenCommandHistory?: () => void;
-  onOpenItem?: () => void;
+  onUrlAction?: () => void;
+  onCommandAction?: () => void;
   onTagCloudTagSelect: (tag: string) => void;
 };
 
@@ -92,7 +93,8 @@ export const PreviewPanel = forwardRef<PreviewPanelHandle, Props>(
       onInspectItem,
       onHelpItemPage,
       onOpenCommandHistory,
-      onOpenItem,
+      onUrlAction,
+      onCommandAction,
       onTagCloudTagSelect,
     },
     ref,
@@ -461,7 +463,8 @@ export const PreviewPanel = forwardRef<PreviewPanelHandle, Props>(
           onInspectItem={onInspectItem}
           onHelpItemPage={onHelpItemPage}
           onOpenCommandHistory={onOpenCommandHistory}
-          onOpenItem={onOpenItem}
+          onUrlAction={onUrlAction}
+          onCommandAction={onCommandAction}
         />
 
         <div className="flex-1 relative min-h-0 overflow-hidden">

@@ -47,7 +47,8 @@ type Props = {
   onInspectItem: (item: IndexItem) => void;
   onHelpItemPage?: (itemPage: string) => void;
   onOpenCommandHistory?: () => void;
-  onOpenItem?: () => void;
+  onUrlAction?: () => void;
+  onCommandAction?: () => void;
 };
 
 const getPreviewIcon = (item: IndexItem) => {
@@ -85,33 +86,33 @@ const getPreviewIcon = (item: IndexItem) => {
   }
 };
 
-const getOpenButton = (
+const getActionButtons = (
   item: IndexItem,
   LL: ReturnType<typeof useI18nContext>["LL"],
 ) => {
-  if (!item.open) {
-    return null;
+  const buttons: Array<{
+    kind: "url" | "command";
+    label: string;
+    tooltip: string;
+  }> = [];
+
+  if (item.url) {
+    buttons.push({
+      kind: "url",
+      label: LL.previewPanel.openLink(),
+      tooltip: item.url,
+    });
   }
 
-  switch (item.open.type) {
-    case "command":
-      return {
-        label: LL.helpPage.open.command(),
-        tooltip: item.open.path,
-      };
-
-    case "external":
-      return {
-        label: LL.previewPanel.openLink(),
-        tooltip: item.open.url,
-      };
-
-    case "pluginAction":
-      return {
-        label: LL.previewPanel.openLink(),
-        tooltip: `${item.open.pluginId}:${item.open.actionId}`,
-      };
+  if (item.command) {
+    buttons.push({
+      kind: "command",
+      label: LL.helpPage.open.command(),
+      tooltip: item.command,
+    });
   }
+
+  return buttons;
 };
 
 export const PreviewHeader = ({
@@ -126,7 +127,8 @@ export const PreviewHeader = ({
   onInspectItem,
   onHelpItemPage,
   onOpenCommandHistory,
-  onOpenItem,
+  onUrlAction,
+  onCommandAction,
 }: Props) => {
   const { LL } = useI18nContext();
 
@@ -137,7 +139,7 @@ export const PreviewHeader = ({
     item.preview.type === "internal" && item.preview.page === "settings";
 
   const PreviewIcon = getPreviewIcon(item);
-  const openButton = getOpenButton(item, LL);
+  const actionButtons = getActionButtons(item, LL);
 
   const title =
     item.preview.type === "internal"
@@ -170,18 +172,20 @@ export const PreviewHeader = ({
           </div>
         )}
 
-        {openButton && onOpenItem && (
+        {actionButtons.map((button) => (
           <button
+            key={button.kind}
             type="button"
-            onClick={onOpenItem}
-            aria-label={openButton.tooltip}
-            title={openButton.tooltip}
-            className="text-xs text-accent hover:underline"
+            onClick={button.kind === "url" ? onUrlAction : onCommandAction}
+            aria-label={button.tooltip}
+            title={button.tooltip}
+            disabled={button.kind === "url" ? !onUrlAction : !onCommandAction}
+            className="text-xs text-accent hover:underline disabled:text-text-muted disabled:hover:no-underline"
             tabIndex={-1}
           >
-            {openButton.label}
+            {button.label}
           </button>
-        )}
+        ))}
 
         {htmlPreviewControls && (
           <div className="flex items-center gap-2">

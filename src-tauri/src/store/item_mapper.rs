@@ -7,7 +7,7 @@
 //!
 //! - SQLite row → [`SearchResult`]
 //! - Preview columns → [`Preview`]
-//! - Open action columns → [`OpenAction`]
+//! - action columns → URL, command, and [`DefaultAction`]
 //! - Serialized metadata → Rust collections
 //!
 //! This layer intentionally contains no search logic or SQL generation. Its
@@ -16,7 +16,7 @@
 use chrono::{DateTime, Utc};
 use rusqlite::Row;
 
-use crate::models::{IndexItem, OpenAction, Preview};
+use crate::models::{DefaultAction, IndexItem, Preview};
 use crate::search::SearchResult;
 
 const COL_ID: usize = 0;
@@ -28,9 +28,9 @@ const COL_UPDATED_AT: usize = 5;
 const COL_PREVIEW_TYPE: usize = 6;
 const COL_PREVIEW_CONTENT: usize = 7;
 const COL_PREVIEW_URL: usize = 8;
-const COL_OPEN_TYPE: usize = 9;
-const COL_OPEN_URL: usize = 10;
-const COL_OPEN_COMMAND_PATH: usize = 11;
+const COL_ITEM_URL: usize = 9;
+const COL_ITEM_COMMAND: usize = 10;
+const COL_DEFAULT_ACTION: usize = 11;
 const COL_SCORE: usize = 12;
 const COL_TAGS: usize = 13;
 const COL_ALIASES: usize = 14;
@@ -50,9 +50,9 @@ const COL_ALIASES: usize = 14;
 /// | 6 | preview_type |
 /// | 7 | preview_content |
 /// | 8 | preview_url |
-/// | 9 | open_type |
-/// | 10 | open_url |
-/// | 11 | open_command_path |
+/// | 9 | item_url |
+/// | 10 | item_command |
+/// | 11 | default_action |
 /// | 12 | search score |
 /// | 13 | tags |
 /// | 14 | aliases |
@@ -73,14 +73,11 @@ pub fn map_search_result(row: &Row) -> rusqlite::Result<SearchResult> {
         row.get(COL_PREVIEW_URL)?,
     );
 
-    let open = map_open_action(
-        row.get(COL_OPEN_TYPE)?,
-        row.get(COL_OPEN_URL)?,
-        row.get(COL_OPEN_COMMAND_PATH)?,
-    );
-
     let tags = split_words(row.get(COL_TAGS)?);
     let aliases = split_words(row.get(COL_ALIASES)?);
+    let url: Option<String> = row.get(COL_ITEM_URL)?;
+    let command: Option<String> = row.get(COL_ITEM_COMMAND)?;
+    let default_action = map_default_action(row.get(COL_DEFAULT_ACTION)?);
 
     let mut item = IndexItem::new(
         row.get::<_, String>(COL_ID)?,
@@ -99,9 +96,15 @@ pub fn map_search_result(row: &Row) -> rusqlite::Result<SearchResult> {
         item = item.with_source_path(source_path);
     }
 
-    if let Some(open) = open {
-        item = item.with_open_action(open);
+    if let Some(url) = url {
+        item = item.with_url(url);
     }
+
+    if let Some(command) = command {
+        item = item.with_command(command);
+    }
+
+    item = item.with_default_action(default_action);
 
     Ok(SearchResult {
         item,
@@ -147,22 +150,13 @@ fn map_preview(
     }
 }
 
-/// Converts open-action columns into an [`OpenAction`].
+/// Converts a stored default action into a [`DefaultAction`].
 ///
-/// Supported actions:
-///
-/// - `external` → open URL
-/// - `command` → execute command
-///
-/// Returns `None` when no open action is configured.
-pub fn map_open_action(
-    open_type: Option<String>,
-    open_url: Option<String>,
-    open_command_path: Option<String>,
-) -> Option<OpenAction> {
-    match open_type.as_deref() {
-        Some("external") => open_url.map(|url| OpenAction::External { url }),
-        Some("command") => open_command_path.map(|path| OpenAction::Command { path }),
+/// Returns `None` when no default action is configured.
+pub fn map_default_action(default_action: Option<String>) -> Option<DefaultAction> {
+    match default_action.as_deref() {
+        Some("url") => Some(DefaultAction::Url),
+        Some("command") => Some(DefaultAction::Command),
         _ => None,
     }
 }
@@ -198,7 +192,7 @@ fn split_words(value: Option<String>) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use crate::models::{OpenAction, Preview};
+    use crate::models::{DefaultAction, Preview};
     use crate::test_utils::fixtures::{
         create_test_db, map_test_search_result, TestSearchResultRow,
     };
@@ -215,7 +209,7 @@ mod tests {
                 star: true,
                 preview_type: "markdown".to_string(),
                 preview_content: Some("hello world".to_string()),
-                open_url: Some("https://tauri.app".to_string()),
+                item_url: Some("https://tauri.app".to_string()),
                 rank: 0.42,
                 tags_str: Some("rust tauri".to_string()),
                 aliases_str: Some("rs cargo".to_string()),
@@ -267,11 +261,11 @@ mod tests {
     }
 
     // -----------------------------
-    // open action
+    // actions
     // -----------------------------
 
     #[test]
-    fn maps_external_open_action() {
+    fn maps_url_action() {
         let conn = create_test_db();
 
         let result = map_test_search_result(
@@ -280,9 +274,8 @@ mod tests {
                 id: "item-3".to_string(),
                 title: "Rust".to_string(),
 
-                open_type: Some("external".to_string()),
-
-                open_url: Some("https://rust-lang.org".to_string()),
+                item_url: Some("https://rust-lang.org".to_string()),
+                default_action: Some("url".to_string()),
 
                 preview_content: Some("content".to_string()),
 
@@ -294,17 +287,12 @@ mod tests {
             },
         );
 
-        match result.item.open {
-            Some(OpenAction::External { url }) => {
-                assert_eq!(url, "https://rust-lang.org");
-            }
-
-            _ => panic!("expected external open action"),
-        }
+        assert_eq!(result.item.url.as_deref(), Some("https://rust-lang.org"));
+        assert_eq!(result.item.default_action, Some(DefaultAction::Url));
     }
 
     #[test]
-    fn maps_command_open_action() {
+    fn maps_command_action() {
         let conn = create_test_db();
 
         let result = map_test_search_result(
@@ -314,9 +302,8 @@ mod tests {
 
                 title: "Formatter".to_string(),
 
-                open_type: Some("command".to_string()),
-
-                open_command_path: Some("/usr/bin/fmt".to_string()),
+                item_command: Some("/usr/bin/fmt".to_string()),
+                default_action: Some("command".to_string()),
 
                 preview_content: Some("content".to_string()),
 
@@ -328,13 +315,8 @@ mod tests {
             },
         );
 
-        match result.item.open {
-            Some(OpenAction::Command { path }) => {
-                assert_eq!(path, "/usr/bin/fmt");
-            }
-
-            _ => panic!("expected command open action"),
-        }
+        assert_eq!(result.item.command.as_deref(), Some("/usr/bin/fmt"));
+        assert_eq!(result.item.default_action, Some(DefaultAction::Command));
     }
     #[test]
     fn maps_empty_tags() {

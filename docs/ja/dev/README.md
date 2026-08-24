@@ -60,7 +60,7 @@ src-tauri/src/
 |-- models/            バックエンド側の共有ドメインモデル
 |-- search/            検索エンジンの抽象化と実装
 |-- store/             永続化、設定、プラグイン、インデックス作成
-|-- utils/             パス、open action、コマンド安全性のヘルパー
+|-- utils/             パス、item action、コマンド安全性のヘルパー
 `-- lib.rs             Tauri bootstrap
 ```
 
@@ -68,7 +68,7 @@ src-tauri/src/
 
 - `IndexItem` はバックエンド、フロントエンド、プラグインで共通して使う検索可能な単位です。
 - `Preview` はアイテムの表示方法を表します。Markdown、raw text、external URL、plugin viewer、Internal Page があります。
-- `OpenAction` は `Enter` 実行時の動作を表します。external URL、command、plugin action があります。
+- `DefaultAction` は `Enter` 実行時に `url` と `command` のどちらを優先するかを表します。
 - Target Group は標準検索とインデックス作成の対象になるファイルシステム範囲を定義します。
 - `.gjson` ファイルは 1 つの JSON index file から 0 件以上の検索アイテムを作成します。
 - プラグインはローカルのフロントエンド専用 bundle です。Glimpse がコードやスタイルを読み込む前に、ユーザーによる明示的な trust が必要です。

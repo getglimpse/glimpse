@@ -19,6 +19,7 @@
 //! (`markdown.rs`, `json.rs`, `image.rs`, etc.).
 
 use std::path::Path;
+use url::Url;
 
 /// Returns a fallback title from a filesystem path.
 ///
@@ -97,6 +98,19 @@ pub fn normalize_string_vec(strs: &mut Vec<String>) {
 /// ```
 pub fn unquote(input: &str) -> &str {
     input.trim_matches('"').trim_matches('\'')
+}
+
+/// Keeps only valid http/https URLs.
+pub fn normalize_http_url(value: impl AsRef<str>) -> Option<String> {
+    let value = value.as_ref().trim();
+
+    if value.is_empty() {
+        return None;
+    }
+
+    let parsed = Url::parse(value).ok()?;
+
+    matches!(parsed.scheme(), "http" | "https").then(|| parsed.to_string())
 }
 
 #[cfg(test)]

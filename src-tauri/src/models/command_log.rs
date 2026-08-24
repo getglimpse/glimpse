@@ -2,7 +2,7 @@
 //!
 //! This module defines audit records for command execution.
 //!
-//! Logs are generated whenever an `OpenAction::Command` is processed,
+//! Logs are generated whenever an item command action is processed,
 //! including:
 //!
 //! - successful executions

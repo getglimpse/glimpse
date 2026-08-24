@@ -7,7 +7,7 @@ Search is split into three responsibilities:
 - full-text retrieval in the active search backend
 
 The production backend is Tantivy + Lindera. SQLite remains the durable item
-store for item metadata, previews, open actions, stats, and cleanup queries.
+store for item metadata, previews, item actions, stats, and cleanup queries.
 Tantivy is a rebuildable inverted index used for full-text search.
 
 ## Frontend Parsing
@@ -65,7 +65,7 @@ SQLite owns:
 - updated timestamp
 - source fingerprints for full-scan freshness checks
 - preview payloads and preview URLs
-- open actions
+- item actions
 - star/hidden/boost metadata
 - tags and aliases
 - stats and tag-cloud queries
@@ -146,7 +146,7 @@ The consistency model is SQLite-first, Tantivy-second.
 For upserts:
 
 1. Open SQLite transaction: start the canonical item-store write.
-2. Write `IndexItem` rows: persist the replacement item metadata, preview, open action, tags, and aliases.
+2. Write `IndexItem` rows: persist the replacement item metadata, preview, item action, tags, and aliases.
 3. Commit SQLite: make the canonical item state durable before touching Tantivy.
 4. Open Tantivy writer: prepare the derived full-text index update.
 5. Delete old Tantivy docs: remove previous documents for the affected item IDs.
@@ -171,7 +171,7 @@ For deletes:
 
 1. Read affected SQLite IDs: capture the item IDs before deleting canonical rows.
 2. Open SQLite transaction: start the canonical delete.
-3. Delete item-store rows: remove the item metadata, preview, open action, tags, and aliases.
+3. Delete item-store rows: remove the item metadata, preview, item action, tags, and aliases.
 4. Commit SQLite: make the canonical delete durable.
 5. Open Tantivy writer: prepare the derived index cleanup.
 6. Delete captured Tantivy docs: remove documents for the captured item IDs.
@@ -190,7 +190,7 @@ Search reads from Tantivy first, then SQLite.
 2. `StructuredQuery`: parses backend search terms and tag filters once.
 3. Tantivy query: compiles the structured query into the active full-text backend.
 4. Hit IDs and scores: returns ranked candidate item IDs from Tantivy.
-5. SQLite item-store hydration: loads canonical item metadata, preview payloads, and open actions.
+5. SQLite item-store hydration: loads canonical item metadata, preview payloads, and item actions.
 6. `SearchResult[]`: returns item-level results to the frontend.
 
 If Tantivy returns an ID that no longer exists in SQLite, hydration skips that
@@ -233,7 +233,7 @@ and any backend that cannot produce snippets cheaply should omit the field.
 
 Tantivy snippets should be produced from stored Tantivy hit fields, not by
 hydrating large SQLite preview bodies. SQLite hydration remains responsible for
-canonical item metadata, preview payloads, and open actions.
+canonical item metadata, preview payloads, and item actions.
 
 ## Chunk Boundary
 
@@ -427,7 +427,7 @@ After recovery, a full scan repopulates SQLite first and then Tantivy through
 the normal write path.
 
 Do not attempt to recover canonical item data from Tantivy. Tantivy stores only
-the fields needed for search and ranking, not full preview/open-action state.
+the fields needed for search and ranking, not full preview/action state.
 
 Tantivy also stores its own schema version marker inside `.glimpse/tantivy/`.
 When the marker is missing, invalid, or different from the compiled schema

@@ -1,6 +1,6 @@
 # Running Commands
 
-Glimpse can turn searchable items into command launchers by using an `open` action.
+Glimpse can turn searchable items into command launchers by setting `command`.
 
 Command items appear in search results like any other document. When you select one and press `Enter`, Glimpse executes the configured command if it is allowed by the command security settings.
 
@@ -14,8 +14,7 @@ tags:
   - dev
 aliases:
   - git cli
-open.type: command
-open.path: git
+command: git
 ---
 
 # Git
@@ -36,14 +35,9 @@ git
       "title": "Git",
       "desc": "Run the Git command-line tool",
       "iframe": false,
-      "metadata": {
-        "tags": ["command", "dev"],
-        "aliases": ["git cli"]
-      },
-      "open": {
-        "type": "command",
-        "path": "git"
-      }
+      "tags": ["command", "dev"],
+      "aliases": ["git cli"],
+      "command": "git"
     }
   ]
 }
@@ -77,7 +71,7 @@ This runs:
 git log --oneline
 ```
 
-Everything to the right of `>` is passed as the argument string.
+Everything to the right of `>` is appended to the command argument string.
 
 ## Security
 

@@ -27,8 +27,7 @@ Markdown Preview では本文がレンダリングされますが、Raw Preview 
 ```yaml
 ---
 title: Git
-open.type: command
-open.path: git
+command: git
 ---
 ```
 

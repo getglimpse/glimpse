@@ -57,12 +57,15 @@ pub fn delete_items_by_source_path(tx: &Transaction, source_path: &str) -> Resul
 }
 
 fn upsert_search_index(tx: &Transaction, item: &IndexItem) -> Result<(), SearchError> {
-    let content_for_search = match &item.preview {
-        Preview::Markdown { content } => content.clone(),
-        Preview::Raw { content } => content.clone(),
-        Preview::External { .. } => String::new(),
-        Preview::PluginViewer { .. } => String::new(),
-    };
+    let content_for_search = item
+        .search_content
+        .clone()
+        .unwrap_or_else(|| match &item.preview {
+            Preview::Markdown { content } => content.clone(),
+            Preview::Raw { content } => content.clone(),
+            Preview::External { .. } => String::new(),
+            Preview::PluginViewer { .. } => String::new(),
+        });
 
     tx.execute(sql::DELETE_SEARCH_INDEX, params![item.id])
         .map_err(|e| SearchError::DbError(e.to_string()))?;

@@ -16,7 +16,7 @@ Glimpse はローカルファイルをインデックス化し、検索可能な
 
 Markdown は、ノート、プロジェクト資料、コマンドメモなど、本文をプレビューしたい用途に向いています。
 
-frontmatter で `title`、`tags`、`aliases`、`star`、`hidden`、`open.*` を設定できます。
+frontmatter で `title`、`tags`、`aliases`、`star`、`hidden`、`url`、`command` を設定できます。
 
 ## Glimpse JSON
 
@@ -33,7 +33,7 @@ frontmatter で `title`、`tags`、`aliases`、`star`、`hidden`、`open.*` を�
 
 ## Commands
 
-コマンドランチャーは `open` action を使います。Markdown frontmatter または `.gjson` item で定義できます。
+コマンドランチャーは `command` を使います。Markdown frontmatter または `.gjson` item で定義できます。
 
 詳しくは [コマンドの実行](./command.md) を参照してください。
 

@@ -21,15 +21,15 @@
 //! - bmp
 //! - svg
 //!
-//! # Open behavior
+//! # Preview behavior
 //!
 //! Parsed image items use:
 //!
 //! ```text
-//! OpenAction::External
+//! Preview::Markdown
 //! ```
 //!
-//! so that the operating system opens the image using the default viewer.
+//! with a file URL inside Markdown image syntax.
 
 use chrono::{DateTime, Utc};
 use std::fs;
@@ -53,7 +53,7 @@ use crate::models::{IndexItem, Preview};
 /// - Stable ID derived from the path.
 /// - File name as the title.
 /// - `image` tag.
-/// - External open action.
+/// - Source path for file opening.
 ///
 /// # Preview
 ///
@@ -102,7 +102,6 @@ pub fn parse_image(path: &Path, source_id: &str) -> Option<IndexItem> {
 /// The resulting URL is used for:
 ///
 /// - Markdown image previews
-/// - External open actions
 ///
 /// This function attempts to use [`Url::from_file_path`] first and falls
 /// back to manual URL generation when conversion fails.

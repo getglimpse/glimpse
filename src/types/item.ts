@@ -19,14 +19,7 @@ export type Preview =
   | { type: "pluginViewer"; pluginId: string; viewerId: string }
   | { type: "internal"; page: InternalPage };
 
-export type OpenAction =
-  | { type: "external"; url: string }
-  | { type: "command"; path: string }
-  | {
-      type: "pluginAction";
-      pluginId: string;
-      actionId: string;
-    };
+export type DefaultAction = "url" | "command";
 
 export type IndexMetadata = {
   tags: string[];
@@ -43,7 +36,9 @@ export type IndexItem = {
   updatedAt: string;
   metadata: IndexMetadata;
   preview: Preview;
-  open?: OpenAction;
+  url?: string | null;
+  command?: string | null;
+  defaultAction?: DefaultAction | null;
 };
 
 export type SearchSnippetSource = "body" | "title" | "alias" | "tag";

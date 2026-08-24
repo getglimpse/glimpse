@@ -3420,11 +3420,11 @@ export type TranslationFunctions = {
 				 */
 				externalOpenType: () => LocalizedString
 				/**
-				 * Command path used with open.type: command
+				 * Command string used by command
 				 */
 				openPath: () => LocalizedString
 				/**
-				 * URL used with open.type: external
+				 * URL opened by url
 				 */
 				openUrl: () => LocalizedString
 				/**

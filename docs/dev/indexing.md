@@ -37,7 +37,7 @@ The indexer coordinates scanning and watching. Parser modules convert source fil
 2. Scan / Watch: starts indexing from a full scan, incremental scan, or filesystem change.
 3. Parser Dispatch: selects the parser based on source file type and indexing rules.
 4. Parser: converts one source file into zero or more searchable items.
-5. `IndexItem`: provides the searchable item with title, metadata, preview, and open-action data.
+5. `IndexItem`: provides the searchable item with title, metadata, preview, and action data.
 6. Search Engine: updates the SQLite item store and derived search index so items are available to search.
 
 SQLite commits happen before derived search index updates. If the derived index becomes stale, a full scan can rebuild it.

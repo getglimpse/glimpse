@@ -20,9 +20,9 @@
 //! These models intentionally represent parser input only.
 //! The normalized internal representation is [`IndexItem`].
 
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 
-use crate::models::{IndexMetadata, OpenAction};
+use crate::models::DefaultAction;
 
 /// Root structure of a JSON index file.
 ///
@@ -79,8 +79,8 @@ pub struct JsonIndexItem {
     /// - browser opening
     /// - external actions
     ///
-    /// If omitted, the item behaves as a local searchable note unless
-    /// another open action is specified.
+    /// If omitted, the item behaves as a local searchable note unless a
+    /// command is specified.
     #[serde(default)]
     pub url: Option<String>,
 
@@ -96,17 +96,29 @@ pub struct JsonIndexItem {
     #[serde(default)]
     pub desc: String,
 
-    /// Search metadata attached to this item.
-    ///
-    /// Supports:
-    ///
-    /// - tags
-    /// - aliases
-    /// - starred items
-    /// - hidden items
-    /// - ranking boosts
+    /// Optional full description. Wins over `desc` when both are present.
     #[serde(default)]
-    pub metadata: IndexMetadata,
+    pub description: String,
+
+    /// Searchable tags.
+    #[serde(default, deserialize_with = "deserialize_string_vec")]
+    pub tags: Vec<String>,
+
+    /// Searchable aliases.
+    #[serde(default, deserialize_with = "deserialize_string_vec")]
+    pub aliases: Vec<String>,
+
+    /// Starred state.
+    #[serde(default)]
+    pub star: bool,
+
+    /// Hidden state.
+    #[serde(default)]
+    pub hidden: bool,
+
+    /// Search ranking boost.
+    #[serde(default)]
+    pub boost: f32,
 
     /// Whether the URL should be rendered inside an iframe preview.
     ///
@@ -129,23 +141,33 @@ pub struct JsonIndexItem {
     /// ```text
     /// true
     /// ```
-    #[serde(default = "default_iframe")]
-    pub iframe: bool,
-
-    /// Optional open action override.
-    ///
-    /// If omitted, the parser will usually create:
-    ///
-    /// ```text
-    /// OpenAction::External { url }
-    /// ```
     #[serde(default)]
-    pub open: Option<OpenAction>,
+    pub iframe: Option<bool>,
+
+    /// Optional command associated with the item.
+    #[serde(default)]
+    pub command: Option<String>,
+
+    /// Optional explicit default action.
+    #[serde(default, alias = "defaultAction")]
+    pub default_action: Option<DefaultAction>,
 }
 
-/// Default iframe behavior.
-///
-/// External URLs are rendered as iframe previews unless explicitly disabled.
-fn default_iframe() -> bool {
-    true
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum StringOrStringVec {
+    Single(String),
+    Multiple(Vec<String>),
+}
+
+fn deserialize_string_vec<'de, D>(deserializer: D) -> Result<Vec<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let values = match StringOrStringVec::deserialize(deserializer)? {
+        StringOrStringVec::Single(value) => vec![value],
+        StringOrStringVec::Multiple(values) => values,
+    };
+
+    Ok(values)
 }

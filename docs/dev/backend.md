@@ -10,7 +10,7 @@ src-tauri/src/
 |-- models/       Shared backend domain models
 |-- search/       Search abstraction and backends
 |-- store/        SQLite stores, settings, plugins, indexing
-|-- utils/        Path, command, and open-action helpers
+|-- utils/        Path, command, and item-action helpers
 `-- lib.rs        Tauri bootstrap
 ```
 
@@ -27,7 +27,7 @@ Backend commands are grouped by domain:
 | `settings` | `get_settings`, `save_settings` | Settings persistence |
 | `plugins` | `install_plugin_from_path`, `set_plugin_trust` | Plugin lifecycle and trust |
 | `preview` | preview helpers | Preview payload support |
-| `open` | open action commands | Opening files, URLs, and commands |
+| `open` | OS open commands | Opening files and revealing paths |
 | `command_log` | command history commands | Command execution records |
 
 Frontend code should use `src/api/*` wrappers instead of command names directly.
@@ -50,7 +50,7 @@ State changes that affect search artifacts or watchers should be serialized thro
 
 ## Persistence
 
-SQLite is the durable store for indexed item metadata, preview payloads, open actions, settings-derived state, command logs, plugin records, and indexing freshness data.
+SQLite is the durable store for indexed item metadata, preview payloads, item actions, settings-derived state, command logs, plugin records, and indexing freshness data.
 
 Tantivy is a derived full-text index. It can be rebuilt from SQLite and source files.
 

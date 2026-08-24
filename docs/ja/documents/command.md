@@ -1,6 +1,6 @@
 # コマンド実行
 
-Glimpse では、`open` action を使って検索アイテムをコマンドランチャーにできます。
+Glimpse では、`command` を使って検索アイテムをコマンドランチャーにできます。
 
 対象アイテムを選択して `Enter` を押すと、セキュリティ設定で許可されている場合にコマンドが実行されます。
 
@@ -14,8 +14,7 @@ tags:
   - dev
 aliases:
   - git cli
-open.type: command
-open.path: git
+command: git
 ---
 
 # Git
@@ -36,14 +35,9 @@ git
       "title": "Git",
       "desc": "Run the Git command-line tool",
       "iframe": false,
-      "metadata": {
-        "tags": ["command", "dev"],
-        "aliases": ["git cli"]
-      },
-      "open": {
-        "type": "command",
-        "path": "git"
-      }
+      "tags": ["command", "dev"],
+      "aliases": ["git cli"],
+      "command": "git"
     }
   ]
 }

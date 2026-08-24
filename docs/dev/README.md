@@ -59,7 +59,7 @@ src-tauri/src/
 |-- models/            Shared backend domain models
 |-- search/            Search engine abstraction and implementations
 |-- store/             Persistence, settings, plugins, and indexing
-|-- utils/             Path, open action, and command-safety helpers
+|-- utils/             Path, item action, and command-safety helpers
 `-- lib.rs             Tauri bootstrap
 ```
 
@@ -67,7 +67,7 @@ src-tauri/src/
 
 - `IndexItem` is the searchable unit shared by the backend, frontend, and plugins.
 - `Preview` describes how an item is displayed. Supported forms include Markdown, raw text, external URL, plugin viewer, and internal page.
-- `OpenAction` describes what happens when the user presses `Enter`. Supported actions include external URL, command, and plugin action.
+- `url`, `command`, and `defaultAction` describe item actions and what happens when the user presses `Enter`.
 - A Target Group defines the filesystem scope used by normal search and indexing.
 - A `.gjson` file creates zero or more searchable items from one JSON index file.
 - Plugins are local frontend-only bundles. Glimpse requires explicit user trust before loading plugin code or styles.

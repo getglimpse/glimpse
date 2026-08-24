@@ -43,7 +43,7 @@ The backend is responsible for:
 - settings persistence and settings watcher
 - plugin install, discovery, trust, and source loading
 - command security policy
-- safe path handling and open actions
+- safe path handling and item actions
 
 Backend commands should return domain-shaped data that the frontend can render without duplicating backend decisions.
 
@@ -69,7 +69,7 @@ The frontend then loads settings, indexing stats, internal items, plugin manifes
 3. `searchApi.getItems`: sends the structured request through the frontend API wrapper.
 4. `search_items`: runs the backend search command.
 5. Search engine: returns matching item IDs and scores from the active search backend.
-6. SQLite hydration: loads canonical item metadata, preview payloads, and open actions.
+6. SQLite hydration: loads canonical item metadata, preview payloads, and item actions.
 7. `ItemList` and Preview: render results and load the selected preview.
 
 Preview payloads are stored with indexed items. Search hits are hydrated from the canonical SQLite item store before being returned to the frontend.

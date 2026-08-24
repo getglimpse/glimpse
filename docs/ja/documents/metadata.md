@@ -4,42 +4,28 @@
 
 Markdown では frontmatter、`.gjson` では各 item のプロパティとして定義します。
 
-## 対応フィールド
-
-### Markdown frontmatter
+## Markdown 対応フィールド
 
 | Field       | 説明                                      |
 | ----------- | ----------------------------------------- |
 | `title`     | 検索結果に表示するタイトル                 |
-| `tags`      | 検索や絞り込みに使うタグ                   |
-| `aliases`   | 別名や略称                                 |
+| `tags`      | 検索や絞り込みに使うタグ。文字列または配列 |
+| `aliases`   | 別名や略称。文字列または配列               |
 | `star`      | 検索結果で優先する                         |
 | `hidden`    | 通常検索から隠す                           |
-| `open.type` | `external` または `command`                |
-| `open.url`  | `external` の URL                          |
-| `open.path` | `command` の実行パス                       |
-
-### Glimpse JSON (`.gjson`)
-
-| Field      | 説明                                      |
-| ---------- | ----------------------------------------- |
-| `title`    | 検索結果に表示する必須タイトル             |
-| `url`      | 任意の外部 URL                             |
-| `desc`     | 検索可能な preview text                    |
-| `iframe`   | `url` を iframe preview として表示するか   |
-| `metadata` | tags, aliases, star, hidden, boost         |
-| `open`     | 任意の open action override                |
+| `desc` / `description` | 検索可能な説明文                 |
+| `url`       | HTTP/HTTPS URL                             |
+| `iframe`    | `url` を iframe preview として表示するか   |
+| `command`   | 実行コマンド                               |
+| `defaultAction` | Enter 時の既定動作: `command` または `url` |
 
 ## Markdown の例
 
 ```yaml
 ---
 title: Rust Notes
-tags:
-  - rust
-  - programming
-aliases:
-  - rs
+tags: ["rust", "programming"]
+aliases: rs
 star: true
 ---
 
@@ -47,6 +33,22 @@ star: true
 
 Rust is a systems programming language.
 ```
+
+## `.gjson` 対応フィールド
+
+| Field      | 説明                                      |
+| ---------- | ----------------------------------------- |
+| `title`    | 検索結果に表示する必須タイトル             |
+| `url`      | 任意の外部 URL                             |
+| `desc` / `description` | 検索可能な preview text          |
+| `iframe`   | `url` を iframe preview として表示するか   |
+| `tags`     | 検索や絞り込みに使うタグ。文字列または配列 |
+| `aliases`  | 別名や略称。文字列または配列               |
+| `star`     | 検索結果で優先する                         |
+| `hidden`   | 通常検索から隠す                           |
+| `boost`    | 検索 ranking multiplier                    |
+| `command`  | 実行コマンド                               |
+| `defaultAction` | Enter 時の既定動作: `command` または `url` |
 
 ## `.gjson` の例
 
@@ -58,13 +60,11 @@ Rust is a systems programming language.
       "url": "https://doc.rust-lang.org/book/",
       "desc": "Official Rust book",
       "iframe": true,
-      "metadata": {
-        "tags": ["rust", "docs"],
-        "aliases": ["book"],
-        "star": true,
-        "hidden": false,
-        "boost": 1.5
-      }
+      "tags": ["rust", "docs"],
+      "aliases": "rustbook",
+      "star": true,
+      "hidden": false,
+      "boost": 1.5
     }
   ]
 }
@@ -91,17 +91,16 @@ hidden: true
 
 すべての Target Groups から hidden item を検索する場合は `*!private` を使います。
 
-## Open Actions
+## Actions
 
-Open action を使うと、`Enter` を押したときの動作を変更できます。
+Actions を使うと、`Enter` を押したときに URL を開くかコマンドを実行できます。
 
 ### 外部 URL
 
 ```yaml
 ---
 title: Rust Website
-open.type: external
-open.url: https://www.rust-lang.org
+url: https://www.rust-lang.org
 ---
 ```
 
@@ -110,12 +109,14 @@ open.url: https://www.rust-lang.org
 ```yaml
 ---
 title: Git
-open.type: command
-open.path: git
+command: git
 ---
 ```
 
 コマンド実行は Glimpse のセキュリティ設定に従います。
+
+`url` と `command` の両方がある場合、既定では `Enter` で `command` を実行します。
+`defaultAction: url` を設定すると、URL を開く動作を優先できます。
 
 ## まとめ
 

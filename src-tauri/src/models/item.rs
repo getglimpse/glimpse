@@ -8,7 +8,7 @@
 //! IndexItem
 //! ├─ IndexMetadata
 //! ├─ Preview
-//! └─ OpenAction?
+//! └─ default action?
 //! ```
 //!
 //! `IndexItem` is the central object exchanged between:
@@ -71,7 +71,7 @@ pub struct IndexMetadata {
     pub aliases: Vec<String>,
 
     /// Whether the item should appear near the top of search results.
-    #[serde(default, alias = "pinned")]
+    #[serde(default)]
     pub star: bool,
 
     /// Whether the item is hidden from normal search results.
@@ -132,7 +132,7 @@ impl IndexMetadata {
 ///
 /// - metadata used for ranking and filtering
 /// - preview content for the main panel
-/// - optional open action
+/// - optional URL, command, and default action
 ///
 /// The structure intentionally mirrors the frontend TypeScript type to make
 /// IPC serialization predictable.
@@ -187,8 +187,18 @@ pub struct IndexItem {
     /// Preview displayed in the main panel.
     pub preview: Preview,
 
-    /// Optional action executed when the item is opened.
-    pub open: Option<OpenAction>,
+    /// Optional URL associated with the item.
+    pub url: Option<String>,
+
+    /// Optional command associated with the item.
+    pub command: Option<String>,
+
+    /// Default action executed when the item is opened.
+    pub default_action: Option<DefaultAction>,
+
+    /// Internal full-text search content override.
+    #[serde(skip)]
+    pub search_content: Option<String>,
 }
 
 impl IndexItem {
@@ -209,7 +219,10 @@ impl IndexItem {
             updated_at,
             metadata: IndexMetadata::default(),
             preview,
-            open: None,
+            url: None,
+            command: None,
+            default_action: None,
+            search_content: None,
         }
     }
 
@@ -243,9 +256,28 @@ impl IndexItem {
         self
     }
 
-    /// Configures the open action.
-    pub fn with_open_action(mut self, open: OpenAction) -> Self {
-        self.open = Some(open);
+    /// Sets the item URL.
+    pub fn with_url(mut self, url: impl Into<String>) -> Self {
+        self.url = Some(url.into());
+        self
+    }
+
+    /// Sets the item command.
+    pub fn with_command(mut self, command: impl Into<String>) -> Self {
+        self.command = Some(command.into());
+        self
+    }
+
+    /// Sets an explicit default action.
+    pub fn with_default_action(mut self, default_action: Option<DefaultAction>) -> Self {
+        self.default_action =
+            normalize_default_action(default_action, self.url.is_some(), self.command.is_some());
+        self
+    }
+
+    /// Sets internal searchable content without changing the displayed preview.
+    pub fn with_search_content(mut self, search_content: impl Into<String>) -> Self {
+        self.search_content = Some(search_content.into());
         self
     }
 
@@ -302,21 +334,57 @@ mod tests {
     }
 }
 
-/// Action executed when an item is opened.
-///
-/// Preview and open actions are intentionally separated because:
-///
-/// - an item may preview locally but open externally
-/// - an item may render text but execute a command
-/// - preview does not imply execution
+/// Default action executed when an item is opened.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "camelCase")]
-pub enum OpenAction {
-    /// Opens a URL using the system browser.
-    External { url: String },
+#[serde(rename_all = "camelCase")]
+pub enum DefaultAction {
+    /// Opens the item URL.
+    Url,
 
-    /// Executes a command.
-    ///
-    /// The path is validated before execution.
-    Command { path: String },
+    /// Executes the item command.
+    Command,
+}
+
+pub fn normalize_default_action(
+    requested: Option<DefaultAction>,
+    has_url: bool,
+    has_command: bool,
+) -> Option<DefaultAction> {
+    match requested {
+        Some(DefaultAction::Command) if has_command => Some(DefaultAction::Command),
+        Some(DefaultAction::Url) if has_url => Some(DefaultAction::Url),
+        Some(_) | None if has_command => Some(DefaultAction::Command),
+        Some(_) | None if has_url => Some(DefaultAction::Url),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod default_action_tests {
+    use super::{normalize_default_action, DefaultAction};
+
+    #[test]
+    fn unspecified_default_action_prefers_command_then_url() {
+        assert_eq!(
+            normalize_default_action(None, true, true),
+            Some(DefaultAction::Command)
+        );
+        assert_eq!(
+            normalize_default_action(None, true, false),
+            Some(DefaultAction::Url)
+        );
+        assert_eq!(normalize_default_action(None, false, false), None);
+    }
+
+    #[test]
+    fn unavailable_explicit_default_action_falls_back_to_available_action() {
+        assert_eq!(
+            normalize_default_action(Some(DefaultAction::Url), false, true),
+            Some(DefaultAction::Command)
+        );
+        assert_eq!(
+            normalize_default_action(Some(DefaultAction::Command), true, false),
+            Some(DefaultAction::Url)
+        );
+    }
 }

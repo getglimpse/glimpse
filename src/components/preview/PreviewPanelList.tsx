@@ -46,7 +46,8 @@ type Props = {
   onInspectItem: (item: IndexItem) => void;
   onHelpItemPage: (itemPage: string) => void;
   onOpenCommandHistory: () => void;
-  onOpenItem?: () => void;
+  onUrlAction?: () => void;
+  onCommandAction?: () => void;
   onTagCloudTagSelect: (tag: string) => void;
   onFileEditorChange: (
     tabId: string,
@@ -78,7 +79,8 @@ export const PreviewPanelList = ({
   onInspectItem,
   onHelpItemPage,
   onOpenCommandHistory,
-  onOpenItem,
+  onUrlAction,
+  onCommandAction,
   onTagCloudTagSelect,
   onFileEditorChange,
   onCloseTab,
@@ -176,7 +178,8 @@ export const PreviewPanelList = ({
             onInspectItem={onInspectItem}
             onHelpItemPage={onHelpItemPage}
             onOpenCommandHistory={onOpenCommandHistory}
-            onOpenItem={onOpenItem}
+            onUrlAction={onUrlAction}
+            onCommandAction={onCommandAction}
             onTagCloudTagSelect={onTagCloudTagSelect}
           />
         );

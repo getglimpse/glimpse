@@ -14,7 +14,7 @@ The indexer uses `parser_dispatch.rs` to choose a parser from the file extension
 
 1. Provide the file path, extension, and source metadata used for parser selection.
 2. Choose the parser based on source file type and indexing rules.
-3. Read the source and apply parser-specific metadata, preview, and open-action rules.
+3. Read the source and apply parser-specific metadata, preview, and action rules.
 4. Return zero or more searchable items generated from the source file.
 
 Current parser mapping:
@@ -40,9 +40,11 @@ Supported frontmatter fields:
 - `aliases`
 - `star`
 - `hidden`
-- `open.type`
-- `open.path`
-- `open.url`
+- `desc` / `description`
+- `url`
+- `iframe`
+- `command`
+- `defaultAction`
 
 Rendered previews use the Markdown content after frontmatter has been removed.
 
@@ -58,17 +60,11 @@ Rendered previews use the Markdown content after frontmatter has been removed.
       "url": "https://doc.rust-lang.org/book/",
       "desc": "Official Rust book",
       "iframe": true,
-      "metadata": {
-        "tags": ["rust", "docs"],
-        "aliases": ["book"],
-        "star": true,
-        "hidden": false,
-        "boost": 1.5
-      },
-      "open": {
-        "type": "external",
-        "url": "https://doc.rust-lang.org/book/"
-      }
+      "tags": ["rust", "docs"],
+      "aliases": ["book"],
+      "star": true,
+      "hidden": false,
+      "boost": 1.5
     }
   ]
 }
@@ -89,13 +85,14 @@ Broken `.gjson` files fall back to raw preview during indexing.
 
 PDF, audio, and video files use Markdown file URL previews. Office files use raw placeholders so viewer plugins can handle them.
 
-## Open Actions
+## Actions
 
-Parsers pass open actions through the sanitization in `utils/command_open.rs`.
+Parsers keep item URLs, commands, and default actions separate.
+Commands pass through sanitization in `utils/command_open.rs`.
 
-Backend-supported open actions:
+Backend-supported item actions:
 
-- `external`
+- `url`
 - `command`
 
 Plugin actions are added on the frontend by trusted plugins.

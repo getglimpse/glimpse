@@ -116,13 +116,55 @@ export const createAppShortcuts = ({
     });
   };
 
-  const openActiveItem = async () => {
+  const runActiveUrlAction = async () => {
     const item = getActiveItem();
 
-    if (!item) {
+    if (!item?.url) {
       return;
     }
 
+    await openUrl(item.url);
+  };
+
+  const runActiveCommandAction = async () => {
+    const item = getActiveItem();
+
+    if (!item?.command) {
+      return;
+    }
+
+    const rawInput = getQuery();
+    const { commandArgs } = parseSearchInput(rawInput);
+
+    try {
+      await commandApi.runItemCommand(item.id, commandArgs);
+      const resultMessage = LL.appMessages.launchedItem({
+        title: item.title,
+      });
+
+      toast.success(resultMessage);
+      recordHistory({
+        input: rawInput,
+        result: resultMessage,
+        status: "success",
+        kind: "command",
+        target: item.title,
+      });
+    } catch (error) {
+      const resultMessage = String(error);
+
+      toast.error(resultMessage);
+      recordHistory({
+        input: rawInput,
+        result: resultMessage,
+        status: "error",
+        kind: "command",
+        target: item.title,
+      });
+    }
+  };
+
+  const runPluginPageAction = async (item: IndexItem) => {
     const rawInput = getQuery();
     const { query, commandArgs } = parseSearchInput(rawInput);
 
@@ -170,99 +212,38 @@ export const createAppShortcuts = ({
           });
         }
 
+        return true;
+      }
+    }
+
+    return false;
+  };
+
+  const openActiveItem = async () => {
+    const item = getActiveItem();
+
+    if (!item) {
+      return;
+    }
+
+    if (await runPluginPageAction(item)) {
+      return;
+    }
+
+    switch (item.defaultAction) {
+      case "command":
+        await runActiveCommandAction();
         return;
-      }
-    }
 
-    if (!item.open && item.preview.type === "external") {
-      await openUrl(item.preview.url);
-      return;
-    }
+      case "url":
+        await runActiveUrlAction();
+        return;
 
-    if (!item.open) {
-      return;
-    }
-
-    switch (item.open.type) {
-      case "external": {
-        await openUrl(item.open.url);
-        break;
-      }
-
-      case "command": {
-        try {
-          await commandApi.runItemCommand(item.id, commandArgs);
-          const resultMessage = LL.appMessages.launchedItem({
-            title: item.title,
-          });
-
-          toast.success(resultMessage);
-          recordHistory({
-            input: rawInput,
-            result: resultMessage,
-            status: "success",
-            kind: "command",
-            target: item.title,
-          });
-        } catch (error) {
-          const resultMessage = String(error);
-
-          toast.error(resultMessage);
-          recordHistory({
-            input: rawInput,
-            result: resultMessage,
-            status: "error",
-            kind: "command",
-            target: item.title,
-          });
+      default:
+        if (!item.url && item.preview.type === "external") {
+          await openUrl(item.preview.url);
         }
-
-        break;
-      }
-
-      case "pluginAction": {
-        try {
-          const result = await executePluginAction({
-            pluginId: item.open.pluginId,
-            actionId: item.open.actionId,
-            input: commandArgs ?? undefined,
-          });
-          const resultMessage =
-            result === undefined
-              ? LL.appMessages.ranItem({ title: item.title })
-              : String(result);
-
-          toast.success(resultMessage);
-          recordHistory({
-            input: rawInput,
-            result: resultMessage,
-            status: "success",
-            kind: "pluginAction",
-            target: item.title,
-          });
-
-          if (commandArgs !== null) {
-            setQuery(`${query} > `);
-          }
-        } catch (error) {
-          const resultMessage = String(error);
-
-          toast.error(resultMessage);
-          recordHistory({
-            input: rawInput,
-            result: resultMessage,
-            status: "error",
-            kind: "pluginAction",
-            target: item.title,
-          });
-        }
-
-        break;
-      }
-
-      default: {
-        console.warn("unsupported open action", item.open);
-      }
+        return;
     }
   };
 
@@ -359,6 +340,14 @@ export const createAppShortcuts = ({
 
     openActiveItem: () => {
       void openActiveItem();
+    },
+
+    openActiveUrlAction: () => {
+      void runActiveUrlAction();
+    },
+
+    openActiveCommandAction: () => {
+      void runActiveCommandAction();
     },
 
     scrollActivePreviewDown: () => {

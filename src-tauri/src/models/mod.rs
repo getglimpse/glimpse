@@ -38,7 +38,7 @@
 //! IndexItem
 //! ├─ IndexMetadata
 //! ├─ Preview
-//! └─ OpenAction?
+//! └─ default action?
 //! ```
 //!
 //! Most backend components eventually produce or consume `IndexItem`.
@@ -60,7 +60,7 @@ pub mod theme;
 /// - [`IndexItem`]
 /// - [`IndexMetadata`]
 /// - [`Preview`]
-/// - [`OpenAction`]
+/// - [`DefaultAction`]
 ///
 /// Represents:
 ///
@@ -69,7 +69,7 @@ pub mod theme;
 /// - External links
 /// - Command launchers
 /// - Internal pages
-pub use item::{IndexItem, IndexMetadata, OpenAction, Preview};
+pub use item::{DefaultAction, IndexItem, IndexMetadata, Preview};
 
 /// Search source definitions.
 ///

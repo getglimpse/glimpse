@@ -14,7 +14,7 @@
 //!
 //! ```text
 //! command
-//!   ↓ sanitize / validate open action command paths
+//!   ↓ sanitize / validate command paths
 //! command_lookup
 //!   ↓ resolve executable path
 //! command_policy

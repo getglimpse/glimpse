@@ -24,7 +24,7 @@ The core workflow is usable, but some features, settings, file formats, and plug
 - Fast incremental local search
 - Live Markdown, Glimpse JSON, image, and raw file preview
 - Preview tabs for keeping multiple results open
-- Frontmatter metadata support (`title`, `tags`, `aliases`, `star`, `hidden`, `open.*`)
+- Frontmatter metadata support (`title`, `tags`, `aliases`, `star`, `hidden`, `url`, `command`)
 - Query syntax for more focused searches
 - Keyboard-first navigation
 - Target groups for searching multiple folders

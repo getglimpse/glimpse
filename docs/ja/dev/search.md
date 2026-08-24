@@ -6,7 +6,7 @@
 - SQLite による durable item storage
 - active search backend による full-text retrieval
 
-production backend は Tantivy + Lindera です。SQLite は item metadata、preview、open action、stats、cleanup query の canonical store です。Tantivy は full-text search のための再構築可能な inverted index として扱います。
+production backend は Tantivy + Lindera です。SQLite は item metadata、preview、item action、stats、cleanup query の canonical store です。Tantivy は full-text search のための再構築可能な inverted index として扱います。
 
 ## Frontend Parsing
 
@@ -61,7 +61,7 @@ SQLite が保持するもの:
 - updated timestamp
 - full scan freshness check 用の source fingerprints
 - preview payloads and preview URLs
-- open actions
+- item actions
 - star / hidden / boost metadata
 - tags and aliases
 - stats and tag-cloud queries
@@ -90,7 +90,7 @@ Target Group switching では、current SQLite connection、Tantivy reader/write
 Upsert:
 
 1. Open SQLite transaction: canonical item-store write を開始します。
-2. Write `IndexItem` rows: replacement item metadata、preview、open action、tags、aliases を保存します。
+2. Write `IndexItem` rows: replacement item metadata、preview、item action、tags、aliases を保存します。
 3. Commit SQLite: Tantivy に触る前に canonical item state を durable にします。
 4. Open Tantivy writer: derived full-text index update を準備します。
 5. Delete old Tantivy docs: 対象 item ID の古い document を削除します。
@@ -115,7 +115,7 @@ Delete:
 
 1. Read affected SQLite IDs: canonical rows を削除する前に item ID を capture します。
 2. Open SQLite transaction: canonical delete を開始します。
-3. Delete item-store rows: item metadata、preview、open action、tags、aliases を削除します。
+3. Delete item-store rows: item metadata、preview、item action、tags、aliases を削除します。
 4. Commit SQLite: canonical delete を durable にします。
 5. Open Tantivy writer: derived index cleanup を準備します。
 6. Delete captured Tantivy docs: capture 済み item ID の documents を削除します。
@@ -132,7 +132,7 @@ search は Tantivy で候補を取り、SQLite で hydrate します。
 2. `StructuredQuery`: backend search terms と tag filters を一度だけ parse します。
 3. Tantivy query: structured query を active full-text backend に compile します。
 4. Hit IDs and scores: Tantivy から ranking 済み candidate item IDs を受け取ります。
-5. SQLite item-store hydration: canonical item metadata、preview payloads、open actions を読み込みます。
+5. SQLite item-store hydration: canonical item metadata、preview payloads、item actions を読み込みます。
 6. `SearchResult[]`: item-level results を frontend に返します。
 
 Tantivy が返した ID が SQLite に存在しない場合、その hit は hydration 時に skip します。空 query の recent items は Tantivy を使わず SQLite から直接取得します。
@@ -218,7 +218,7 @@ recovery では active target group の derived artifacts を再作成します�
 - `.glimpse/index.db`
 - `.glimpse/tantivy/`
 
-canonical item data を Tantivy から復旧しようとしてはいけません。Tantivy は search と ranking に必要な fields だけを持ち、full preview / open-action state は持ちません。
+canonical item data を Tantivy から復旧しようとしてはいけません。Tantivy は search と ranking に必要な fields だけを持ち、full preview / action state は持ちません。
 
 ## Lifecycle Ownership
 

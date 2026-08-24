@@ -19,7 +19,7 @@ use crate::models::{IndexItem, Preview};
 use crate::search::SearchError;
 use crate::store::parser::common::fallback_title;
 use crate::store::parser::frontmatter::parse_frontmatter;
-use crate::utils::command_open::sanitize_open_action;
+use crate::utils::command_open::sanitize_command;
 use chrono::{DateTime, Utc};
 
 use std::fs;
@@ -52,9 +52,12 @@ use std::path::Path;
 /// - `aliases`
 /// - `star`
 /// - `hidden`
-/// - `open.type`
-/// - `open.path`
-/// - `open.url`
+/// - `desc`
+/// - `description`
+/// - `url`
+/// - `iframe`
+/// - `command`
+/// - `defaultAction`
 ///
 /// Example:
 ///
@@ -98,12 +101,12 @@ use std::path::Path;
 /// The preview content contains the Markdown body after frontmatter removal.
 /// Formatting and syntax highlighting are handled by the frontend.
 ///
-/// # Open action
+/// # Actions
 ///
-/// If frontmatter defines a custom open action, it is sanitized before being
-/// attached to the item.
+/// If frontmatter defines a command, it is sanitized before being attached to
+/// the item. Invalid URLs are dropped during frontmatter parsing.
 ///
-/// Unsafe or invalid actions may be dropped by [`sanitize_open_action`].
+/// Unsafe commands may be dropped by [`sanitize_command`].
 ///
 /// # Returns
 ///
@@ -138,6 +141,7 @@ pub fn parse_markdown_result(path: &Path, source_id: &str) -> Result<IndexItem, 
     // -----------------------------
 
     let (fm, content_body) = parse_frontmatter(&content);
+    let content_body = content_body.trim().to_string();
 
     // -----------------------------
     // title fallback
@@ -158,25 +162,48 @@ pub fn parse_markdown_result(path: &Path, source_id: &str) -> Result<IndexItem, 
     // construct item
     // -----------------------------
 
-    let mut item = IndexItem::new(
-        source_id.to_string(),
-        display_title,
-        updated_at,
+    let use_iframe = fm.iframe && fm.url.is_some();
+    let preview = if use_iframe {
+        Preview::External {
+            url: fm.url.clone().unwrap_or_default(),
+        }
+    } else {
         Preview::Markdown {
-            content: content_body.trim().to_string(),
-        },
-    )
-    .with_source_path(source_path)
-    .set_star(fm.metadata.star)
-    .set_hidden(fm.metadata.hidden)
-    .with_tags(fm.metadata.tags)
-    .with_aliases(fm.metadata.aliases);
+            content: content_body.clone(),
+        }
+    };
+    let search_content = searchable_markdown_content(fm.desc.as_deref(), &content_body);
 
-    if let Some(open) = sanitize_open_action(fm.open) {
-        item = item.with_open_action(open);
+    let mut item = IndexItem::new(source_id.to_string(), display_title, updated_at, preview)
+        .with_source_path(source_path)
+        .set_star(fm.metadata.star)
+        .set_hidden(fm.metadata.hidden)
+        .with_tags(fm.metadata.tags)
+        .with_aliases(fm.metadata.aliases);
+
+    if let Some(url) = fm.url {
+        item = item.with_url(url);
+    }
+
+    if let Some(command) = sanitize_command(fm.command) {
+        item = item.with_command(command);
+    }
+
+    item = item.with_default_action(fm.default_action);
+
+    if !search_content.is_empty() {
+        item = item.with_search_content(search_content);
     }
 
     Ok(item)
+}
+
+fn searchable_markdown_content(desc: Option<&str>, body: &str) -> String {
+    [desc.unwrap_or_default().trim(), body.trim()]
+        .into_iter()
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n\n")
 }
 
 #[cfg(test)]
@@ -430,13 +457,11 @@ tags:
         assert!(item.is_none());
     }
 
-    //
     #[test]
-    fn parses_command_open_action() {
+    fn parses_command_action() {
         let md = r#"---
 title: Open Notepad
-open.type: command
-open.path: C:\Windows\System32\notepad.exe
+command: C:\Windows\System32\notepad.exe
 ---
 
 # Open Notepad
@@ -446,23 +471,24 @@ open.path: C:\Windows\System32\notepad.exe
 
         let item = parse_markdown(&path, "notes/test.png").unwrap();
 
-        match item.open {
-            Some(crate::models::OpenAction::Command { path }) => {
-                assert_eq!(path, r#"C:\Windows\System32\notepad.exe"#);
-            }
-
-            _ => panic!("expected command open action"),
-        }
+        assert_eq!(
+            item.command.as_deref(),
+            Some(r#"C:\Windows\System32\notepad.exe"#)
+        );
+        assert_eq!(
+            item.default_action,
+            Some(crate::models::DefaultAction::Command)
+        );
 
         fs::remove_file(path).ok();
     }
 
     #[test]
-    fn parses_external_open_action() {
+    fn parses_url_action_with_iframe_preview() {
         let md = r#"---
 title: Rust
-open.type: external
-open.url: https://www.rust-lang.org
+url: https://www.rust-lang.org
+iframe: true
 ---
 
 # Rust
@@ -472,13 +498,17 @@ open.url: https://www.rust-lang.org
 
         let item = parse_markdown(&path, "notes/test.png").unwrap();
 
-        match item.open {
-            Some(crate::models::OpenAction::External { url }) => {
-                assert_eq!(url, "https://www.rust-lang.org");
-            }
+        assert_eq!(item.url.as_deref(), Some("https://www.rust-lang.org/"));
+        assert_eq!(item.default_action, Some(crate::models::DefaultAction::Url));
 
-            _ => panic!("expected external open action"),
+        match item.preview {
+            Preview::External { url } => {
+                assert_eq!(url, "https://www.rust-lang.org/");
+            }
+            _ => panic!("expected external preview"),
         }
+
+        assert_eq!(item.search_content.as_deref(), Some("# Rust"));
 
         fs::remove_file(path).ok();
     }

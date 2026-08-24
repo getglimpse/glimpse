@@ -64,9 +64,10 @@ pub mod common;
 /// - tags
 /// - aliases
 /// - star
-/// - open.type
-/// - open.path
-/// - open.url
+/// - url
+/// - iframe
+/// - command
+/// - defaultAction
 ///
 /// This parser intentionally supports only a lightweight subset of YAML.
 pub mod frontmatter;
@@ -111,7 +112,7 @@ pub mod json;
 ///
 /// - frontmatter metadata
 /// - Markdown body
-/// - open actions
+/// - item actions
 ///
 /// Produces one [`IndexItem`] per file.
 pub mod markdown;

@@ -14,7 +14,7 @@ indexer は `parser_dispatch.rs` を使い、file extension から parser を選
 
 1. parser selection に使う file path、extension、source metadata を渡します。
 2. source file type と indexing rules に基づいて parser を選択
-3. source を読込み parser ごとの metadata、preview、open action rules を適用
+3. source を読込み parser ごとの metadata、preview、item action rules を適用
 4. source file から生成された 0 件以上の searchable item を返します。
 
 現在の parser mapping:
@@ -40,9 +40,11 @@ Glimpse JSON index として解析されるのは `.gjson` ファイルだけで
 - `aliases`
 - `star`
 - `hidden`
-- `open.type`
-- `open.path`
-- `open.url`
+- `desc` / `description`
+- `url`
+- `iframe`
+- `command`
+- `defaultAction`
 
 rendered preview には、frontmatter を取り除いた Markdown content が使われます。
 
@@ -58,17 +60,11 @@ rendered preview には、frontmatter を取り除いた Markdown content が使
       "url": "https://doc.rust-lang.org/book/",
       "desc": "Official Rust book",
       "iframe": true,
-      "metadata": {
-        "tags": ["rust", "docs"],
-        "aliases": ["book"],
-        "star": true,
-        "hidden": false,
-        "boost": 1.5
-      },
-      "open": {
-        "type": "external",
-        "url": "https://doc.rust-lang.org/book/"
-      }
+      "tags": ["rust", "docs"],
+      "aliases": ["book"],
+      "star": true,
+      "hidden": false,
+      "boost": 1.5
     }
   ]
 }
@@ -89,13 +85,13 @@ rendered preview には、frontmatter を取り除いた Markdown content が使
 
 PDF、audio、video file は Markdown file URL preview を使います。Office file は viewer plugin が処理できるよう、raw placeholder を使います。
 
-## Open Actions
+## Actions
 
-parser は open action を `utils/command_open.rs` の sanitization に通します。
+parser は command を `utils/command_open.rs` の sanitization に通します。
 
-backend が対応する open action:
+backend が対応する item action:
 
-- `external`
+- `url`
 - `command`
 
 plugin action は trusted plugin によってフロントエンド側で追加されます。

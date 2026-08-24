@@ -36,11 +36,12 @@
 //! - aliases
 //! - starred state
 //! - hidden state
-//! - custom open action
+//! - URL, command, and default action
 
-use crate::models::{IndexItem, JsonIndexFile, OpenAction, Preview};
+use crate::models::{IndexItem, JsonIndexFile, Preview};
 use crate::search::SearchError;
-use crate::utils::command_open::sanitize_open_action;
+use crate::store::parser::common::normalize_http_url;
+use crate::utils::command_open::sanitize_command;
 
 use chrono::{DateTime, Utc};
 use std::fs;
@@ -98,12 +99,11 @@ use std::path::Path;
 /// <url>
 /// ```
 ///
-/// # Open action
+/// # Actions
 ///
-/// If an item defines a custom open action, it is used after sanitization.
-/// Otherwise, the item defaults to opening its `url` externally.
+/// Items may define `url`, `command`, and `defaultAction` directly.
 ///
-/// Invalid or unsafe open actions may be removed by [`sanitize_open_action`].
+/// Invalid URLs and unsafe commands are dropped before indexing.
 ///
 /// # Searchability
 ///
@@ -156,39 +156,38 @@ pub fn parse_json(path: &Path, source_id: &str) -> Result<Vec<IndexItem>, Search
         .enumerate()
         .map(|(idx, item)| {
             // normalize tags
-            let mut tags = item.metadata.tags;
+            let mut tags = item.tags;
 
             tags.sort();
 
             tags.dedup();
 
             // local preview fallback
-            let url = item.url.unwrap_or_default();
+            let url = item.url.and_then(normalize_http_url);
+            let desc = if item.description.trim().is_empty() {
+                item.desc.clone()
+            } else {
+                item.description.clone()
+            };
 
-            let preview_content = match (item.desc.trim().is_empty(), url.trim().is_empty()) {
-                (true, true) => String::new(),
-                (false, true) => item.desc.clone(),
-                (true, false) => url.clone(),
-                (false, false) => format!("{}\n\n{}", item.desc, url),
+            let preview_content = match (desc.trim().is_empty(), url.as_deref()) {
+                (true, None) => String::new(),
+                (false, None) => desc.clone(),
+                (true, Some(url)) => url.to_string(),
+                (false, Some(url)) => format!("{}\n\n{}", desc, url),
             };
 
             // preview mode
-            let preview = if item.iframe && !url.is_empty() {
-                Preview::External { url: url.clone() }
+            let iframe = item.iframe.unwrap_or(url.is_some()) && url.is_some();
+            let preview = if iframe {
+                Preview::External {
+                    url: url.clone().unwrap_or_default(),
+                }
             } else {
                 Preview::Markdown {
-                    content: preview_content,
+                    content: preview_content.clone(),
                 }
             };
-
-            // open action
-            let open = sanitize_open_action(item.open.or_else(|| {
-                if url.is_empty() {
-                    None
-                } else {
-                    Some(OpenAction::External { url: url.clone() })
-                }
-            }));
 
             // construct item
             let mut index_item = IndexItem::new(
@@ -199,12 +198,23 @@ pub fn parse_json(path: &Path, source_id: &str) -> Result<Vec<IndexItem>, Search
             )
             .with_source_path(source_path.clone())
             .with_tags(tags)
-            .set_star(item.metadata.star)
-            .set_hidden(item.metadata.hidden)
-            .with_aliases(item.metadata.aliases);
+            .set_star(item.star)
+            .set_hidden(item.hidden)
+            .set_boost(item.boost)
+            .with_aliases(item.aliases);
 
-            if let Some(open) = open {
-                index_item = index_item.with_open_action(open);
+            if let Some(url) = url {
+                index_item = index_item.with_url(url);
+            }
+
+            if let Some(command) = sanitize_command(item.command) {
+                index_item = index_item.with_command(command);
+            }
+
+            index_item = index_item.with_default_action(item.default_action);
+
+            if !preview_content.is_empty() {
+                index_item = index_item.with_search_content(preview_content);
             }
 
             index_item
@@ -307,9 +317,7 @@ mod tests {
     {
       "title": "Rust",
       "url": "https://rust-lang.org",
-      "metadata": {
-        "tags": ["tauri", "rust", "rust"]
-      }
+      "tags": ["tauri", "rust", "rust"]
     }
   ]
 }
@@ -324,12 +332,79 @@ mod tests {
         fs::remove_file(path).ok();
     }
 
+    #[test]
+    fn parses_single_string_tag() {
+        let json = r#"
+{
+  "items": [
+    {
+      "title": "Rust",
+      "tags": "rust"
+    }
+  ]
+}
+"#;
+
+        let path = create_temp_json(json);
+
+        let items = parse_json(&path, "notes/test.gjson").unwrap();
+
+        assert_eq!(items[0].metadata.tags, vec!["rust"]);
+
+        fs::remove_file(path).ok();
+    }
+
+    #[test]
+    fn parses_single_string_alias() {
+        let json = r#"
+{
+  "items": [
+    {
+      "title": "Rust",
+      "aliases": "rs"
+    }
+  ]
+}
+"#;
+
+        let path = create_temp_json(json);
+
+        let items = parse_json(&path, "notes/test.gjson").unwrap();
+
+        assert_eq!(items[0].metadata.aliases, vec!["rs"]);
+
+        fs::remove_file(path).ok();
+    }
+
     // -----------------------------
     // star
     // -----------------------------
 
     #[test]
     fn parses_star() {
+        let json = r#"
+{
+  "items": [
+    {
+      "title": "Rust",
+      "url": "https://rust-lang.org",
+      "star": true
+    }
+  ]
+}
+"#;
+
+        let path = create_temp_json(json);
+
+        let items = parse_json(&path, "notes/test.gjson").unwrap();
+
+        assert!(items[0].metadata.star);
+
+        fs::remove_file(path).ok();
+    }
+
+    #[test]
+    fn ignores_legacy_nested_metadata() {
         let json = r#"
 {
   "items": [
@@ -348,32 +423,7 @@ mod tests {
 
         let items = parse_json(&path, "notes/test.gjson").unwrap();
 
-        assert!(items[0].metadata.star);
-
-        fs::remove_file(path).ok();
-    }
-
-    #[test]
-    fn parses_legacy_pinned() {
-        let json = r#"
-{
-  "items": [
-    {
-      "title": "Rust",
-      "url": "https://rust-lang.org",
-      "metadata": {
-        "pinned": true
-      }
-    }
-  ]
-}
-"#;
-
-        let path = create_temp_json(json);
-
-        let items = parse_json(&path, "notes/test.gjson").unwrap();
-
-        assert!(items[0].metadata.star);
+        assert!(!items[0].metadata.star);
 
         fs::remove_file(path).ok();
     }
@@ -386,9 +436,7 @@ mod tests {
     {
       "title": "Rust",
       "url": "https://rust-lang.org",
-      "metadata": {
-        "hidden": true
-      }
+      "hidden": true
     }
   ]
 }
@@ -427,7 +475,7 @@ mod tests {
 
         match &items[0].preview {
             Preview::External { url } => {
-                assert_eq!(url, "https://rust-lang.org");
+                assert_eq!(url, "https://rust-lang.org/");
             }
 
             _ => panic!("expected external preview"),
@@ -459,7 +507,7 @@ mod tests {
             Preview::Markdown { content } => {
                 assert!(content.contains("official docs"));
 
-                assert!(content.contains("https://rust-lang.org"));
+                assert!(content.contains("https://rust-lang.org/"));
             }
 
             _ => panic!("expected local preview"),
@@ -469,11 +517,11 @@ mod tests {
     }
 
     // -----------------------------
-    // open action
+    // actions
     // -----------------------------
 
     #[test]
-    fn creates_open_action() {
+    fn creates_url_action() {
         let json = r#"
 {
   "items": [
@@ -489,13 +537,11 @@ mod tests {
 
         let items = parse_json(&path, "notes/test.gjson").unwrap();
 
-        match &items[0].open {
-            Some(OpenAction::External { url }) => {
-                assert_eq!(url, "https://rust-lang.org");
-            }
-
-            _ => panic!("expected open action"),
-        }
+        assert_eq!(items[0].url.as_deref(), Some("https://rust-lang.org/"));
+        assert_eq!(
+            items[0].default_action,
+            Some(crate::models::DefaultAction::Url)
+        );
 
         fs::remove_file(path).ok();
     }
@@ -548,18 +594,14 @@ mod tests {
 
     //
     #[test]
-    fn creates_command_open_action() {
+    fn creates_command_action() {
         let json = r#"
 {
   "items": [
     {
       "title": "Open Notepad",
-      "url": "internal://commands/notepad",
       "iframe": false,
-      "open": {
-        "type": "command",
-        "path": "C:\\Windows\\System32\\notepad.exe"
-      }
+      "command": "C:\\Windows\\System32\\notepad.exe"
     }
   ]
 }
@@ -569,13 +611,14 @@ mod tests {
 
         let items = parse_json(&path, "notes/test.gjson").unwrap();
 
-        match &items[0].open {
-            Some(OpenAction::Command { path }) => {
-                assert_eq!(path, r#"C:\Windows\System32\notepad.exe"#);
-            }
-
-            _ => panic!("expected command open action"),
-        }
+        assert_eq!(
+            items[0].command.as_deref(),
+            Some(r#"C:\Windows\System32\notepad.exe"#)
+        );
+        assert_eq!(
+            items[0].default_action,
+            Some(crate::models::DefaultAction::Command)
+        );
 
         fs::remove_file(path).ok();
     }
@@ -598,7 +641,9 @@ mod tests {
 
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].title, "Rust Book");
-        assert!(items[0].open.is_none());
+        assert!(items[0].url.is_none());
+        assert!(items[0].command.is_none());
+        assert!(items[0].default_action.is_none());
         assert!(matches!(items[0].preview, Preview::Markdown { .. }));
 
         fs::remove_file(path).ok();
@@ -629,7 +674,8 @@ mod tests {
             _ => panic!("expected markdown preview"),
         }
 
-        assert!(items[0].open.is_none());
+        assert!(items[0].url.is_none());
+        assert!(items[0].command.is_none());
 
         fs::remove_file(path).ok();
     }

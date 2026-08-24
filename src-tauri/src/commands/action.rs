@@ -1,11 +1,11 @@
 //! Command action IPC handling.
 //!
-//! This module executes `OpenAction::Command` items requested from the
+//! This module executes item commands requested from the
 //! frontend.
 //!
 //! Command execution is intentionally guarded by multiple validation layers:
 //!
-//! 1. Load the item's open action from SQLite.
+//! 1. Load the item's command action from SQLite.
 //! 2. Resolve the command path.
 //! 3. Validate that the resolved path is executable.
 //! 4. Check trusted directory rules for explicit paths.
@@ -29,9 +29,7 @@ use crate::app_state::SharedSettingsPath;
 use crate::models::command_log::{
     CommandExecutionLog, CommandExecutionStage, CommandExecutionStatus,
 };
-use crate::models::OpenAction;
 use crate::store::command_log::append_command_execution_log;
-use crate::store::item_mapper::map_open_action;
 use crate::store::settings::load_settings;
 use crate::utils::command_lookup::resolve_command_path;
 use crate::utils::command_open::validate_command_path;
@@ -40,7 +38,7 @@ use crate::utils::trusted_directories::check_trusted_directory;
 
 /// Runs the command associated with an indexed item.
 ///
-/// The item must have an `OpenAction::Command` configured in the database.
+/// The item must have a command configured in the database.
 /// Non-command items return an error and are not executed.
 ///
 /// Security flow:
@@ -63,48 +61,45 @@ pub fn run_item_command(
     settings_path: tauri::State<SharedSettingsPath>,
     args: Option<String>,
 ) -> Result<(), String> {
-    let open_action = {
+    let command = {
         let conn = db.lock().map_err(|e| e.to_string())?;
 
         conn.query_row(
             r#"
             SELECT
-                open_type,
-                open_url,
-                open_command_path
+                item_command
             FROM items
             WHERE id = ?
             "#,
             [&item_id],
             |row| {
-                let open_type: Option<String> = row.get(0)?;
-                let open_url: Option<String> = row.get(1)?;
-                let open_command_path: Option<String> = row.get(2)?;
+                let command: Option<String> = row.get(0)?;
 
-                Ok(map_open_action(open_type, open_url, open_command_path))
+                Ok(command)
             },
         )
         .map_err(|e| e.to_string())?
     };
 
-    let Some(OpenAction::Command { path }) = open_action else {
+    let Some(command) = command else {
         return Err("item is not a command action".to_string());
     };
 
-    let command_args = parse_command_args(args.as_deref());
+    let (program, mut command_args) = parse_metadata_command(&command)?;
+    command_args.extend(parse_command_args(args.as_deref()));
 
     let settings_path = settings_path.0.lock().map_err(|e| e.to_string())?;
     let settings = load_settings(&settings_path);
 
-    let resolved_path = match resolve_command_path(&path) {
+    let resolved_path = match resolve_command_path(&program) {
         Some(resolved_path) => resolved_path,
         None => {
-            let error = format!("command not found: {path}");
+            let error = format!("command not found: {program}");
 
             log_command_failure(
                 &settings_path,
                 &item_id,
-                &path,
+                &command,
                 None,
                 &command_args,
                 CommandExecutionStatus::Failed,
@@ -120,7 +115,7 @@ pub fn run_item_command(
         log_command_failure(
             &settings_path,
             &item_id,
-            &path,
+            &command,
             Some(&resolved_path),
             &command_args,
             CommandExecutionStatus::Failed,
@@ -131,14 +126,14 @@ pub fn run_item_command(
         return Err(error);
     }
 
-    if is_explicit_command_path(&path) {
+    if is_explicit_command_path(&program) {
         if let Err(error) =
             check_trusted_directory(&resolved_path, &settings.commands.trusted_directories)
         {
             log_command_failure(
                 &settings_path,
                 &item_id,
-                &path,
+                &command,
                 Some(&resolved_path),
                 &command_args,
                 CommandExecutionStatus::Blocked,
@@ -150,11 +145,11 @@ pub fn run_item_command(
         }
     }
 
-    if let Err(error) = check_command_policy(&path, &resolved_path, &settings.commands) {
+    if let Err(error) = check_command_policy(&program, &resolved_path, &settings.commands) {
         log_command_failure(
             &settings_path,
             &item_id,
-            &path,
+            &command,
             Some(&resolved_path),
             &command_args,
             CommandExecutionStatus::Blocked,
@@ -170,7 +165,7 @@ pub fn run_item_command(
     let log_entry = CommandExecutionLog {
         timestamp: Utc::now(),
         item_id,
-        command: path,
+        command,
         resolved_path: Some(resolved_path.to_string_lossy().to_string()),
         args: command_args,
         status: if result.is_ok() {
@@ -199,6 +194,17 @@ fn parse_command_args(args: Option<&str>) -> Vec<String> {
         .filter(|arg| !arg.is_empty())
         .map(|arg| arg.to_string())
         .collect()
+}
+
+fn parse_metadata_command(command: &str) -> Result<(String, Vec<String>), String> {
+    let mut parts = command
+        .split_whitespace()
+        .filter(|part| !part.is_empty())
+        .map(|part| part.to_string());
+
+    let program = parts.next().ok_or_else(|| "command is empty".to_string())?;
+
+    Ok((program, parts.collect()))
 }
 
 /// Writes a failed or blocked command execution to the command log.

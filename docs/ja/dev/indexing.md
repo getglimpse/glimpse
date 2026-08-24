@@ -35,7 +35,7 @@ src-tauri/src/store/indexer/
 2. full/incremental scan、または fs change から indexing を開始
 3. source file type と indexing rules に基づいて parser を選択
 4. source file を 0 件以上の searchable item に変換
-5. title、metadata、open action などを持つ検索可能アイテムを取得
+5. title、metadata、item action などを持つ検索可能アイテムを取得
 6. SQLite item store と derived search index を更新し、検索で使える状態に変更
 
 ## 対応 parser
