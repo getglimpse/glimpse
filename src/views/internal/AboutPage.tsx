@@ -11,7 +11,6 @@ const FEATURES = [
   "Markdown indexing",
   "JSON index files",
   "Target groups",
-  "Global search",
   "Command launcher",
   "PATH lookup",
   "Trusted directories",

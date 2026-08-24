@@ -93,7 +93,7 @@ src-tauri/src/utils
 6. canonical item metadata、preview payload、open action を読み込みます。
 7. 検索結果を描画し、選択中 item の preview を読み込みます。
 
-parsed query が `:` または `/` で始まり、global search ではない場合、Internal Page search はフロントエンドで処理されます。
+parsed query が `:` または `/` で始まる場合、Internal Page search はフロントエンドで処理されます。
 
 ## インデックス作成の流れ
 

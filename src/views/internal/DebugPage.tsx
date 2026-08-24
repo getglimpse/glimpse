@@ -51,16 +51,10 @@ export const DebugPage = () => {
 
   const { stats: indexingStats, settings } = indexing;
   const startupWarm = indexingStats.startupWarm;
-  const globalSearchLoad = indexingStats.globalSearchLoad;
   const startupWarmCurrent =
     startupWarm.currentGroupName ??
     startupWarm.currentGroupId ??
     LL.debugPage.values.notAvailable();
-  const formatOptionalBytes = (value: number | null) =>
-    value === null
-      ? LL.debugPage.values.notAvailable()
-      : LL.debugPage.values.bytes({ value: value.toLocaleString() });
-  const formatMilliseconds = (value: number) => `${value} ms`;
 
   return (
     <div className="h-full w-full overflow-y-auto p-6 text-sm text-text-main">
@@ -147,55 +141,6 @@ export const DebugPage = () => {
               value={startupWarm.lastError}
             />
           )}
-        </DebugSection>
-
-        <DebugSection title="Global search load">
-          <DebugRow
-            label="Cached engines"
-            value={globalSearchLoad.cachedEngineCount}
-          />
-          <DebugRow
-            label="Tantivy readers"
-            value={globalSearchLoad.tantivyReaderCount}
-          />
-          <DebugRow
-            label="SQLite connections"
-            value={globalSearchLoad.sqliteConnectionCount}
-          />
-          <DebugRow
-            label="Last target databases"
-            value={globalSearchLoad.lastTargetDatabaseCount}
-          />
-          <DebugRow
-            label="Last cold targets"
-            value={globalSearchLoad.lastCacheMissCount}
-          />
-          <DebugRow
-            label="Last search latency"
-            value={formatMilliseconds(globalSearchLoad.lastSearchLatencyMs)}
-          />
-          <DebugRow
-            label="Cold open latency"
-            value={formatMilliseconds(globalSearchLoad.lastColdOpenLatencyMs)}
-          />
-          <DebugRow
-            label="Last result count"
-            value={globalSearchLoad.lastResultCount}
-          />
-          <DebugRow
-            label="Process memory"
-            value={formatOptionalBytes(globalSearchLoad.processMemoryBytes)}
-          />
-          <DebugRow
-            label="Startup warm memory"
-            value={formatOptionalBytes(globalSearchLoad.startupWarmMemoryBytes)}
-          />
-          <DebugRow
-            label="Load stats updated"
-            value={
-              globalSearchLoad.updatedAt ?? LL.debugPage.values.notAvailable()
-            }
-          />
         </DebugSection>
 
         <DebugSection title={LL.debugPage.sections.filters()}>

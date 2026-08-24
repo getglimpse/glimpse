@@ -42,19 +42,6 @@ Press `Ctrl + R` to switch to the next Active Target Group.
 
 The search query stays the same while the current Target Group changes.
 
-## Global Search
-
-Use `*` to search all Target Groups.
-
-```text
-*rust
-```
-
-| Query   | Behavior                        |
-| ------- | ------------------------------- |
-| `rust`  | Search the current Target Group |
-| `*rust` | Search all Target Groups        |
-
 ## Supported Files
 
 A Target Group can contain Markdown files, `.gjson` indexes, images, and other files.

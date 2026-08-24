@@ -68,7 +68,6 @@ React components should call these wrappers rather than invoking Tauri commands 
 The frontend handles UI-oriented prefixes:
 
 - `>` command argument mode
-- `*` global search
 - `!` hidden-item search
 - `#tag` tag collection
 - `:` and `/` internal page routing

@@ -26,10 +26,6 @@ export const HelpPage = () => {
             description={LL.helpPage.search.hidden()}
           />
           <HelpRow
-            command="*keyword"
-            description={LL.helpPage.search.global()}
-          />
-          <HelpRow
             command="item > args"
             description={LL.helpPage.search.commandArgs()}
           />

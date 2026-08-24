@@ -198,7 +198,7 @@ Tag Search は、現在アクティブな Target Group を対象に実行され�
 
 は Work グループ内の `rust` タグを持つドキュメントだけを検索します。
 
-他の Target Group を検索したい場合は、Target Group を切り替えるか、Global Search を利用してください。
+他の Target Group を検索したい場合は、Target Group を切り替えてください。
 
 ## まとめ
 

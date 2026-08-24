@@ -24,14 +24,6 @@ You can combine text and tags:
 async #rust
 ```
 
-## Global Search
-
-Use `*` to search across all Target Groups instead of only the current one.
-
-```text
-*rust
-```
-
 ## Hidden Search
 
 Use `!` to search items marked with `hidden: true`.
@@ -40,10 +32,10 @@ Use `!` to search items marked with `hidden: true`.
 !rust
 ```
 
-Hidden search returns hidden items instead of normal visible items. Combine it with global search when needed:
+Hidden search returns hidden items instead of normal visible items.
 
 ```text
-*!rust
+!rust
 ```
 
 ## Internal Pages
@@ -88,9 +80,7 @@ Everything to the right of `>` is passed as the argument string when you press `
 | ---------------------------- | ------------------------------------------ |
 | `rust`                       | Search the current Target Group            |
 | `#rust`                      | Tag search                                 |
-| `*rust`                      | Search all Target Groups                   |
 | `!rust`                      | Search hidden items                        |
-| `*!rust`                     | Search hidden items in all Target Groups   |
 | `:settings`                  | Search Internal Pages                      |
 | `/plugin`                    | Search plugin playground pages             |
 | `numeric calculator > 1 + 2` | Pass arguments to the selected page/action |

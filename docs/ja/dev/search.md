@@ -17,7 +17,6 @@ production backend は Tantivy + Lindera です。SQLite は item metadata、pre
   query: string;
   tags: string[];
   commandArgs: string | null;
-  global: boolean;
   hidden: boolean;
 }
 ```
@@ -25,7 +24,6 @@ production backend は Tantivy + Lindera です。SQLite は item metadata、pre
 frontend は command prefix と UI routing を担当します。
 
 - `>` command argument mode
-- `*` global search
 - `!` hidden-item search
 - `#tag` tag collection
 - `:` と `/` の internal page routing

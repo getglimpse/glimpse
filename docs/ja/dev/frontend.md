@@ -66,7 +66,6 @@ Global shortcuts は `useShortcuts` と `createAppShortcuts` で登録されま�
 
 prefix の挙動:
 
-- `*` は global search を有効にする。
 - `!` は hidden item を検索する。
 - `#tag` は tag filter になる。
 - `>` は検索部分と引数を分割する。

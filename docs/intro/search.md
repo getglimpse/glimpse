@@ -68,9 +68,7 @@ The search bar supports several prefixes.
 | ---------------------------- | ------------------------------------------ |
 | `rust`                       | Search the current Target Group            |
 | `#rust`                      | Search by tag                              |
-| `*rust`                      | Search all Target Groups                   |
 | `!rust`                      | Search hidden items                        |
-| `*!rust`                     | Search hidden items in all Target Groups   |
 | `:settings`                  | Search Internal Pages                      |
 | `/plugin`                    | Search plugin playground pages             |
 | `numeric calculator > 1 + 2` | Pass arguments to the selected page/action |
@@ -95,12 +93,10 @@ Search sources can be organized into Target Groups. For example, you might creat
 
 Press `Ctrl + R` to switch to the next Target Group while keeping the current search query.
 
-Use `*` when you want to search across all Target Groups at once.
-
 ## Search Tips
 
 1. Type a few characters into the search bar.
 2. Move through results with the arrow keys.
 3. Review items using Live Preview.
 4. Press `Ctrl + T` for documents you want to keep open.
-5. Use `Ctrl + R` or `*` when the item may be in another Target Group.
+5. Use `Ctrl + R` when the item may be in another Target Group.

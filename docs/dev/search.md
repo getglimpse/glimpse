@@ -19,7 +19,6 @@ Tantivy is a rebuildable inverted index used for full-text search.
   query: string;
   tags: string[];
   commandArgs: string | null;
-  global: boolean;
   hidden: boolean;
 }
 ```
@@ -27,7 +26,6 @@ Tantivy is a rebuildable inverted index used for full-text search.
 The frontend handles command prefixes and UI routing:
 
 - `>` command argument mode
-- `*` global search
 - `!` hidden-item search
 - `#tag` tag collection
 - `:` and `/` internal page routing
@@ -138,13 +136,8 @@ in the status bar, and surfaces detailed state on the Debug page. The warm state
 tracks status, current target group, completed group count, total group count,
 and the last abort/error reason when applicable.
 
-Global search load diagnostics are exposed through
-`IndexingStats.globalSearchLoad` and shown on the Debug page. The counters track
-global search engine cache size, Tantivy reader count, SQLite connection count,
-the number of target databases touched by the last global search, cold cache
-misses, total/cold-open latency, result count, and process memory snapshots.
-Startup warm completion also records a memory snapshot so load can be checked
-after warm settles.
+Search runs against the current target group. To search another target group,
+the user switches target groups and keeps the same query.
 
 ## Consistency Strategy
 

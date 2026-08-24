@@ -2,7 +2,6 @@ export type ParsedSearchInput = {
   query: string;
   tags: string[];
   commandArgs: string | null;
-  global: boolean;
   hidden: boolean;
 };
 
@@ -16,11 +15,14 @@ export const parseSearchInput = (input: string): ParsedSearchInput => {
     commandIndex === -1 ? null : input.slice(commandIndex + 1).trim();
 
   const trimmed = rawSearch.trimStart();
-  const global = trimmed.startsWith("*");
-  const afterGlobal = global ? trimmed.slice(1).trimStart() : trimmed;
-  const hidden = afterGlobal.startsWith("!");
+  const searchPrefixRemoved = trimmed.startsWith("*")
+    ? trimmed.slice(1).trimStart()
+    : trimmed;
+  const hidden = searchPrefixRemoved.startsWith("!");
 
-  const searchPart = hidden ? afterGlobal.slice(1).trim() : afterGlobal;
+  const searchPart = hidden
+    ? searchPrefixRemoved.slice(1).trim()
+    : searchPrefixRemoved;
 
   const tags: string[] = [];
   const queryTokens: string[] = [];
@@ -39,7 +41,6 @@ export const parseSearchInput = (input: string): ParsedSearchInput => {
   return {
     query: queryTokens.join(" "),
     tags,
-    global,
     hidden,
     commandArgs,
   };

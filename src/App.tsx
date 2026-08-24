@@ -165,7 +165,7 @@ const addTagToSearchQuery = (currentQuery: string, tag: string) => {
   const parsed = parseSearchInput(currentQuery);
   const tagToken = `#${normalizedTag}`;
 
-  if (!parsed.global && isInternalSearchQuery(parsed.query)) {
+  if (isInternalSearchQuery(parsed.query)) {
     return tagToken;
   }
 
@@ -272,7 +272,7 @@ export default function App() {
 
       const parsed = parseSearchInput(nextQuery);
 
-      if (!parsed.global && isInternalSearchQuery(parsed.query)) {
+      if (isInternalSearchQuery(parsed.query)) {
         const internalResults = searchInternalItems(parsed.query);
 
         perf.log("internal results", internalResults.length);
@@ -292,7 +292,6 @@ export default function App() {
 
       const results = await searchApi.getItems({
         query: searchQuery,
-        global: parsed.global,
         hidden: parsed.hidden,
       });
 
@@ -382,7 +381,7 @@ export default function App() {
     return subscribeToPluginChanges(() => {
       const parsed = parseSearchInput(query);
 
-      if (!parsed.global && isInternalSearchQuery(parsed.query)) {
+      if (isInternalSearchQuery(parsed.query)) {
         void fetchResults(query);
       }
     });
@@ -790,7 +789,6 @@ export default function App() {
     if (
       previousParsed.query !== nextParsed.query ||
       previousParsed.hidden !== nextParsed.hidden ||
-      previousParsed.global !== nextParsed.global ||
       previousParsed.tags.join("\0") !== nextParsed.tags.join("\0")
     ) {
       setSelectedIndex(0);

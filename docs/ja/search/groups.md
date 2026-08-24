@@ -1,8 +1,8 @@
 # Target Groups
 
-Target Groups は、検索対象フォルダーを用途ごとに分けて管理する機能です。
+Target Groups は、検索対象フォルダーを用途ごとに分けて管理するための機能です。
 
-通常検索は、現在アクティブな Target Group を対象に実行されます。
+通常検索は、現在の Target Group だけを対象にします。
 
 ## 例
 
@@ -28,21 +28,13 @@ Study
 
 ## 切り替え
 
-`Ctrl + R` を押すと、次の Target Group に切り替わります。
+`Ctrl + R` を押すと、次の Active Target Group に切り替わります。
 
-検索クエリはそのまま維持されます。
-
-## Global Search
-
-`*` を付けると、すべての Target Groups を検索します。
-
-```text
-*rust
-```
+検索クエリはそのまま維持されるため、同じ query で別の Target Group を探せます。
 
 ## 対応ファイル
 
-Target Group には Markdown、`.gjson`、画像、その他ファイルを含められます。
+Target Group には Markdown、`.gjson`、画像、その他のファイルを含められます。
 
 ```text
 Work

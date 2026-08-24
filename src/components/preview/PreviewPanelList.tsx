@@ -123,10 +123,9 @@ export const PreviewPanelList = ({
           const data = {
             raw: tab.query,
             query: parsed.query,
-            global: parsed.global,
             hidden: parsed.hidden,
             commandArgs: parsed.commandArgs,
-            isInternal: !parsed.global && parsed.query.startsWith("$"),
+            isInternal: parsed.query.startsWith("$"),
           };
 
           return (

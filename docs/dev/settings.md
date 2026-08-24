@@ -38,9 +38,7 @@ Defaults should provide a working local setup without requiring manual configura
 
 Target Groups define searchable filesystem scopes.
 
-Each target group can include one or more paths. The active target group controls normal search, indexing, and watcher state.
-
-Global search can include multiple active target groups when requested by the user.
+Each target group can include one or more paths. The active target group controls search, indexing, and watcher state.
 
 ## Indexing Settings
 

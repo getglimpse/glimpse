@@ -191,7 +191,7 @@ For example, if the current Target Group is **Work**, then:
 
 returns only documents tagged with `rust` in the **Work** group.
 
-To search another Target Group, switch to that group or use Global Search.
+To search another Target Group, switch to that group.
 
 ## Summary
 

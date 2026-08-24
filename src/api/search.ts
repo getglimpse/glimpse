@@ -16,7 +16,7 @@ export interface SearchParams {
    *
    * - `rust`
    * - `tag:rust`
-   * - `* rust`
+   * - `#rust`
    */
   query: string;
 
@@ -31,14 +31,6 @@ export interface SearchParams {
    * Maximum number of search results to return.
    */
   limit?: number;
-
-  /**
-   * Enables global search mode.
-   *
-   * When enabled, results may include items outside
-   * the currently selected dictionary or target group.
-   */
-  global?: boolean;
 
   /**
    * Searches only items marked as hidden metadata.
@@ -72,7 +64,7 @@ export const searchApi = {
    *
    * - Empty queries may return recent items.
    * - Supports fuzzy matching and ranking.
-   * - Can perform global searches across dictionaries.
+   * - Searches the current target group.
    *
    * @param params Search parameters.
    *
@@ -86,7 +78,6 @@ export const searchApi = {
         query: params.query,
         dictionaryId: params.dictionaryId,
         limit: params.limit,
-        global: params.global,
         hiddenOnly: params.hidden,
       });
 

@@ -68,9 +68,7 @@ Ctrl + T
 | ---------------------------- | -------------------------------------------- |
 | `rust`                       | 現在の Target Group を検索                   |
 | `#rust`                      | タグ検索                                     |
-| `*rust`                      | すべての Target Groups を検索                |
 | `!rust`                      | hidden item を検索                           |
-| `*!rust`                     | すべての Target Groups の hidden item を検索 |
 | `:settings`                  | Internal Pages を検索                        |
 | `/plugin`                    | plugin playground page を検索                |
 | `numeric calculator > 1 + 2` | 選択したページやアクションへ引数を渡す       |
@@ -95,7 +93,6 @@ Internal Pages は検索結果に表示され、ドキュメントと同じよ�
 
 `Ctrl + R` を押すと、現在の検索クエリを保ったまま次の Target Group に切り替えます。
 
-すべての Target Groups を検索したい場合は `*` を使います。
 
 ## Search Tips
 
@@ -103,4 +100,4 @@ Internal Pages は検索結果に表示され、ドキュメントと同じよ�
 2. 矢印キーで検索結果を移動します。
 3. Live Preview で内容を確認します。
 4. 残しておきたいドキュメントは `Ctrl + T` で Preview Tab にします。
-5. 別の Target Group にある可能性がある場合は、`Ctrl + R` または `*` を使います。
+5. 別の Target Group にある可能性がある場合は、`Ctrl + R` を使います。
