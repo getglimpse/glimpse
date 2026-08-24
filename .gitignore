@@ -34,3 +34,4 @@ plugins/
 
 # private docs live in a separate local repo
 .private-docs/
+demo/
