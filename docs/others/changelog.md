@@ -2,6 +2,26 @@
 
 This page records the release history of Glimpse.
 
+## v0.2.3
+
+### Added
+
+#### Preview
+
+* Added temporary saved results and source-path lookup support so newly created or edited files can stay connected to their source preview.
+
+### Changed
+
+#### File Editor
+
+* Improved the `.gjson` file creation and editing panel with localized labels and validation messages.
+* Replaced the native `defaultAction` selector with the shared UI Select component.
+* Adjusted the responsive `.gjson` editor grid so it switches to two columns at a narrower width.
+
+#### Toasts
+
+* Copy actions are now shown only on toasts where copying is useful, with error toasts remaining copyable by default.
+
 ## v0.2.2
 
 ### Added

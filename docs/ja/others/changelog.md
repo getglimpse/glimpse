@@ -2,6 +2,26 @@
 
 このページでは、Glimpse のリリース履歴を記録しています。
 
+## v0.2.3
+
+### Added
+
+#### Preview
+
+- 新規作成・編集したファイルを元の preview とつなげて扱えるように、temporary saved results と source-path lookup support を追加
+
+### Changed
+
+#### File Editor
+
+- `.gjson` ファイルの作成・編集パネルで、表示ラベルと validation message を i18n 化
+- `defaultAction` の selector を native select から共通 UI Select component に変更
+- `.gjson` editor の responsive grid が、より狭い幅でも2列に切り替わるように調整
+
+#### Toasts
+
+- copy action は必要な toast にだけ表示するように変更し、error toast は引き続きデフォルトで copy 可能にした
+
 ## v0.2.2
 
 ### Added
