@@ -609,6 +609,31 @@ const ja = {
     noChanges: "変更はありません",
     fileSaved: "ファイルを保存しました",
     fileAlreadyExists: "そのパスにはすでにファイルがあります: {path}",
+    gjson: {
+      items: "項目",
+      addItem: "項目を追加",
+      untitledItem: "無題",
+      removeItem: "項目を削除",
+      missingItemTitle: ".gjson の各項目にはタイトルが必要です。",
+      fields: {
+        title: "タイトル",
+        url: "URL",
+        desc: "説明",
+        command: "コマンド",
+        tags: "タグ",
+        aliases: "別名",
+        defaultAction: "既定アクション",
+      },
+      placeholders: {
+        tags: "rust, docs",
+        aliases: "book, rustbook",
+      },
+      defaultActionOptions: {
+        auto: "自動",
+        command: "コマンド",
+        url: "URL",
+      },
+    },
   },
   markdownPreview: {
     copiedCodeBlock: "コードブロック #{index} をコピーしました",

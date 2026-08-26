@@ -185,7 +185,7 @@ export const FileEditorPanel = ({
             );
 
           if (missingTitle) {
-            toast.error("Each .gjson item needs a title.");
+            toast.error(LL.fileEditor.gjson.missingItemTitle());
             return;
           }
         }
@@ -214,7 +214,7 @@ export const FileEditorPanel = ({
               );
 
             if (missingTitle) {
-              toast.error("Each .gjson item needs a title.");
+              toast.error(LL.fileEditor.gjson.missingItemTitle());
               return;
             }
           }

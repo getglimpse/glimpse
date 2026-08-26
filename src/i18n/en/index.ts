@@ -601,6 +601,31 @@ const en = {
     noChanges: "No changes",
     fileSaved: "File saved",
     fileAlreadyExists: "A file already exists at that path: {path}",
+    gjson: {
+      items: "Items",
+      addItem: "Add item",
+      untitledItem: "Untitled",
+      removeItem: "Remove item",
+      missingItemTitle: "Each .gjson item needs a title.",
+      fields: {
+        title: "Title",
+        url: "URL",
+        desc: "Description",
+        command: "Command",
+        tags: "Tags",
+        aliases: "Aliases",
+        defaultAction: "Default action",
+      },
+      placeholders: {
+        tags: "rust, docs",
+        aliases: "book, rustbook",
+      },
+      defaultActionOptions: {
+        auto: "Auto",
+        command: "Command",
+        url: "URL",
+      },
+    },
   },
   markdownPreview: {
     copiedCodeBlock: "Copied code block #{index}",

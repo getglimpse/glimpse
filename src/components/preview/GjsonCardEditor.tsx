@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useI18nContext } from "@/i18n/I18nProvider";
 import { GjsonCardItem } from "@/types";
 import { createEmptyGjsonCardItem } from "@/utils/gjsonEditor";
 
@@ -28,6 +29,7 @@ export const GjsonCardEditor = ({ items, disabled, onChange }: Props) => {
   const [collapsedItemIds, setCollapsedItemIds] = useState<Set<string>>(
     () => new Set(),
   );
+  const { LL } = useI18nContext();
 
   const toggleCollapsed = (id: string) => {
     setCollapsedItemIds((current) => {
@@ -66,7 +68,9 @@ export const GjsonCardEditor = ({ items, disabled, onChange }: Props) => {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
       <div className="flex items-center justify-between gap-3">
-        <span className="text-sm font-medium text-text-main">items</span>
+        <span className="text-sm font-medium text-text-main">
+          {LL.fileEditor.gjson.items()}
+        </span>
         <Button
           type="button"
           onClick={addItem}
@@ -74,7 +78,7 @@ export const GjsonCardEditor = ({ items, disabled, onChange }: Props) => {
           className="h-8 rounded-md border border-border-main px-2 text-xs"
         >
           <Plus className="mr-1 h-3.5 w-3.5" />
-          Add item
+          {LL.fileEditor.gjson.addItem()}
         </Button>
       </div>
 
@@ -104,7 +108,7 @@ export const GjsonCardEditor = ({ items, disabled, onChange }: Props) => {
                 >
                   <CardChevron className="h-4 w-4 shrink-0 text-text-muted" />
                   <span className="truncate text-sm font-semibold">
-                    {itemTitle || "Untitled"}
+                    {itemTitle || LL.fileEditor.gjson.untitledItem()}
                   </span>
                 </button>
 
@@ -113,7 +117,7 @@ export const GjsonCardEditor = ({ items, disabled, onChange }: Props) => {
                   onClick={() => removeItem(item.id)}
                   disabled={disabled}
                   className="inline-flex h-7 w-7 items-center justify-center rounded-md text-text-muted hover:bg-item-hover hover:text-text-main disabled:cursor-not-allowed disabled:opacity-50"
-                  title="Remove item"
+                  title={LL.fileEditor.gjson.removeItem()}
                   tabIndex={-1}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -129,7 +133,7 @@ export const GjsonCardEditor = ({ items, disabled, onChange }: Props) => {
                   }}
                 >
                   <TextField
-                    label="title"
+                    label={LL.fileEditor.gjson.fields.title()}
                     value={item.title}
                     required
                     disabled={disabled}
@@ -138,7 +142,7 @@ export const GjsonCardEditor = ({ items, disabled, onChange }: Props) => {
                     }
                   />
                   <TextField
-                    label="url"
+                    label={LL.fileEditor.gjson.fields.url()}
                     value={item.url}
                     disabled={disabled}
                     onChange={(url) =>
@@ -146,7 +150,7 @@ export const GjsonCardEditor = ({ items, disabled, onChange }: Props) => {
                     }
                   />
                   <TextField
-                    label="desc"
+                    label={LL.fileEditor.gjson.fields.desc()}
                     value={item.desc}
                     disabled={disabled}
                     onChange={(desc) =>
@@ -154,7 +158,7 @@ export const GjsonCardEditor = ({ items, disabled, onChange }: Props) => {
                     }
                   />
                   <TextField
-                    label="command"
+                    label={LL.fileEditor.gjson.fields.command()}
                     value={item.command}
                     disabled={disabled}
                     onChange={(command) =>
@@ -162,26 +166,32 @@ export const GjsonCardEditor = ({ items, disabled, onChange }: Props) => {
                     }
                   />
                   <TextField
-                    label="tags"
+                    label={LL.fileEditor.gjson.fields.tags()}
                     value={item.tags}
-                    placeholder="rust, docs"
+                    placeholder={LL.fileEditor.gjson.placeholders.tags()}
                     disabled={disabled}
                     onChange={(tags) =>
                       onChange(updateItem(items, item.id, { tags }))
                     }
                   />
                   <TextField
-                    label="aliases"
+                    label={LL.fileEditor.gjson.fields.aliases()}
                     value={item.aliases}
-                    placeholder="book, rustbook"
+                    placeholder={LL.fileEditor.gjson.placeholders.aliases()}
                     disabled={disabled}
                     onChange={(aliases) =>
                       onChange(updateItem(items, item.id, { aliases }))
                     }
                   />
                   <SelectField
-                    label="defaultAction"
+                    label={LL.fileEditor.gjson.fields.defaultAction()}
                     value={item.defaultAction}
+                    options={{
+                      auto: LL.fileEditor.gjson.defaultActionOptions.auto(),
+                      command:
+                        LL.fileEditor.gjson.defaultActionOptions.command(),
+                      url: LL.fileEditor.gjson.defaultActionOptions.url(),
+                    }}
                     disabled={disabled}
                     onChange={(defaultAction) =>
                       onChange(updateItem(items, item.id, { defaultAction }))
@@ -258,6 +268,7 @@ const TextField = ({
 type SelectFieldProps = {
   label: string;
   value: "" | "command" | "url";
+  options: Record<DefaultActionSelectValue, string>;
   disabled?: boolean;
   onChange: (value: "" | "command" | "url") => void;
 };
@@ -267,6 +278,7 @@ type DefaultActionSelectValue = "auto" | "command" | "url";
 const SelectField = ({
   label,
   value,
+  options,
   disabled,
   onChange,
 }: SelectFieldProps) => {
@@ -286,9 +298,9 @@ const SelectField = ({
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="auto">auto</SelectItem>
-          <SelectItem value="command">command</SelectItem>
-          <SelectItem value="url">url</SelectItem>
+          <SelectItem value="auto">{options.auto}</SelectItem>
+          <SelectItem value="command">{options.command}</SelectItem>
+          <SelectItem value="url">{options.url}</SelectItem>
         </SelectContent>
       </Select>
     </label>

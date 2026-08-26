@@ -1845,6 +1845,82 @@ type RootTranslation = {
 		 * @param {unknown} path
 		 */
 		fileAlreadyExists: RequiredParams<'path'>
+		gjson: {
+			/**
+			 * I​t​e​m​s
+			 */
+			items: string
+			/**
+			 * A​d​d​ ​i​t​e​m
+			 */
+			addItem: string
+			/**
+			 * U​n​t​i​t​l​e​d
+			 */
+			untitledItem: string
+			/**
+			 * R​e​m​o​v​e​ ​i​t​e​m
+			 */
+			removeItem: string
+			/**
+			 * E​a​c​h​ ​.​g​j​s​o​n​ ​i​t​e​m​ ​n​e​e​d​s​ ​a​ ​t​i​t​l​e​.
+			 */
+			missingItemTitle: string
+			fields: {
+				/**
+				 * T​i​t​l​e
+				 */
+				title: string
+				/**
+				 * U​R​L
+				 */
+				url: string
+				/**
+				 * D​e​s​c​r​i​p​t​i​o​n
+				 */
+				desc: string
+				/**
+				 * C​o​m​m​a​n​d
+				 */
+				command: string
+				/**
+				 * T​a​g​s
+				 */
+				tags: string
+				/**
+				 * A​l​i​a​s​e​s
+				 */
+				aliases: string
+				/**
+				 * D​e​f​a​u​l​t​ ​a​c​t​i​o​n
+				 */
+				defaultAction: string
+			}
+			placeholders: {
+				/**
+				 * r​u​s​t​,​ ​d​o​c​s
+				 */
+				tags: string
+				/**
+				 * b​o​o​k​,​ ​r​u​s​t​b​o​o​k
+				 */
+				aliases: string
+			}
+			defaultActionOptions: {
+				/**
+				 * A​u​t​o
+				 */
+				auto: string
+				/**
+				 * C​o​m​m​a​n​d
+				 */
+				command: string
+				/**
+				 * U​R​L
+				 */
+				url: string
+			}
+		}
 	}
 	markdownPreview: {
 		/**
@@ -3718,6 +3794,82 @@ export type TranslationFunctions = {
 		 * A file already exists at that path: {path}
 		 */
 		fileAlreadyExists: (arg: { path: unknown }) => LocalizedString
+		gjson: {
+			/**
+			 * Items
+			 */
+			items: () => LocalizedString
+			/**
+			 * Add item
+			 */
+			addItem: () => LocalizedString
+			/**
+			 * Untitled
+			 */
+			untitledItem: () => LocalizedString
+			/**
+			 * Remove item
+			 */
+			removeItem: () => LocalizedString
+			/**
+			 * Each .gjson item needs a title.
+			 */
+			missingItemTitle: () => LocalizedString
+			fields: {
+				/**
+				 * Title
+				 */
+				title: () => LocalizedString
+				/**
+				 * URL
+				 */
+				url: () => LocalizedString
+				/**
+				 * Description
+				 */
+				desc: () => LocalizedString
+				/**
+				 * Command
+				 */
+				command: () => LocalizedString
+				/**
+				 * Tags
+				 */
+				tags: () => LocalizedString
+				/**
+				 * Aliases
+				 */
+				aliases: () => LocalizedString
+				/**
+				 * Default action
+				 */
+				defaultAction: () => LocalizedString
+			}
+			placeholders: {
+				/**
+				 * rust, docs
+				 */
+				tags: () => LocalizedString
+				/**
+				 * book, rustbook
+				 */
+				aliases: () => LocalizedString
+			}
+			defaultActionOptions: {
+				/**
+				 * Auto
+				 */
+				auto: () => LocalizedString
+				/**
+				 * Command
+				 */
+				command: () => LocalizedString
+				/**
+				 * URL
+				 */
+				url: () => LocalizedString
+			}
+		}
 	}
 	markdownPreview: {
 		/**
