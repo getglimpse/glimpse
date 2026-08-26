@@ -5,6 +5,9 @@ import { toast as sonnerToast, type ExternalToast } from "sonner";
 import { copyText } from "@/utils/clipboard";
 
 type ToastMessage = ReactNode | (() => ReactNode);
+type ToastOptions = ExternalToast & {
+  copy?: boolean;
+};
 
 const toastCopyAction = (message: ToastMessage) => ({
   label: (
@@ -18,13 +21,22 @@ const toastCopyAction = (message: ToastMessage) => ({
   },
 });
 
-const withCopyAction = (
+const resolveToastOptions = (
   message: ToastMessage,
-  data?: ExternalToast,
-): ExternalToast => ({
-  ...data,
-  action: toastCopyAction(message),
-});
+  data: ToastOptions | undefined,
+  copyByDefault: boolean,
+): ExternalToast => {
+  const { copy = copyByDefault, ...toastOptions } = data ?? {};
+
+  if (!copy || toastOptions.action) {
+    return toastOptions;
+  }
+
+  return {
+    ...toastOptions,
+    action: toastCopyAction(message),
+  };
+};
 
 const copyToastMessage = async (message: ToastMessage) => {
   const text = getToastText(message);
@@ -60,22 +72,22 @@ const getToastText = (message: ToastMessage): string => {
   return "";
 };
 
-const toastWithCopy = Object.assign(
-  (message: ToastMessage, data?: ExternalToast) =>
-    sonnerToast(message, withCopyAction(message, data)),
+const toastWithOptionalCopy = Object.assign(
+  (message: ToastMessage, data?: ToastOptions) =>
+    sonnerToast(message, resolveToastOptions(message, data, false)),
   {
-    success: (message: ToastMessage, data?: ExternalToast) =>
-      sonnerToast.success(message, withCopyAction(message, data)),
-    info: (message: ToastMessage, data?: ExternalToast) =>
-      sonnerToast.info(message, withCopyAction(message, data)),
-    warning: (message: ToastMessage, data?: ExternalToast) =>
-      sonnerToast.warning(message, withCopyAction(message, data)),
-    error: (message: ToastMessage, data?: ExternalToast) =>
-      sonnerToast.error(message, withCopyAction(message, data)),
-    message: (message: ToastMessage, data?: ExternalToast) =>
-      sonnerToast.message(message, withCopyAction(message, data)),
-    loading: (message: ToastMessage, data?: ExternalToast) =>
-      sonnerToast.loading(message, withCopyAction(message, data)),
+    success: (message: ToastMessage, data?: ToastOptions) =>
+      sonnerToast.success(message, resolveToastOptions(message, data, false)),
+    info: (message: ToastMessage, data?: ToastOptions) =>
+      sonnerToast.info(message, resolveToastOptions(message, data, false)),
+    warning: (message: ToastMessage, data?: ToastOptions) =>
+      sonnerToast.warning(message, resolveToastOptions(message, data, false)),
+    error: (message: ToastMessage, data?: ToastOptions) =>
+      sonnerToast.error(message, resolveToastOptions(message, data, true)),
+    message: (message: ToastMessage, data?: ToastOptions) =>
+      sonnerToast.message(message, resolveToastOptions(message, data, false)),
+    loading: (message: ToastMessage, data?: ToastOptions) =>
+      sonnerToast.loading(message, resolveToastOptions(message, data, false)),
     custom: sonnerToast.custom,
     promise: sonnerToast.promise,
     dismiss: sonnerToast.dismiss,
@@ -84,5 +96,5 @@ const toastWithCopy = Object.assign(
   },
 );
 
-export { toastWithCopy as toast };
-export type { ExternalToast };
+export { toastWithOptionalCopy as toast };
+export type { ToastOptions as ExternalToast };
