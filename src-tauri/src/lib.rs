@@ -73,6 +73,7 @@ pub fn run() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             commands::search::search_items,
+            commands::search::get_items_by_source_path,
             commands::open::reveal_in_explorer,
             commands::open::open_source_file,
             commands::action::run_item_command,

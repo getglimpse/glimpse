@@ -181,6 +181,7 @@ pub const LIST_ITEM_IDS_BY_SOURCE_PATH: &str = r#"
 SELECT id
 FROM items
 WHERE source_path = ?1
+ORDER BY id
 "#;
 
 pub const UPSERT_SOURCE_FINGERPRINT: &str = r#"

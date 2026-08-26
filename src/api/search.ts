@@ -91,6 +91,20 @@ export const searchApi = {
     }
   },
 
+  async getItemsBySourcePath(sourcePath: string): Promise<SearchResult[]> {
+    try {
+      return await invoke<SearchResult[]>("get_items_by_source_path", {
+        sourcePath,
+      });
+    } catch (error) {
+      console.error("API Error (get_items_by_source_path):", error);
+
+      throw new Error(
+        typeof error === "string" ? error : "Unknown source path lookup error",
+      );
+    }
+  },
+
   // Future APIs:
   // async getDictionaries() { ... }
   // async togglePin(id: string) { ... }

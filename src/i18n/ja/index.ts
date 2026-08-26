@@ -608,6 +608,7 @@ const ja = {
     filePathMissing: "ファイルパスがありません",
     noChanges: "変更はありません",
     fileSaved: "ファイルを保存しました",
+    fileAlreadyExists: "そのパスにはすでにファイルがあります: {path}",
   },
   markdownPreview: {
     copiedCodeBlock: "コードブロック #{index} をコピーしました",

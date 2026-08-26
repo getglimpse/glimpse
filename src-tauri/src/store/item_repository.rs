@@ -290,6 +290,22 @@ pub fn list_item_ids_by_source_path(
     )
 }
 
+pub fn list_items_by_source_path(
+    conn: &Connection,
+    source_path: &str,
+) -> Result<Vec<SearchResult>, SearchError> {
+    let ids = list_item_ids_by_source_path(conn, source_path)?;
+    let mut results = Vec::with_capacity(ids.len());
+
+    for (index, id) in ids.into_iter().enumerate() {
+        if let Some(result) = get_item_summary(conn, &id, f32::MAX - index as f32)? {
+            results.push(result);
+        }
+    }
+
+    Ok(results)
+}
+
 pub fn unchanged_source_item_count(
     conn: &Connection,
     fingerprint: &SourceFingerprint,

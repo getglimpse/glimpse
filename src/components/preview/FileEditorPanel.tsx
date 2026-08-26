@@ -29,8 +29,10 @@ import { GjsonCardEditor } from "./GjsonCardEditor";
 
 type SaveResult = {
   filePath: string;
+  previousFilePath?: string;
   title: string;
   body: string;
+  contentMode: FileEditorTabState["contentMode"];
   gjsonDocument?: FileEditorTabState["gjsonDocument"];
 };
 
@@ -45,6 +47,18 @@ type Props = {
 
 const resolveDisplayTitle = (title: string, untitledLabel: string) =>
   title.trim() ? title.trim() : untitledLabel;
+
+const existingFileErrorPrefix = "file already exists:";
+
+const existingFilePathFromError = (error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error);
+
+  if (!message.startsWith(existingFileErrorPrefix)) {
+    return null;
+  }
+
+  return message.slice(existingFileErrorPrefix.length).trim();
+};
 
 const isNativeEditableShortcut = (event: React.KeyboardEvent) => {
   const key = event.key.toLowerCase();
@@ -212,8 +226,10 @@ export const FileEditorPanel = ({
       toast.success(LL.fileEditor.fileSaved());
       onSaved({
         filePath: savedPath,
+        previousFilePath: editor.mode === "edit" ? editor.filePath : undefined,
         title: trimmedTitle,
         body: savedBody,
+        contentMode: editor.contentMode,
         gjsonDocument:
           editor.contentMode === "gjsonCards" ? gjsonDocument : undefined,
       });
@@ -222,7 +238,13 @@ export const FileEditorPanel = ({
         onClose({ force: true });
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : String(error));
+      const existingPath = existingFilePathFromError(error);
+
+      if (existingPath) {
+        toast.error(LL.fileEditor.fileAlreadyExists({ path: existingPath }));
+      } else {
+        toast.error(error instanceof Error ? error.message : String(error));
+      }
     } finally {
       setSaving(false);
     }

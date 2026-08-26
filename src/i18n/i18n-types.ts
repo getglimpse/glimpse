@@ -1550,11 +1550,11 @@ type RootTranslation = {
 				 */
 				externalOpenType: string
 				/**
-				 * C​o​m​m​a​n​d​ ​p​a​t​h​ ​u​s​e​d​ ​w​i​t​h​ ​o​p​e​n​.​t​y​p​e​:​ ​c​o​m​m​a​n​d
+				 * C​o​m​m​a​n​d​ ​s​t​r​i​n​g​ ​u​s​e​d​ ​b​y​ ​c​o​m​m​a​n​d
 				 */
 				openPath: string
 				/**
-				 * U​R​L​ ​u​s​e​d​ ​w​i​t​h​ ​o​p​e​n​.​t​y​p​e​:​ ​e​x​t​e​r​n​a​l
+				 * U​R​L​ ​o​p​e​n​e​d​ ​b​y​ ​u​r​l
 				 */
 				openUrl: string
 				/**
@@ -1840,6 +1840,11 @@ type RootTranslation = {
 		 * F​i​l​e​ ​s​a​v​e​d
 		 */
 		fileSaved: string
+		/**
+		 * A​ ​f​i​l​e​ ​a​l​r​e​a​d​y​ ​e​x​i​s​t​s​ ​a​t​ ​t​h​a​t​ ​p​a​t​h​:​ ​{​p​a​t​h​}
+		 * @param {unknown} path
+		 */
+		fileAlreadyExists: RequiredParams<'path'>
 	}
 	markdownPreview: {
 		/**
@@ -3709,6 +3714,10 @@ export type TranslationFunctions = {
 		 * File saved
 		 */
 		fileSaved: () => LocalizedString
+		/**
+		 * A file already exists at that path: {path}
+		 */
+		fileAlreadyExists: (arg: { path: unknown }) => LocalizedString
 	}
 	markdownPreview: {
 		/**

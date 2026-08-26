@@ -600,6 +600,7 @@ const en = {
     filePathMissing: "File path is missing",
     noChanges: "No changes",
     fileSaved: "File saved",
+    fileAlreadyExists: "A file already exists at that path: {path}",
   },
   markdownPreview: {
     copiedCodeBlock: "Copied code block #{index}",

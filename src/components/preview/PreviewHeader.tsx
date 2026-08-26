@@ -49,6 +49,7 @@ type Props = {
   onOpenCommandHistory?: () => void;
   onUrlAction?: () => void;
   onCommandAction?: () => void;
+  onRefreshTemporaryItem?: () => void;
 };
 
 const getPreviewIcon = (item: IndexItem) => {
@@ -91,10 +92,11 @@ const getActionButtons = (
   LL: ReturnType<typeof useI18nContext>["LL"],
 ) => {
   const buttons: Array<{
-    kind: "url" | "command";
+    kind: "url" | "command" | "refresh";
     label: string;
     tooltip: string;
   }> = [];
+  const isTemporarySavedItem = item.id.startsWith("temporary-saved:");
 
   if (item.url) {
     buttons.push({
@@ -102,6 +104,16 @@ const getActionButtons = (
       label: LL.previewPanel.openLink(),
       tooltip: item.url,
     });
+  }
+
+  if (isTemporarySavedItem) {
+    buttons.push({
+      kind: "refresh",
+      label: LL.common.reload(),
+      tooltip: LL.common.reload(),
+    });
+
+    return buttons;
   }
 
   if (item.command) {
@@ -129,6 +141,7 @@ export const PreviewHeader = ({
   onOpenCommandHistory,
   onUrlAction,
   onCommandAction,
+  onRefreshTemporaryItem,
 }: Props) => {
   const { LL } = useI18nContext();
 
@@ -176,10 +189,22 @@ export const PreviewHeader = ({
           <button
             key={button.kind}
             type="button"
-            onClick={button.kind === "url" ? onUrlAction : onCommandAction}
+            onClick={
+              button.kind === "url"
+                ? onUrlAction
+                : button.kind === "command"
+                  ? onCommandAction
+                  : onRefreshTemporaryItem
+            }
             aria-label={button.tooltip}
             title={button.tooltip}
-            disabled={button.kind === "url" ? !onUrlAction : !onCommandAction}
+            disabled={
+              button.kind === "url"
+                ? !onUrlAction
+                : button.kind === "command"
+                  ? !onCommandAction
+                  : !onRefreshTemporaryItem
+            }
             className="text-xs text-accent hover:underline disabled:text-text-muted disabled:hover:no-underline"
             tabIndex={-1}
           >

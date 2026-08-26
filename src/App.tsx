@@ -52,10 +52,13 @@ import { BUILT_IN_THEMES } from "@/constants/themes";
 import { perf } from "@/utils/debugPerf";
 import { parseGjsonEditorDocument } from "@/utils/gjsonEditor";
 import { hasHelpContent } from "@/utils/helpContent";
+import { parseMarkdownMetadata } from "@/utils/markdownMetadata";
 
 import type {
   CommandHistoryEntry,
   CssTheme,
+  GjsonCardItem,
+  GjsonEditorDocument,
   IndexItem,
   SearchResult,
   SearchSnippet,
@@ -80,7 +83,8 @@ const titleFromPath = (filePath: string) => {
   return name.includes(".") ? name.replace(/\.[^.]+$/, "") : name;
 };
 
-const normalizeFilePath = (filePath: string) => filePath.replace(/\\/g, "/");
+const normalizeFilePath = (filePath: string) =>
+  filePath.replace(/\\/g, "/").replace(/^\/\/\?\//, "");
 
 const extensionFromPath = (filePath: string) => {
   const name = filePath.split(/[\\/]/).pop() ?? "";
@@ -89,20 +93,67 @@ const extensionFromPath = (filePath: string) => {
   return match?.[1]?.toLowerCase() ?? "";
 };
 
-const includesSourcePath = (results: SearchResult[], filePath: string) => {
-  const normalizedPath = normalizeFilePath(filePath);
+const sourcePathMatches = (
+  sourcePath: string | null | undefined,
+  filePath: string,
+) =>
+  !!sourcePath && normalizeFilePath(sourcePath) === normalizeFilePath(filePath);
 
-  return results.some((result) => {
+const includesSourcePath = (results: SearchResult[], filePath: string) => {
+  return results.some((result) =>
+    sourcePathMatches(result.item.sourcePath, filePath),
+  );
+};
+
+const filterResultsBySourcePath = (results: SearchResult[], filePath: string) =>
+  results.filter((result) =>
+    sourcePathMatches(result.item.sourcePath, filePath),
+  );
+
+const filterResultsBySourcePaths = (
+  results: SearchResult[],
+  sourcePaths: string[],
+) => {
+  const normalizedPaths = new Set(sourcePaths.map(normalizeFilePath));
+
+  return results.filter((result) => {
     const sourcePath = result.item.sourcePath;
 
-    return !!sourcePath && normalizeFilePath(sourcePath) === normalizedPath;
+    return !sourcePath || !normalizedPaths.has(normalizeFilePath(sourcePath));
   });
 };
 
-type TemporarySavedResult = {
+const normalizeHttpUrl = (value: string) => {
+  const trimmed = value.trim();
+
+  if (!trimmed) return null;
+
+  try {
+    const url = new URL(trimmed);
+
+    return url.protocol === "http:" || url.protocol === "https:"
+      ? url.toString()
+      : null;
+  } catch {
+    return null;
+  }
+};
+
+const parseCommaList = (value: string) =>
+  value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+const normalizeStringList = (items: string[]) =>
+  Array.from(new Set(items)).sort();
+
+type TemporarySavedResults = {
   query: string;
   filePath: string;
-  result: SearchResult;
+  excludedSourcePaths: string[];
+  autoReplaceWhenIndexed: boolean;
+  results: SearchResult[];
 };
 
 type PendingSnippetNavigation = {
@@ -115,37 +166,209 @@ type WindowFocusedPayload = {
   selectedText?: string | null;
 };
 
-const createTemporarySavedResult = ({
+const createTemporaryMarkdownResult = ({
   title,
   filePath,
   body,
+  raw,
+  metadata,
 }: {
   title: string;
   filePath: string;
   body: string;
+  raw: boolean;
+  metadata?: {
+    tags: string[];
+    aliases: string[];
+    star: boolean;
+    hidden: boolean;
+    url?: string | null;
+    iframe: boolean;
+    defaultAction?: "url" | null;
+  };
 }): SearchResult => {
   const now = new Date().toISOString();
+  const url = metadata?.url ?? null;
   const item: IndexItem = {
     id: `temporary-saved:${normalizeFilePath(filePath)}`,
     title,
     sourcePath: filePath,
     updatedAt: now,
     metadata: {
-      tags: [],
-      aliases: [],
-      star: false,
+      tags: metadata?.tags ?? [],
+      aliases: metadata?.aliases ?? [],
+      star: metadata?.star ?? false,
+      hidden: metadata?.hidden || undefined,
       boost: 0,
     },
-    preview: {
-      type: "markdown",
-      content: body,
-    },
+    preview:
+      !raw && metadata?.iframe && url
+        ? {
+            type: "external",
+            url,
+          }
+        : raw
+          ? {
+              type: "raw",
+              content: body,
+            }
+          : {
+              type: "markdown",
+              content: body,
+            },
+    url,
+    defaultAction: metadata?.defaultAction ?? null,
   };
 
   return {
     item,
     score: Number.MAX_SAFE_INTEGER,
   };
+};
+
+const previewContentForGjsonCard = (card: GjsonCardItem, url: string | null) =>
+  [card.desc.trim(), url].filter(Boolean).join("\n\n");
+
+const defaultActionForTemporaryGjsonCard = (
+  card: GjsonCardItem,
+  url: string | null,
+) => {
+  if (!url) return null;
+
+  if (card.defaultAction === "url") return "url";
+
+  return card.command.trim() ? null : "url";
+};
+
+const createTemporaryGjsonResults = ({
+  filePath,
+  document,
+}: {
+  filePath: string;
+  document: GjsonEditorDocument;
+}): SearchResult[] => {
+  const now = new Date().toISOString();
+  const sourceId = normalizeFilePath(filePath);
+
+  return document.items
+    .filter((card) => card.title.trim())
+    .map((card, index) => {
+      const url = normalizeHttpUrl(card.url);
+      const previewContent = previewContentForGjsonCard(card, url);
+      const defaultAction = defaultActionForTemporaryGjsonCard(card, url);
+      const item: IndexItem = {
+        id: `temporary-saved:${sourceId}::${index}:${card.id}`,
+        title: card.title.trim(),
+        sourcePath: filePath,
+        updatedAt: now,
+        metadata: {
+          tags: normalizeStringList(parseCommaList(card.tags)),
+          aliases: normalizeStringList(parseCommaList(card.aliases)),
+          star: card.star,
+          hidden: card.hidden || undefined,
+          boost: 0,
+        },
+        preview:
+          card.iframe && url
+            ? {
+                type: "external",
+                url,
+              }
+            : {
+                type: "markdown",
+                content: previewContent,
+              },
+        url,
+        defaultAction,
+      };
+
+      return {
+        item,
+        score: Number.MAX_SAFE_INTEGER - index,
+      };
+    });
+};
+
+const createTemporarySavedResults = ({
+  title,
+  filePath,
+  body,
+  contentMode,
+  gjsonDocument,
+}: {
+  title: string;
+  filePath: string;
+  body: string;
+  contentMode: "markdown" | "gjsonCards" | "raw";
+  gjsonDocument?: GjsonEditorDocument;
+}): SearchResult[] => {
+  if (contentMode === "gjsonCards" && gjsonDocument) {
+    return createTemporaryGjsonResults({
+      filePath,
+      document: gjsonDocument,
+    });
+  }
+
+  const markdownMetadata =
+    contentMode === "markdown" ? parseMarkdownMetadata(body) : null;
+  const url = markdownMetadata?.url
+    ? normalizeHttpUrl(markdownMetadata.url)
+    : null;
+  const defaultAction =
+    url && markdownMetadata?.defaultAction === "url"
+      ? "url"
+      : url && !markdownMetadata?.command
+        ? "url"
+        : null;
+
+  return [
+    createTemporaryMarkdownResult({
+      title: markdownMetadata?.title ?? title,
+      filePath,
+      body: markdownMetadata?.body ?? body,
+      raw: contentMode === "raw",
+      metadata: markdownMetadata
+        ? {
+            tags: markdownMetadata.tags,
+            aliases: markdownMetadata.aliases,
+            star: markdownMetadata.star,
+            hidden: markdownMetadata.hidden,
+            url,
+            iframe: markdownMetadata.iframe,
+            defaultAction,
+          }
+        : undefined,
+    }),
+  ];
+};
+
+const filterTemporaryResultsForQuery = (
+  results: SearchResult[],
+  query: string,
+) => {
+  const parsed = parseSearchInput(query);
+
+  if (isInternalSearchQuery(parsed.query)) {
+    return [];
+  }
+
+  const requiredTags = parsed.tags.map((tag) => tag.toLowerCase());
+
+  return results.filter((result) => {
+    if (!parsed.hidden && result.item.metadata.hidden) {
+      return false;
+    }
+
+    if (requiredTags.length === 0) {
+      return true;
+    }
+
+    const resultTags = new Set(
+      result.item.metadata.tags.map((tag) => tag.toLowerCase()),
+    );
+
+    return requiredTags.every((tag) => resultTags.has(tag));
+  });
 };
 
 const getHelpPageId = (item: SearchResult["item"] | null): string | null => {
@@ -215,8 +438,8 @@ export default function App() {
   const [commandHistory, setCommandHistory] = useState<CommandHistoryEntry[]>(
     [],
   );
-  const [temporarySavedResult, setTemporarySavedResult] =
-    useState<TemporarySavedResult | null>(null);
+  const [temporarySavedResults, setTemporarySavedResults] =
+    useState<TemporarySavedResults | null>(null);
   const [pendingSnippetNavigation, setPendingSnippetNavigation] =
     useState<PendingSnippetNavigation | null>(null);
 
@@ -273,21 +496,33 @@ export default function App() {
     }
   };
 
-  const fetchResults = async (nextQuery = query) => {
+  const fetchResults = async (
+    nextQuery = query,
+    temporaryOverride?: TemporarySavedResults | null,
+    options?: { forceTemporaryReplace?: boolean },
+  ) => {
     perf.begin("fetchResults");
 
     try {
       setIsLoading(true);
 
       const parsed = parseSearchInput(nextQuery);
+      const activeTemporaryResults =
+        temporaryOverride === undefined
+          ? temporarySavedResults
+          : temporaryOverride;
 
       if (isInternalSearchQuery(parsed.query)) {
         const internalResults = searchInternalItems(parsed.query);
 
+        if (activeTemporaryResults?.query === nextQuery) {
+          setTemporarySavedResults(null);
+        }
+
         perf.log("internal results", internalResults.length);
         setSearchResults(internalResults);
 
-        return;
+        return false;
       }
 
       const searchQuery = [
@@ -304,21 +539,48 @@ export default function App() {
         hidden: parsed.hidden,
       });
 
-      if (
-        temporarySavedResult &&
-        includesSourcePath(results, temporarySavedResult.filePath)
-      ) {
-        setTemporarySavedResult(null);
+      const foundTemporarySource = Boolean(
+        activeTemporaryResults?.query === nextQuery &&
+        includesSourcePath(results, activeTemporaryResults.filePath),
+      );
+      const shouldReplaceTemporaryResults =
+        foundTemporarySource &&
+        (activeTemporaryResults?.autoReplaceWhenIndexed ||
+          options?.forceTemporaryReplace);
+      const replacementResults = activeTemporaryResults
+        ? filterResultsBySourcePath(results, activeTemporaryResults.filePath)
+        : [];
+      const nextResults =
+        activeTemporaryResults?.query === nextQuery
+          ? shouldReplaceTemporaryResults
+            ? [
+                ...replacementResults,
+                ...filterResultsBySourcePaths(
+                  results,
+                  activeTemporaryResults.excludedSourcePaths,
+                ),
+              ]
+            : filterResultsBySourcePaths(
+                results,
+                activeTemporaryResults.excludedSourcePaths,
+              )
+          : results;
+
+      if (shouldReplaceTemporaryResults) {
+        setTemporarySavedResults(null);
       }
 
       perf.stop("searchApi.getItems");
-      perf.log("search result count", results.length);
+      perf.log("search result count", nextResults.length);
 
       perf.start("setSearchResults");
-      setSearchResults(results);
+      setSearchResults(nextResults);
       perf.stop("setSearchResults");
+
+      return foundTemporarySource;
     } catch (error) {
       console.error("Search failed:", error);
+      return false;
     } finally {
       setIsLoading(false);
       perf.end();
@@ -396,14 +658,22 @@ export default function App() {
     });
   }, [query]);
 
-  const shouldShowTemporarySavedResult =
-    temporarySavedResult !== null &&
-    temporarySavedResult.query === query &&
-    !includesSourcePath(searchResults, temporarySavedResult.filePath);
-
-  const visibleSearchResults = shouldShowTemporarySavedResult
-    ? [temporarySavedResult.result, ...searchResults]
+  const activeTemporarySavedResults =
+    temporarySavedResults?.query === query ? temporarySavedResults : null;
+  const visibleBaseSearchResults = activeTemporarySavedResults
+    ? filterResultsBySourcePaths(
+        searchResults,
+        activeTemporarySavedResults.excludedSourcePaths,
+      )
     : searchResults;
+  const shouldShowTemporarySavedResults =
+    activeTemporarySavedResults !== null &&
+    activeTemporarySavedResults.results.length > 0 &&
+    !includesSourcePath(searchResults, activeTemporarySavedResults.filePath);
+
+  const visibleSearchResults = shouldShowTemporarySavedResults
+    ? [...activeTemporarySavedResults.results, ...visibleBaseSearchResults]
+    : visibleBaseSearchResults;
 
   const items = visibleSearchResults.map((result) => result.item);
   const hasResults = items.length > 0;
@@ -543,72 +813,96 @@ export default function App() {
   const refreshResultsAfterSave = async ({
     title,
     filePath,
+    previousFilePath,
+    body,
+    contentMode,
+    gjsonDocument,
   }: {
     title: string;
     filePath: string;
+    previousFilePath?: string;
+    body: string;
+    contentMode: "markdown" | "gjsonCards" | "raw";
+    gjsonDocument?: GjsonEditorDocument;
   }) => {
     try {
-      const savedBody = await fileApi.readTextFile(filePath);
-      const normalizedSavedPath = normalizeFilePath(filePath);
-
-      const updatedResults = searchResults.map((result) => {
-        const sourcePath = result.item.sourcePath;
-
-        if (
-          !sourcePath ||
-          normalizeFilePath(sourcePath) !== normalizedSavedPath ||
-          result.item.preview.type !== "markdown"
-        ) {
-          return result;
-        }
-
-        return {
-          ...result,
-          item: {
-            ...result.item,
-            sourcePath: filePath,
-            preview: {
-              ...result.item.preview,
-              content: savedBody,
-            },
-          },
-        };
-      });
-
-      const index = updatedResults.findIndex((result) => {
-        const sourcePath = result.item.sourcePath;
-
-        return (
-          !!sourcePath && normalizeFilePath(sourcePath) === normalizedSavedPath
-        );
-      });
-
-      if (index >= 0) {
-        setTemporarySavedResult(null);
-      } else {
-        setTemporarySavedResult({
-          query,
+      const activeQuery = currentQueryRef.current;
+      const excludedSourcePaths = [previousFilePath, filePath].filter(
+        (path): path is string => Boolean(path),
+      );
+      const temporaryResults = filterTemporaryResultsForQuery(
+        createTemporarySavedResults({
+          title,
           filePath,
-          result: createTemporarySavedResult({
-            title,
-            filePath,
-            body: savedBody,
-          }),
-        });
-      }
+          body,
+          contentMode,
+          gjsonDocument,
+        }),
+        activeQuery,
+      );
+      const nextTemporaryResults: TemporarySavedResults = {
+        query: activeQuery,
+        filePath,
+        excludedSourcePaths,
+        autoReplaceWhenIndexed:
+          !previousFilePath ||
+          normalizeFilePath(previousFilePath) !== normalizeFilePath(filePath),
+        results: temporaryResults,
+      };
 
-      setSearchResults(updatedResults);
-      setSelectedIndex(index >= 0 ? index : 0);
-
-      setLoadedPreview({
-        type: "markdown",
-        content: savedBody,
-      });
+      setTemporarySavedResults(nextTemporaryResults);
+      setSearchResults((current) =>
+        filterResultsBySourcePaths(current, excludedSourcePaths),
+      );
+      setSelectedIndex(0);
+      setLoadedPreview(null);
+      await fetchResults(activeQuery, nextTemporaryResults);
     } catch (error) {
       toast.error(
         LL.appMessages.failedRefreshSavedFile({ error: String(error) }),
       );
     }
+  };
+
+  const refreshTemporarySavedResults = () => {
+    const activeQuery = currentQueryRef.current;
+    const activeTemporaryResults =
+      temporarySavedResults?.query === activeQuery
+        ? temporarySavedResults
+        : null;
+
+    if (!activeTemporaryResults) {
+      return;
+    }
+
+    void searchApi
+      .getItemsBySourcePath(activeTemporaryResults.filePath)
+      .then((sourceResults) => {
+        if (sourceResults.length === 0) {
+          return;
+        }
+
+        const replacementResults = filterTemporaryResultsForQuery(
+          sourceResults,
+          activeQuery,
+        );
+
+        setTemporarySavedResults(null);
+        setSearchResults((current) => [
+          ...replacementResults,
+          ...filterResultsBySourcePaths(
+            current,
+            activeTemporaryResults.excludedSourcePaths,
+          ),
+        ]);
+        setSelectedIndex(0);
+        setLoadedPreview(null);
+      })
+      .catch((error) => {
+        toast.error(
+          LL.appMessages.failedRefreshSavedFile({ error: String(error) }),
+        );
+      });
   };
 
   const openFileCreator = () => {
@@ -832,7 +1126,7 @@ export default function App() {
   }, []);
 
   const handleQueryChange = (value: string) => {
-    setTemporarySavedResult(null);
+    setTemporarySavedResults(null);
 
     const previousParsed = parseSearchInput(previousSearchQueryRef.current);
     const nextParsed = parseSearchInput(value);
@@ -884,7 +1178,7 @@ export default function App() {
   const handleTagCloudTagSelect = (tag: string) => {
     const nextQuery = addTagToSearchQuery(query, tag);
 
-    setTemporarySavedResult(null);
+    setTemporarySavedResults(null);
     previousSearchQueryRef.current = nextQuery;
     currentQueryRef.current = nextQuery;
     setSelectedIndex(0);
@@ -974,6 +1268,7 @@ export default function App() {
                 }}
                 onUrlAction={shortcutHandlers.openActiveUrlAction}
                 onCommandAction={shortcutHandlers.openActiveCommandAction}
+                onRefreshTemporaryItem={refreshTemporarySavedResults}
                 onTagCloudTagSelect={handleTagCloudTagSelect}
                 onFileEditorChange={updateFileEditorTab}
                 onFileEditorHelp={() => {

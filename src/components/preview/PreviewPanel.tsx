@@ -67,6 +67,7 @@ type Props = {
   onOpenCommandHistory?: () => void;
   onUrlAction?: () => void;
   onCommandAction?: () => void;
+  onRefreshTemporaryItem?: () => void;
   onTagCloudTagSelect: (tag: string) => void;
 };
 
@@ -95,6 +96,7 @@ export const PreviewPanel = forwardRef<PreviewPanelHandle, Props>(
       onOpenCommandHistory,
       onUrlAction,
       onCommandAction,
+      onRefreshTemporaryItem,
       onTagCloudTagSelect,
     },
     ref,
@@ -465,6 +467,7 @@ export const PreviewPanel = forwardRef<PreviewPanelHandle, Props>(
           onOpenCommandHistory={onOpenCommandHistory}
           onUrlAction={onUrlAction}
           onCommandAction={onCommandAction}
+          onRefreshTemporaryItem={onRefreshTemporaryItem}
         />
 
         <div className="flex-1 relative min-h-0 overflow-hidden">

@@ -17,8 +17,10 @@ import { useI18nContext } from "@/i18n/I18nProvider";
 
 type FileEditorSaveResult = {
   filePath: string;
+  previousFilePath?: string;
   title: string;
   body: string;
+  contentMode: FileEditorTabState["contentMode"];
   gjsonDocument?: FileEditorTabState["gjsonDocument"];
 };
 
@@ -46,6 +48,7 @@ type Props = {
   onOpenCommandHistory: () => void;
   onUrlAction?: () => void;
   onCommandAction?: () => void;
+  onRefreshTemporaryItem?: () => void;
   onTagCloudTagSelect: (tag: string) => void;
   onFileEditorChange: (
     tabId: string,
@@ -80,6 +83,7 @@ export const PreviewPanelList = ({
   onOpenCommandHistory,
   onUrlAction,
   onCommandAction,
+  onRefreshTemporaryItem,
   onTagCloudTagSelect,
   onFileEditorChange,
   onFileEditorHelp,
@@ -181,6 +185,7 @@ export const PreviewPanelList = ({
             onOpenCommandHistory={onOpenCommandHistory}
             onUrlAction={onUrlAction}
             onCommandAction={onCommandAction}
+            onRefreshTemporaryItem={onRefreshTemporaryItem}
             onTagCloudTagSelect={onTagCloudTagSelect}
           />
         );
