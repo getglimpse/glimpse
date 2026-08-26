@@ -3,6 +3,28 @@ import { IndexItem } from "./item";
 export type PreviewMode = "markdown" | "raw";
 
 export type FileEditorMode = "create" | "edit";
+export type FileEditorExtension = "md" | "gjson" | "raw";
+export type FileEditorContentMode = "markdown" | "gjsonCards" | "raw";
+
+export type GjsonCardItem = {
+  id: string;
+  title: string;
+  desc: string;
+  url: string;
+  tags: string;
+  aliases: string;
+  star: boolean;
+  hidden: boolean;
+  iframe: boolean;
+  command: string;
+  defaultAction: "" | "command" | "url";
+  raw: Record<string, unknown>;
+};
+
+export type GjsonEditorDocument = {
+  root: Record<string, unknown>;
+  items: GjsonCardItem[];
+};
 
 export type PreviewPanelHandle = {
   scrollDown: () => void;
@@ -16,8 +38,14 @@ export type PreviewPanelHandle = {
 export type FileEditorTabState = {
   mode: FileEditorMode;
   filePath?: string;
+  extension: FileEditorExtension;
+  extensionLabel: string;
+  contentMode: FileEditorContentMode;
   initialTitle: string;
   initialBody: string;
+  initialGjsonDocument?: GjsonEditorDocument;
+  gjsonDocument?: GjsonEditorDocument;
+  gjsonParseError?: string;
   title: string;
   dirty: boolean;
 };

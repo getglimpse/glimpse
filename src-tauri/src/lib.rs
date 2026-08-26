@@ -107,8 +107,11 @@ pub fn run() {
             commands::file::read_binary_file,
             commands::file::read_binary_file_in_target_group,
             commands::file::create_markdown_file,
+            commands::file::create_text_file,
             commands::file::update_markdown_file_title,
+            commands::file::update_text_file_title,
             commands::file::update_markdown_file_body,
+            commands::file::update_text_file_body,
             commands::preview::get_preview,
         ])
         .setup(setup_app)

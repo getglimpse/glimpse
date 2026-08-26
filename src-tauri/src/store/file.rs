@@ -233,15 +233,17 @@ fn file_metadata(path: &Path) -> Result<FileMetadata, String> {
 /// # Returns
 ///
 /// Returns the created file path.
-pub fn create_markdown_file_in_current_target(
+pub fn create_text_file_in_current_target(
     settings_path: &Path,
     title: String,
     body: String,
+    extension: String,
 ) -> Result<String, String> {
     let settings = load_settings(settings_path);
     let target_dir = current_target_primary_dir(&settings)?;
 
-    let file_name = markdown_file_name_from_title(&title)?;
+    let extension = supported_create_file_extension(&extension)?;
+    let file_name = file_name_from_title(&title, Some(&extension))?;
     let file_path = unique_file_path(&target_dir, &file_name);
 
     fs::write(&file_path, body)
@@ -250,10 +252,18 @@ pub fn create_markdown_file_in_current_target(
     Ok(file_path.to_string_lossy().to_string())
 }
 
+pub fn create_markdown_file_in_current_target(
+    settings_path: &Path,
+    title: String,
+    body: String,
+) -> Result<String, String> {
+    create_text_file_in_current_target(settings_path, title, body, "md".to_string())
+}
+
 /// Updates only the title / filename of an existing Markdown file.
 ///
 /// This function does not update file contents.
-pub fn update_markdown_file_title(
+pub fn update_text_file_title(
     settings_path: &Path,
     file_path: String,
     title: String,
@@ -266,8 +276,9 @@ pub fn update_markdown_file_title(
     let parent = current_path
         .parent()
         .ok_or_else(|| "file has no parent directory".to_string())?;
+    let extension = current_path.extension().and_then(|ext| ext.to_str());
 
-    let file_name = markdown_file_name_from_title(&title)?;
+    let file_name = file_name_from_title(&title, extension)?;
     let desired_path = parent.join(file_name);
 
     if normalize_path(&desired_path) == normalize_path(&current_path) {
@@ -289,10 +300,18 @@ pub fn update_markdown_file_title(
     Ok(desired_path.to_string_lossy().to_string())
 }
 
+pub fn update_markdown_file_title(
+    settings_path: &Path,
+    file_path: String,
+    title: String,
+) -> Result<String, String> {
+    update_text_file_title(settings_path, file_path, title)
+}
+
 /// Updates only the body of an existing Markdown file.
 ///
 /// This function never renames the file.
-pub fn update_markdown_file_body(
+pub fn update_text_file_body(
     settings_path: &Path,
     file_path: String,
     body: String,
@@ -306,6 +325,14 @@ pub fn update_markdown_file_body(
         .map_err(|error| format!("failed to write file: {}: {error}", path.display()))?;
 
     Ok(())
+}
+
+pub fn update_markdown_file_body(
+    settings_path: &Path,
+    file_path: String,
+    body: String,
+) -> Result<(), String> {
+    update_text_file_body(settings_path, file_path, body)
 }
 
 /// Returns the current Target Group.
@@ -480,7 +507,7 @@ fn normalize_comparison_path(path: &Path) -> PathBuf {
     }
 }
 
-/// Converts a title into a safe Markdown filename.
+/// Converts a title into a safe filename.
 ///
 /// Examples:
 ///
@@ -495,7 +522,7 @@ fn normalize_comparison_path(path: &Path) -> PathBuf {
 /// Empty titles generate a timestamp-based filename.
 ///
 /// Invalid filesystem characters are replaced with `_`.
-fn markdown_file_name_from_title(title: &str) -> Result<String, String> {
+fn file_name_from_title(title: &str, extension: Option<&str>) -> Result<String, String> {
     let title = title.trim();
 
     let title = if title.is_empty() {
@@ -510,7 +537,40 @@ fn markdown_file_name_from_title(title: &str) -> Result<String, String> {
         return Err("title does not contain usable filename characters".to_string());
     }
 
-    Ok(format!("{sanitized}.md"))
+    match extension {
+        Some(extension) => {
+            let extension = sanitize_file_extension(extension)?;
+            Ok(format!("{sanitized}.{extension}"))
+        }
+        None => Ok(sanitized),
+    }
+}
+
+fn supported_create_file_extension(extension: &str) -> Result<String, String> {
+    let extension = sanitize_file_extension(extension)?;
+
+    if !matches!(extension.as_str(), "md" | "gjson") {
+        return Err(format!("unsupported file extension: {extension}"));
+    }
+
+    Ok(extension)
+}
+
+fn sanitize_file_extension(extension: &str) -> Result<String, String> {
+    let extension = extension
+        .trim()
+        .trim_start_matches('.')
+        .to_ascii_lowercase();
+
+    if extension.is_empty()
+        || !extension
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_')
+    {
+        return Err(format!("unsupported file extension: {extension}"));
+    }
+
+    Ok(extension)
 }
 
 /// Sanitizes a filename stem for filesystem safety.
@@ -548,7 +608,14 @@ fn sanitize_file_stem(value: &str) -> String {
 /// Note 3.md
 /// ```
 fn unique_file_path(dir: &Path, file_name: &str) -> PathBuf {
-    let base = file_name.trim_end_matches(".md");
+    let file_name_path = Path::new(file_name);
+    let stem = file_name_path
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .unwrap_or(file_name);
+    let extension = file_name_path
+        .extension()
+        .and_then(|extension| extension.to_str());
 
     let mut path = dir.join(file_name);
 
@@ -557,7 +624,12 @@ fn unique_file_path(dir: &Path, file_name: &str) -> PathBuf {
     }
 
     for index in 2.. {
-        path = dir.join(format!("{base} {index}.md"));
+        let next_name = match extension {
+            Some(extension) => format!("{stem} {index}.{extension}"),
+            None => format!("{stem} {index}"),
+        };
+
+        path = dir.join(next_name);
 
         if !path.exists() {
             return path;
@@ -723,6 +795,62 @@ mod tests {
     }
 
     #[test]
+    fn create_text_file_creates_gjson_file_in_current_target_primary_dir() {
+        let target_dir = unique_test_dir("target");
+        let settings_dir = unique_test_dir("settings");
+        let settings_path = settings_dir.join("settings.json");
+
+        fs::create_dir_all(&target_dir).unwrap();
+        fs::create_dir_all(&settings_dir).unwrap();
+
+        write_settings(&settings_path, &target_dir);
+
+        let file_path = create_text_file_in_current_target(
+            &settings_path,
+            "Cards".to_string(),
+            "{\"items\":[]}\n".to_string(),
+            "gjson".to_string(),
+        )
+        .unwrap();
+
+        let file_path = PathBuf::from(file_path);
+
+        assert_same_path(&file_path, target_dir.join("Cards.gjson"));
+        assert_eq!(fs::read_to_string(file_path).unwrap(), "{\"items\":[]}\n");
+
+        fs::remove_dir_all(target_dir).ok();
+        fs::remove_dir_all(settings_dir).ok();
+    }
+
+    #[test]
+    fn create_text_file_rejects_unsupported_extension() {
+        let target_dir = unique_test_dir("target");
+        let settings_dir = unique_test_dir("settings");
+        let settings_path = settings_dir.join("settings.json");
+
+        fs::create_dir_all(&target_dir).unwrap();
+        fs::create_dir_all(&settings_dir).unwrap();
+
+        write_settings(&settings_path, &target_dir);
+
+        let result = create_text_file_in_current_target(
+            &settings_path,
+            "Raw".to_string(),
+            "body".to_string(),
+            "txt".to_string(),
+        );
+
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .contains("unsupported file extension: txt"));
+        assert!(!target_dir.join("Raw.txt").exists());
+
+        fs::remove_dir_all(target_dir).ok();
+        fs::remove_dir_all(settings_dir).ok();
+    }
+
+    #[test]
     fn read_text_file_reads_file_inside_current_target_group() {
         let target_dir = unique_test_dir("target");
         let settings_dir = unique_test_dir("settings");
@@ -848,6 +976,7 @@ mod tests {
             .open(&file_path)
             .unwrap();
         file.set_len(MAX_BINARY_READ_BYTES + 1).unwrap();
+        drop(file);
 
         let result = read_binary_file(&settings_path, file_path.to_string_lossy().to_string());
 
@@ -1123,6 +1252,67 @@ mod tests {
             fs::read_to_string(target_dir.join("New.md")).unwrap(),
             "old"
         );
+
+        fs::remove_dir_all(target_dir).ok();
+        fs::remove_dir_all(settings_dir).ok();
+    }
+
+    #[test]
+    fn update_text_file_title_preserves_existing_extension() {
+        let target_dir = unique_test_dir("target");
+        let settings_dir = unique_test_dir("settings");
+        let settings_path = settings_dir.join("settings.json");
+
+        fs::create_dir_all(&target_dir).unwrap();
+        fs::create_dir_all(&settings_dir).unwrap();
+
+        write_settings(&settings_path, &target_dir);
+
+        let file_path = target_dir.join("Old.txt");
+        fs::write(&file_path, "old").unwrap();
+
+        let updated_path = update_text_file_title(
+            &settings_path,
+            file_path.to_string_lossy().to_string(),
+            "New".to_string(),
+        )
+        .unwrap();
+
+        assert_same_path(PathBuf::from(updated_path), target_dir.join("New.txt"));
+        assert!(!file_path.exists());
+        assert_eq!(
+            fs::read_to_string(target_dir.join("New.txt")).unwrap(),
+            "old"
+        );
+
+        fs::remove_dir_all(target_dir).ok();
+        fs::remove_dir_all(settings_dir).ok();
+    }
+
+    #[test]
+    fn update_text_file_title_preserves_missing_extension() {
+        let target_dir = unique_test_dir("target");
+        let settings_dir = unique_test_dir("settings");
+        let settings_path = settings_dir.join("settings.json");
+
+        fs::create_dir_all(&target_dir).unwrap();
+        fs::create_dir_all(&settings_dir).unwrap();
+
+        write_settings(&settings_path, &target_dir);
+
+        let file_path = target_dir.join("Old");
+        fs::write(&file_path, "old").unwrap();
+
+        let updated_path = update_text_file_title(
+            &settings_path,
+            file_path.to_string_lossy().to_string(),
+            "New".to_string(),
+        )
+        .unwrap();
+
+        assert_same_path(PathBuf::from(updated_path), target_dir.join("New"));
+        assert!(!file_path.exists());
+        assert_eq!(fs::read_to_string(target_dir.join("New")).unwrap(), "old");
 
         fs::remove_dir_all(target_dir).ok();
         fs::remove_dir_all(settings_dir).ok();

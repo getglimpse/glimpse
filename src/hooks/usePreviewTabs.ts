@@ -15,6 +15,12 @@ type OpenFileEditorTabParams = {
   filePath: string;
   initialTitle: string;
   initialBody: string;
+  extension?: FileEditorTabState["extension"];
+  extensionLabel?: string;
+  contentMode?: FileEditorTabState["contentMode"];
+  initialGjsonDocument?: FileEditorTabState["initialGjsonDocument"];
+  gjsonDocument?: FileEditorTabState["gjsonDocument"];
+  gjsonParseError?: string;
 };
 
 /**
@@ -114,6 +120,9 @@ export const usePreviewTabs = (item: IndexItem | null) => {
         type: "fileEditor",
         editor: {
           mode: "create",
+          extension: "md",
+          extensionLabel: ".md",
+          contentMode: "markdown",
           initialTitle: "",
           initialBody: "",
           title: "Untitled",
@@ -129,6 +138,12 @@ export const usePreviewTabs = (item: IndexItem | null) => {
     filePath,
     initialTitle,
     initialBody,
+    extension = "md",
+    extensionLabel = ".md",
+    contentMode = "markdown",
+    initialGjsonDocument,
+    gjsonDocument,
+    gjsonParseError,
   }: OpenFileEditorTabParams) => {
     const normalizedPath = normalizeFilePath(filePath);
     let existingId: string | null = null;
@@ -157,8 +172,14 @@ export const usePreviewTabs = (item: IndexItem | null) => {
           editor: {
             mode: "edit",
             filePath,
+            extension,
+            extensionLabel,
+            contentMode,
             initialTitle,
             initialBody,
+            initialGjsonDocument,
+            gjsonDocument,
+            gjsonParseError,
             title: initialTitle.trim() || "Untitled",
             dirty: false,
           },

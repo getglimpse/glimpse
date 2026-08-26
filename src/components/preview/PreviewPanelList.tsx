@@ -19,6 +19,7 @@ type FileEditorSaveResult = {
   filePath: string;
   title: string;
   body: string;
+  gjsonDocument?: FileEditorTabState["gjsonDocument"];
 };
 
 type Props = {
@@ -39,10 +40,7 @@ type Props = {
   language: Language;
   onLanguageChange: (language: Language) => void;
   commandHistory: CommandHistoryEntry[];
-  setPreviewRef: (
-    tabId: string,
-    handle: PreviewPanelHandle | null,
-  ) => void;
+  setPreviewRef: (tabId: string, handle: PreviewPanelHandle | null) => void;
   onInspectItem: (item: IndexItem) => void;
   onHelpItemPage: (itemPage: string) => void;
   onOpenCommandHistory: () => void;
@@ -53,6 +51,7 @@ type Props = {
     tabId: string,
     patch: Partial<FileEditorTabState>,
   ) => void;
+  onFileEditorHelp: () => void;
   onCloseTab: (tabId: string, options?: { force?: boolean }) => void;
   onFileEditorSaved: (tabId: string, result: FileEditorSaveResult) => void;
 };
@@ -83,6 +82,7 @@ export const PreviewPanelList = ({
   onCommandAction,
   onTagCloudTagSelect,
   onFileEditorChange,
+  onFileEditorHelp,
   onCloseTab,
   onFileEditorSaved,
 }: Props) => {
@@ -101,6 +101,7 @@ export const PreviewPanelList = ({
               active={tab.id === activeTabId}
               onChange={(patch) => onFileEditorChange(tab.id, patch)}
               onClose={(options) => onCloseTab(tab.id, options)}
+              onHelp={onFileEditorHelp}
               onSaved={(result) => onFileEditorSaved(tab.id, result)}
             />
           );

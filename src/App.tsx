@@ -24,6 +24,7 @@ import { ShortcutProvider } from "@/contexts/ShortcutContext";
 import {
   COMMAND_HISTORY_ITEM,
   DEBUG_ITEM,
+  HELP_ITEM,
   searchInternalItems,
   TAG_CLOUD_ITEM,
 } from "@/features/internal/internalItems";
@@ -49,6 +50,7 @@ import { i18nObject, isLocale } from "@/i18n/i18n-util";
 
 import { BUILT_IN_THEMES } from "@/constants/themes";
 import { perf } from "@/utils/debugPerf";
+import { parseGjsonEditorDocument } from "@/utils/gjsonEditor";
 import { hasHelpContent } from "@/utils/helpContent";
 
 import type {
@@ -75,10 +77,17 @@ const isInternalSearchQuery = (query: string) => {
 const titleFromPath = (filePath: string) => {
   const name = filePath.split(/[\\/]/).pop() ?? "";
 
-  return name.toLowerCase().endsWith(".md") ? name.slice(0, -3) : name;
+  return name.includes(".") ? name.replace(/\.[^.]+$/, "") : name;
 };
 
 const normalizeFilePath = (filePath: string) => filePath.replace(/\\/g, "/");
+
+const extensionFromPath = (filePath: string) => {
+  const name = filePath.split(/[\\/]/).pop() ?? "";
+  const match = /\.([^.]+)$/.exec(name);
+
+  return match?.[1]?.toLowerCase() ?? "";
+};
 
 const includesSourcePath = (results: SearchResult[], filePath: string) => {
   const normalizedPath = normalizeFilePath(filePath);
@@ -616,11 +625,53 @@ export default function App() {
 
     try {
       const body = await fileApi.readTextFile(activeItem.sourcePath);
+      const extension = extensionFromPath(activeItem.sourcePath);
+      const initialTitle = titleFromPath(activeItem.sourcePath);
+
+      if (extension === "gjson") {
+        try {
+          const gjsonDocument = parseGjsonEditorDocument(body);
+
+          openFileEditorTab({
+            filePath: activeItem.sourcePath,
+            initialTitle,
+            initialBody: body,
+            extension: "gjson",
+            extensionLabel: ".gjson",
+            contentMode: "gjsonCards",
+            initialGjsonDocument: gjsonDocument,
+            gjsonDocument,
+          });
+
+          return;
+        } catch (error) {
+          openFileEditorTab({
+            filePath: activeItem.sourcePath,
+            initialTitle,
+            initialBody: body,
+            extension: "raw",
+            extensionLabel: "raw (.gjson)",
+            contentMode: "raw",
+            gjsonParseError:
+              error instanceof Error ? error.message : String(error),
+          });
+
+          return;
+        }
+      }
 
       openFileEditorTab({
         filePath: activeItem.sourcePath,
-        initialTitle: titleFromPath(activeItem.sourcePath),
+        initialTitle,
         initialBody: body,
+        extension: extension === "md" ? "md" : "raw",
+        extensionLabel:
+          extension === "md"
+            ? ".md"
+            : extension
+              ? `raw (.${extension})`
+              : "raw",
+        contentMode: extension === "md" ? "markdown" : "raw",
       });
     } catch (error) {
       toast.error(LL.appMessages.failedReadFile({ error: String(error) }));
@@ -925,6 +976,9 @@ export default function App() {
                 onCommandAction={shortcutHandlers.openActiveCommandAction}
                 onTagCloudTagSelect={handleTagCloudTagSelect}
                 onFileEditorChange={updateFileEditorTab}
+                onFileEditorHelp={() => {
+                  openPreviewTab(HELP_ITEM);
+                }}
                 onCloseTab={closePreviewTab}
                 onFileEditorSaved={(tabId, result) => {
                   updateFileEditorTab(tabId, {
@@ -932,6 +986,8 @@ export default function App() {
                     filePath: result.filePath,
                     initialTitle: result.title,
                     initialBody: result.body,
+                    initialGjsonDocument: result.gjsonDocument,
+                    gjsonDocument: result.gjsonDocument,
                     title: result.title,
                     dirty: false,
                   });

@@ -17,12 +17,18 @@ export type CreateMarkdownFilePayload = {
   body: string;
 };
 
+export type CreateTextFilePayload = {
+  title: string;
+  body: string;
+  extension: "md" | "gjson";
+};
+
 export type FileMetadata = {
   sizeBytes: number;
 };
 
 /**
- * Backend API for Markdown file operations.
+ * Backend API for text file operations.
  *
  * This module provides file management features for
  * documents stored in the Glimpse workspace.
@@ -117,6 +123,18 @@ export const fileApi = {
     }),
 
   /**
+   * Creates a new text file.
+   *
+   * Backend command:
+   *
+   * - `create_text_file`
+   *
+   * @returns Absolute path of the created file.
+   */
+  createTextFile: (payload: CreateTextFilePayload) =>
+    invoke<string>("create_text_file", { payload }),
+
+  /**
    * Creates a new Markdown file.
    *
    * Backend command:
@@ -134,6 +152,18 @@ export const fileApi = {
     invoke<string>("create_markdown_file", { payload }),
 
   /**
+   * Updates only the text file title / filename while preserving extension.
+   *
+   * Backend command:
+   *
+   * - `update_text_file_title`
+   *
+   * @returns Final file path after rename.
+   */
+  updateTextFileTitle: (filePath: string, title: string) =>
+    invoke<string>("update_text_file_title", { filePath, title }),
+
+  /**
    * Updates only the Markdown file title / filename.
    *
    * Backend command:
@@ -144,6 +174,16 @@ export const fileApi = {
    */
   updateMarkdownFileTitle: (filePath: string, title: string) =>
     invoke<string>("update_markdown_file_title", { filePath, title }),
+
+  /**
+   * Updates only the text file body.
+   *
+   * Backend command:
+   *
+   * - `update_text_file_body`
+   */
+  updateTextFileBody: (filePath: string, body: string) =>
+    invoke<void>("update_text_file_body", { filePath, body }),
 
   /**
    * Updates only the Markdown file body.

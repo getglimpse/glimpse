@@ -4,11 +4,361 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Tauri + React + Typescript</title>
+    <title>glimpse</title>
+    <script>
+      (() => {
+        try {
+          const theme = localStorage.getItem("glimpse:theme");
+
+          if (theme && /^[a-z0-9-]+$/.test(theme)) {
+            document.documentElement.dataset.theme = theme;
+          }
+        } catch {
+          // Ignore storage failures during early startup.
+        }
+      })();
+    </script>
+    <style>
+      :root,
+      [data-theme="nord"] {
+        color-scheme: dark;
+        --startup-app-bg: #2e3440;
+        --startup-header-bg: #3b4252;
+        --startup-sidebar-bg: #2e3440;
+        --startup-main-bg: #3b4252;
+        --startup-status-bg: #242933;
+        --startup-border: rgba(255, 255, 255, 0.08);
+        --startup-muted: rgba(216, 222, 233, 0.28);
+        --startup-muted-strong: rgba(216, 222, 233, 0.42);
+        --startup-accent: rgba(136, 192, 208, 0.42);
+      }
+
+      [data-theme="dark"] {
+        color-scheme: dark;
+        --startup-app-bg: #121212;
+        --startup-header-bg: #1a1a1a;
+        --startup-sidebar-bg: #161616;
+        --startup-main-bg: #1a1a1a;
+        --startup-status-bg: #101010;
+        --startup-border: rgba(255, 255, 255, 0.08);
+        --startup-muted: rgba(224, 224, 224, 0.2);
+        --startup-muted-strong: rgba(224, 224, 224, 0.34);
+        --startup-accent: rgba(37, 99, 235, 0.42);
+      }
+
+      [data-theme="sepia"] {
+        color-scheme: light;
+        --startup-app-bg: #f4ecd8;
+        --startup-header-bg: #fbf5e8;
+        --startup-sidebar-bg: #f4ecd8;
+        --startup-main-bg: #fbf5e8;
+        --startup-status-bg: #eadfca;
+        --startup-border: rgba(88, 72, 48, 0.14);
+        --startup-muted: rgba(88, 72, 48, 0.16);
+        --startup-muted-strong: rgba(88, 72, 48, 0.28);
+        --startup-accent: rgba(139, 92, 44, 0.32);
+      }
+
+      html,
+      body,
+      #root {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+      }
+
+      body {
+        overflow: hidden;
+        background: var(--startup-app-bg);
+      }
+
+      .startup-shell {
+        display: flex;
+        width: 100%;
+        height: 100%;
+        min-width: 0;
+        min-height: 0;
+        flex-direction: column;
+        overflow: hidden;
+        border: 1px solid var(--startup-border);
+        box-sizing: border-box;
+        background: var(--startup-app-bg);
+        font-family:
+          "Geist Variable",
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+      }
+
+      .startup-search {
+        display: flex;
+        height: 56px;
+        flex: 0 0 56px;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 14px;
+        box-sizing: border-box;
+        border-bottom: 1px solid var(--startup-border);
+        background: var(--startup-header-bg);
+      }
+
+      .startup-search-icon {
+        width: 18px;
+        height: 18px;
+        flex: 0 0 18px;
+        border-radius: 999px;
+        background: var(--startup-muted-strong);
+      }
+
+      .startup-search-line {
+        height: 18px;
+        max-width: 360px;
+        flex: 1;
+        border-radius: 5px;
+      }
+
+      .startup-main {
+        display: flex;
+        min-height: 0;
+        flex: 1;
+        overflow: hidden;
+      }
+
+      .startup-list {
+        width: 38%;
+        min-width: 260px;
+        max-width: 360px;
+        padding: 10px;
+        box-sizing: border-box;
+        border-right: 1px solid var(--startup-border);
+        background: var(--startup-sidebar-bg);
+      }
+
+      .startup-row {
+        display: grid;
+        grid-template-columns: 32px minmax(0, 1fr);
+        gap: 10px;
+        height: 64px;
+        align-items: center;
+        padding: 8px;
+        box-sizing: border-box;
+        border-radius: 6px;
+      }
+
+      .startup-row.is-active {
+        background: rgba(255, 255, 255, 0.04);
+      }
+
+      .startup-dot {
+        width: 28px;
+        height: 28px;
+        border-radius: 7px;
+        background: var(--startup-muted);
+      }
+
+      .startup-row-lines {
+        display: flex;
+        min-width: 0;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .startup-preview {
+        display: flex;
+        min-width: 0;
+        min-height: 0;
+        flex: 1;
+        flex-direction: column;
+        background: var(--startup-main-bg);
+      }
+
+      .startup-preview-header {
+        display: flex;
+        height: 48px;
+        flex: 0 0 48px;
+        align-items: center;
+        gap: 10px;
+        padding: 0 14px;
+        box-sizing: border-box;
+        border-bottom: 1px solid var(--startup-border);
+      }
+
+      .startup-preview-body {
+        display: flex;
+        min-height: 0;
+        flex: 1;
+        flex-direction: column;
+        gap: 14px;
+        padding: 18px;
+        box-sizing: border-box;
+      }
+
+      .startup-status {
+        display: flex;
+        height: 26px;
+        flex: 0 0 26px;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 0 12px;
+        box-sizing: border-box;
+        border-top: 1px solid var(--startup-border);
+        background: var(--startup-status-bg);
+      }
+
+      .startup-line,
+      .startup-pill {
+        position: relative;
+        overflow: hidden;
+        background: var(--startup-muted);
+      }
+
+      .startup-line {
+        height: 10px;
+        border-radius: 4px;
+      }
+
+      .startup-pill {
+        height: 18px;
+        border-radius: 999px;
+      }
+
+      .startup-w-20 {
+        width: 20%;
+      }
+
+      .startup-w-32 {
+        width: 32%;
+      }
+
+      .startup-w-46 {
+        width: 46%;
+      }
+
+      .startup-w-58 {
+        width: 58%;
+      }
+
+      .startup-w-72 {
+        width: 72%;
+      }
+
+      .startup-line::after,
+      .startup-pill::after,
+      .startup-dot::after,
+      .startup-search-icon::after {
+        position: absolute;
+        inset: 0;
+        content: "";
+        transform: translateX(-100%);
+        background: linear-gradient(
+          90deg,
+          transparent,
+          var(--startup-accent),
+          transparent
+        );
+        animation: startup-shimmer 1.4s ease-in-out infinite;
+      }
+
+      .startup-dot,
+      .startup-search-icon {
+        position: relative;
+        overflow: hidden;
+      }
+
+      @keyframes startup-shimmer {
+        100% {
+          transform: translateX(100%);
+        }
+      }
+
+      @media (max-width: 640px) {
+        .startup-list {
+          width: 100%;
+          max-width: none;
+          border-right: 0;
+        }
+
+        .startup-preview {
+          display: none;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .startup-line::after,
+        .startup-pill::after,
+        .startup-dot::after,
+        .startup-search-icon::after {
+          animation: none;
+        }
+      }
+    </style>
   </head>
 
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="startup-shell" aria-hidden="true">
+        <div class="startup-search">
+          <div class="startup-search-icon"></div>
+          <div class="startup-line startup-search-line"></div>
+        </div>
+
+        <div class="startup-main">
+          <div class="startup-list">
+            <div class="startup-row is-active">
+              <div class="startup-dot"></div>
+              <div class="startup-row-lines">
+                <div class="startup-line startup-w-58"></div>
+                <div class="startup-line startup-w-72"></div>
+              </div>
+            </div>
+            <div class="startup-row">
+              <div class="startup-dot"></div>
+              <div class="startup-row-lines">
+                <div class="startup-line startup-w-46"></div>
+                <div class="startup-line startup-w-72"></div>
+              </div>
+            </div>
+            <div class="startup-row">
+              <div class="startup-dot"></div>
+              <div class="startup-row-lines">
+                <div class="startup-line startup-w-58"></div>
+                <div class="startup-line startup-w-46"></div>
+              </div>
+            </div>
+            <div class="startup-row">
+              <div class="startup-dot"></div>
+              <div class="startup-row-lines">
+                <div class="startup-line startup-w-32"></div>
+                <div class="startup-line startup-w-58"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="startup-preview">
+            <div class="startup-preview-header">
+              <div class="startup-pill startup-w-32"></div>
+              <div class="startup-pill startup-w-20"></div>
+            </div>
+            <div class="startup-preview-body">
+              <div class="startup-line startup-w-46"></div>
+              <div class="startup-line startup-w-72"></div>
+              <div class="startup-line startup-w-58"></div>
+              <div class="startup-line startup-w-72"></div>
+              <div class="startup-line startup-w-32"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="startup-status">
+          <div class="startup-line startup-w-20"></div>
+          <div class="startup-line startup-w-32"></div>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

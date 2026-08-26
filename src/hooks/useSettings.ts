@@ -2,9 +2,10 @@ import { useCallback, useEffect, useState } from "react";
 
 import { settingsApi } from "@/api/settings";
 import { KeybindingMap, Language } from "@/types";
+import { getStoredStartupTheme } from "./useTheme";
 
 export const useSettings = () => {
-  const [themeId, setThemeId] = useState("nord");
+  const [themeId, setThemeId] = useState(getStoredStartupTheme);
   const [compactListItems, setCompactListItems] = useState(false);
   const [keybindings, setKeybindings] = useState<KeybindingMap>({});
   const [language, setLanguage] = useState<Language>("en");

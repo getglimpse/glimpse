@@ -152,6 +152,10 @@ const INTERNAL_ITEMS: IndexItem[] = [
   },
 ];
 
+export const HELP_ITEM = INTERNAL_ITEMS.find(
+  (item) => item.id === "internal://help",
+)!;
+
 export const COMMAND_HISTORY_ITEM = INTERNAL_ITEMS.find(
   (item) => item.id === "internal://command-history",
 )!;

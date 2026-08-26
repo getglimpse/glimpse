@@ -33,6 +33,14 @@ pub struct CreateMarkdownFilePayload {
     pub body: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateTextFilePayload {
+    pub title: String,
+    pub body: String,
+    pub extension: String,
+}
+
 #[tauri::command]
 pub fn read_text_file(
     settings_path: State<SharedSettingsPath>,
@@ -114,6 +122,24 @@ pub async fn create_markdown_file(
 }
 
 #[tauri::command]
+pub async fn create_text_file(
+    settings_path: State<'_, SharedSettingsPath>,
+    runtime: State<'_, Arc<IndexerRuntime>>,
+    payload: CreateTextFilePayload,
+) -> Result<String, String> {
+    let file_path = crate::store::file::create_text_file_in_current_target(
+        &resolve_settings_path(&settings_path)?,
+        payload.title,
+        payload.body,
+        payload.extension,
+    )?;
+
+    runtime.index_file(PathBuf::from(&file_path)).await?;
+
+    Ok(file_path)
+}
+
+#[tauri::command]
 pub async fn update_markdown_file_title(
     settings_path: State<'_, SharedSettingsPath>,
     runtime: State<'_, Arc<IndexerRuntime>>,
@@ -138,6 +164,30 @@ pub async fn update_markdown_file_title(
 }
 
 #[tauri::command]
+pub async fn update_text_file_title(
+    settings_path: State<'_, SharedSettingsPath>,
+    runtime: State<'_, Arc<IndexerRuntime>>,
+    file_path: String,
+    title: String,
+) -> Result<String, String> {
+    let old_path = PathBuf::from(&file_path);
+
+    let next_path = crate::store::file::update_text_file_title(
+        &resolve_settings_path(&settings_path)?,
+        file_path,
+        title,
+    )?;
+
+    if old_path != PathBuf::from(&next_path) {
+        runtime.delete_file_from_index(old_path).await?;
+    }
+
+    runtime.index_file(PathBuf::from(&next_path)).await?;
+
+    Ok(next_path)
+}
+
+#[tauri::command]
 pub async fn update_markdown_file_body(
     settings_path: State<'_, SharedSettingsPath>,
     runtime: State<'_, Arc<IndexerRuntime>>,
@@ -147,6 +197,26 @@ pub async fn update_markdown_file_body(
     let path = PathBuf::from(&file_path);
 
     crate::store::file::update_markdown_file_body(
+        &resolve_settings_path(&settings_path)?,
+        file_path,
+        body,
+    )?;
+
+    runtime.index_file(path).await?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn update_text_file_body(
+    settings_path: State<'_, SharedSettingsPath>,
+    runtime: State<'_, Arc<IndexerRuntime>>,
+    file_path: String,
+    body: String,
+) -> Result<(), String> {
+    let path = PathBuf::from(&file_path);
+
+    crate::store::file::update_text_file_body(
         &resolve_settings_path(&settings_path)?,
         file_path,
         body,
