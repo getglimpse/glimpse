@@ -2,6 +2,13 @@ import { useState } from "react";
 import { ChevronDown, ChevronRight, Plus, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { GjsonCardItem } from "@/types";
 import { createEmptyGjsonCardItem } from "@/utils/gjsonEditor";
 
@@ -118,7 +125,7 @@ export const GjsonCardEditor = ({ items, disabled, onChange }: Props) => {
                   className="grid gap-x-5 gap-y-3"
                   style={{
                     gridTemplateColumns:
-                      "repeat(auto-fit, minmax(min(100%, 28rem), 1fr))",
+                      "repeat(auto-fit, minmax(min(100%, 22rem), 1fr))",
                   }}
                 >
                   <TextField
@@ -255,28 +262,38 @@ type SelectFieldProps = {
   onChange: (value: "" | "command" | "url") => void;
 };
 
+type DefaultActionSelectValue = "auto" | "command" | "url";
+
 const SelectField = ({
   label,
   value,
   disabled,
   onChange,
-}: SelectFieldProps) => (
-  <label className="flex min-w-0 flex-col gap-2 text-sm">
-    <span className="truncate font-medium text-text-main">{label}</span>
-    <select
-      value={value}
-      disabled={disabled}
-      onChange={(event) =>
-        onChange(event.target.value as "" | "command" | "url")
-      }
-      className="h-9 min-w-0 rounded-md border border-border bg-glass-bg px-3 text-sm text-text-main outline-none focus:border-accent disabled:cursor-not-allowed disabled:opacity-60"
-    >
-      <option value="">auto</option>
-      <option value="command">command</option>
-      <option value="url">url</option>
-    </select>
-  </label>
-);
+}: SelectFieldProps) => {
+  const selectValue: DefaultActionSelectValue = value || "auto";
+
+  return (
+    <label className="flex min-w-0 flex-col gap-2 text-sm">
+      <span className="truncate font-medium text-text-main">{label}</span>
+      <Select
+        value={selectValue}
+        disabled={disabled}
+        onValueChange={(nextValue: DefaultActionSelectValue) =>
+          onChange(nextValue === "auto" ? "" : nextValue)
+        }
+      >
+        <SelectTrigger className="h-9 w-full min-w-0 rounded-md border-border bg-glass-bg px-3 text-text-main focus:border-accent disabled:cursor-not-allowed disabled:opacity-60">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="auto">auto</SelectItem>
+          <SelectItem value="command">command</SelectItem>
+          <SelectItem value="url">url</SelectItem>
+        </SelectContent>
+      </Select>
+    </label>
+  );
+};
 
 type CheckboxFieldProps = {
   label: string;
