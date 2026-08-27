@@ -244,6 +244,10 @@ pub struct UiSettings {
     #[serde(default)]
     pub compact_list_items: bool,
 
+    /// Hides the main window to the system tray when closing it.
+    #[serde(default = "default_close_to_tray")]
+    pub close_to_tray: bool,
+
     /// UI language code.
     ///
     /// Examples:
@@ -259,10 +263,15 @@ fn default_language() -> String {
     "en".to_string()
 }
 
+fn default_close_to_tray() -> bool {
+    true
+}
+
 impl Default for UiSettings {
     fn default() -> Self {
         Self {
             compact_list_items: false,
+            close_to_tray: default_close_to_tray(),
             language: default_language(),
         }
     }
@@ -300,6 +309,9 @@ impl AppSettings {
 pub struct PartialUiSettings {
     #[serde(default)]
     pub compact_list_items: Option<bool>,
+
+    #[serde(default)]
+    pub close_to_tray: Option<bool>,
 
     #[serde(default)]
     pub language: Option<String>,

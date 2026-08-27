@@ -31,6 +31,7 @@ export type Language = "en" | "ja" | "de";
 
 export type UiSettings = {
   compactListItems: boolean;
+  closeToTray: boolean;
   language: Language;
 };
 

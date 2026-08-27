@@ -51,6 +51,12 @@ const DEFAULT_EXPERIMENTAL = {
   captureSelectedTextOnActivation: false,
 };
 
+const DEFAULT_UI = {
+  compactListItems: false,
+  closeToTray: true,
+  language: "en" as Language,
+};
+
 const TARGET_GROUP_NAME_REGEX = /^[\p{L}\p{N}][\p{L}\p{N} _-]*$/u;
 
 const normalizeTargetGroupName = (name: string) =>
@@ -100,6 +106,7 @@ export const SettingsPage = ({
 
   const commands = settings?.commands ?? DEFAULT_COMMANDS;
   const experimental = settings?.experimental ?? DEFAULT_EXPERIMENTAL;
+  const ui = settings?.ui ?? DEFAULT_UI;
   const targetGroups = settings?.targetGroups ?? [];
   const currentTargetGroupId = settings?.currentTargetGroupId ?? null;
 
@@ -493,6 +500,32 @@ export const SettingsPage = ({
     }
   };
 
+  const changeCloseToTray = async (checked: boolean) => {
+    setSettings((current) =>
+      current
+        ? {
+            ...current,
+            ui: {
+              ...(current.ui ?? DEFAULT_UI),
+              closeToTray: checked,
+            },
+          }
+        : current,
+    );
+
+    try {
+      const nextSettings = await settingsApi.set({
+        ui: {
+          closeToTray: checked,
+        },
+      });
+
+      setSettings(nextSettings);
+    } catch (error) {
+      console.error("Failed to save close-to-tray setting:", error);
+    }
+  };
+
   const changeCaptureSelectedTextOnActivation = async (checked: boolean) => {
     setSettings((current) =>
       current
@@ -547,8 +580,10 @@ export const SettingsPage = ({
 
         <UiSettings
           compactListItems={compactListItems}
+          closeToTray={ui.closeToTray ?? true}
           language={language}
           onCompactListItemsChange={changeCompactListItems}
+          onCloseToTrayChange={changeCloseToTray}
           onLanguageChange={changeLanguage}
         />
 

@@ -1335,6 +1335,14 @@ type RootTranslation = {
 			 */
 			compactListItemsDescription: string
 			/**
+			 * C​l​o​s​e​ ​t​o​ ​t​r​a​y
+			 */
+			closeToTray: string
+			/**
+			 * H​i​d​e​ ​G​l​i​m​p​s​e​ ​t​o​ ​t​h​e​ ​s​y​s​t​e​m​ ​t​r​a​y​ ​w​h​e​n​ ​t​h​e​ ​m​a​i​n​ ​w​i​n​d​o​w​ ​i​s​ ​c​l​o​s​e​d​.
+			 */
+			closeToTrayDescription: string
+			/**
 			 * L​a​n​g​u​a​g​e
 			 */
 			language: string
@@ -3309,6 +3317,14 @@ export type TranslationFunctions = {
 			 * Show denser search result rows.
 			 */
 			compactListItemsDescription: () => LocalizedString
+			/**
+			 * Close to tray
+			 */
+			closeToTray: () => LocalizedString
+			/**
+			 * Hide Glimpse to the system tray when the main window is closed.
+			 */
+			closeToTrayDescription: () => LocalizedString
 			/**
 			 * Language
 			 */

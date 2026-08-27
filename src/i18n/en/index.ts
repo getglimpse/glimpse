@@ -424,6 +424,9 @@ const en = {
       description: "Adjust interface density and layout.",
       compactListItems: "Compact list items",
       compactListItemsDescription: "Show denser search result rows.",
+      closeToTray: "Close to tray",
+      closeToTrayDescription:
+        "Hide Glimpse to the system tray when the main window is closed.",
       language: "Language",
       languageDescription: "Change the interface language.",
     },

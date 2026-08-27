@@ -31,6 +31,7 @@ pub mod models;
 pub mod search;
 pub mod shortcuts;
 pub mod store;
+pub mod tray;
 pub mod utils;
 
 #[cfg(test)]
@@ -160,6 +161,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     ensure_default_workspace(&target_dir)?;
 
     ensure_default_settings(&settings_file_path, &target_dir)?;
+    tray::setup_tray(app, settings_file_path.clone())?;
 
     if let Err(error) =
         register_global_shortcuts_from_settings_path(app.handle(), &settings_file_path)

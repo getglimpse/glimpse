@@ -8,15 +8,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 type Props = {
   compactListItems: boolean;
+  closeToTray: boolean;
   language: Language;
   onCompactListItemsChange: (checked: boolean) => void;
+  onCloseToTrayChange: (checked: boolean) => void;
   onLanguageChange: (language: Language) => void;
 };
 
 export const UiSettings = ({
   compactListItems,
+  closeToTray,
   language,
   onCompactListItemsChange,
+  onCloseToTrayChange,
   onLanguageChange,
 }: Props) => {
   const { LL } = useI18nContext();
@@ -41,6 +45,25 @@ export const UiSettings = ({
           <Switch
             checked={compactListItems}
             onCheckedChange={onCompactListItemsChange}
+          />
+        </div>
+      </div>
+
+      <div className="mt-4 py-2">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h3 className="text-sm font-semibold">
+              {LL.settingsPage.ui.closeToTray()}
+            </h3>
+
+            <p className="mt-1 text-xs text-text-muted">
+              {LL.settingsPage.ui.closeToTrayDescription()}
+            </p>
+          </div>
+
+          <Switch
+            checked={closeToTray}
+            onCheckedChange={onCloseToTrayChange}
           />
         </div>
       </div>

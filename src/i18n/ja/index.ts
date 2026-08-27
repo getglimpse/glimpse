@@ -430,6 +430,9 @@ const ja = {
       description: "表示密度と言語を調整します。",
       compactListItems: "リスト項目をコンパクトにする",
       compactListItemsDescription: "検索結果の行を詰めて表示します。",
+      closeToTray: "閉じたらトレイに格納",
+      closeToTrayDescription:
+        "メインウィンドウを閉じたとき、Glimpse を終了せずタスクトレイに隠します。",
       language: "言語",
       languageDescription: "インターフェースの言語を変更します。",
     },

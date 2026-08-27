@@ -192,6 +192,11 @@ fn apply_partial_settings(settings: &mut AppSettings, partial: PartialAppSetting
             settings.ui.compact_list_items = compact_list_items;
         }
 
+        if let Some(close_to_tray) = ui.close_to_tray {
+            debug!(close_to_tray, "applying partial setting: ui.close_to_tray");
+            settings.ui.close_to_tray = close_to_tray;
+        }
+
         if let Some(language) = ui.language {
             debug!(
                 language = ?language,
@@ -316,7 +321,7 @@ pub async fn switch_target_group(
 mod tests {
     use super::*;
 
-    use crate::models::settings::PartialExperimentalSettings;
+    use crate::models::settings::{PartialExperimentalSettings, PartialUiSettings};
 
     fn target_group(id: &str, active: bool, paths: Vec<&str>) -> TargetGroup {
         TargetGroup {
@@ -413,5 +418,23 @@ mod tests {
         );
 
         assert!(settings.experimental.capture_selected_text_on_activation);
+    }
+
+    #[test]
+    fn applies_partial_close_to_tray_setting() {
+        let mut settings = AppSettings::default();
+
+        apply_partial_settings(
+            &mut settings,
+            PartialAppSettings {
+                ui: Some(PartialUiSettings {
+                    close_to_tray: Some(false),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+        );
+
+        assert!(!settings.ui.close_to_tray);
     }
 }
