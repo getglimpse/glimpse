@@ -192,7 +192,7 @@ export const createAppShortcuts = ({
               ? LL.appMessages.ranItem({ title: item.title })
               : String(result);
 
-          toast.success(resultMessage);
+          toast.success(resultMessage, { copy: result !== undefined });
           recordHistory({
             input: rawInput,
             result: resultMessage,
