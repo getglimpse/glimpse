@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Hash, RefreshCw, X } from "lucide-react";
+import { EyeOff, Hash, RefreshCw, X } from "lucide-react";
 import { toast } from "@/utils/toast";
 
 import { indexingApi } from "@/api/indexing";
@@ -11,6 +11,8 @@ import {
   getTagCompletion,
   getSearchBarViewModel,
   removeCommittedTagAt,
+  removeHiddenFilter,
+  sortTagSuggestions,
 } from "@/features/search/searchBarViewModel";
 import { useI18nContext } from "@/i18n/I18nProvider";
 import { Badge } from "@/components/ui/badge";
@@ -30,7 +32,7 @@ export const SearchBar = ({
 }: Props) => {
   const { LL } = useI18nContext();
   const [availableTags, setAvailableTags] = useState<string[]>([]);
-  const { displayValue, committedTags } = getSearchBarViewModel(value);
+  const { displayValue, committedTags, hidden } = getSearchBarViewModel(value);
   const tagCompletion = useMemo(
     () =>
       getTagCompletion({
@@ -44,11 +46,7 @@ export const SearchBar = ({
   const loadTagSuggestions = async () => {
     try {
       const entries = await statsApi.getTagCloud();
-      setAvailableTags(
-        [...entries]
-          .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag))
-          .map((entry) => entry.tag),
-      );
+      setAvailableTags(sortTagSuggestions(entries));
     } catch (error) {
       console.error("Failed to load tag suggestions:", error);
     }
@@ -76,6 +74,11 @@ export const SearchBar = ({
 
   const handleRemoveTag = (tagIndex: number) => {
     onChange(removeCommittedTagAt(value, tagIndex));
+    requestAnimationFrame(() => inputRef.current?.focus());
+  };
+
+  const handleRemoveHidden = () => {
+    onChange(removeHiddenFilter(value));
     requestAnimationFrame(() => inputRef.current?.focus());
   };
 
@@ -111,6 +114,12 @@ export const SearchBar = ({
     ) {
       event.preventDefault();
       onChange(removeCommittedTagAt(value, committedTags.length - 1));
+      return;
+    }
+
+    if (event.key === "Backspace" && displayValue.length === 0 && hidden) {
+      event.preventDefault();
+      onChange(removeHiddenFilter(value));
     }
   };
 
@@ -124,6 +133,25 @@ export const SearchBar = ({
           className="flex min-w-0 flex-1 flex-wrap items-center gap-2"
           data-tauri-drag-region="false"
         >
+          {hidden && (
+            <Badge
+              variant="outline"
+              className="h-7 rounded-md border-primary/40 bg-primary/10 px-2.5 text-sm font-medium text-text-main"
+              title="Hidden filter"
+            >
+              <EyeOff size={13} aria-hidden="true" />
+              <span>hidden</span>
+              <button
+                type="button"
+                className="-mr-1 flex h-5 w-5 items-center justify-center rounded text-text-muted hover:bg-item-hover hover:text-text-main focus:outline-none"
+                aria-label="Remove hidden filter"
+                onClick={handleRemoveHidden}
+              >
+                <X size={12} aria-hidden="true" />
+              </button>
+            </Badge>
+          )}
+
           {committedTags.map((tag, index) => (
             <Badge
               key={`${tag}:${index}`}
@@ -161,7 +189,9 @@ export const SearchBar = ({
               ref={inputRef}
               className="relative z-10 w-full bg-transparent text-2xl font-light outline-none placeholder:text-placeholder"
               placeholder={
-                committedTags.length > 0 ? "" : LL.searchBar.placeholder()
+                committedTags.length > 0 || hidden
+                  ? ""
+                  : LL.searchBar.placeholder()
               }
               value={displayValue}
               onChange={(e) => handleDisplayChange(e.target.value)}

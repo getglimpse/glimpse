@@ -1,11 +1,17 @@
 export type SearchBarViewModel = {
   displayValue: string;
   committedTags: string[];
+  hidden: boolean;
 };
 
 export type TagCompletion = {
   tag: string;
   suffix: string;
+};
+
+export type TagSuggestionEntry = {
+  tag: string;
+  count: number;
 };
 
 type SearchInputParts = {
@@ -14,12 +20,15 @@ type SearchInputParts = {
 };
 
 type SearchSyntaxParts = {
-  prefix: string;
+  star: boolean;
+  hidden: boolean;
+  separator: string;
   body: string;
 };
 
 type TokenizedSearchBody = {
   committedTags: string[];
+  looseSearch: string;
   looseTokens: string[];
 };
 
@@ -41,38 +50,51 @@ const splitCommand = (input: string): SearchInputParts => {
 
 const splitSearchSyntax = (search: string): SearchSyntaxParts => {
   let index = 0;
-  let prefix = "";
+  let star = false;
+  let hidden = false;
+  let separator = "";
 
   while (/\s/.test(search[index] ?? "")) {
     index += 1;
   }
 
   if (search[index] === "*") {
-    prefix += "*";
+    star = true;
     index += 1;
+
+    const separatorStart = index;
 
     while (/\s/.test(search[index] ?? "")) {
       index += 1;
     }
+
+    separator = search.slice(separatorStart, index);
   }
 
   if (search[index] === "!") {
-    prefix += "!";
+    hidden = true;
     index += 1;
+
+    const separatorStart = index;
 
     while (/\s/.test(search[index] ?? "")) {
       index += 1;
     }
+
+    separator = search.slice(separatorStart, index);
   }
 
   return {
-    prefix,
+    star,
+    hidden,
+    separator,
     body: search.slice(index),
   };
 };
 
 const tokenizeSearchBody = (body: string): TokenizedSearchBody => {
   const committedTags: string[] = [];
+  let looseSearch = "";
   const looseTokens: string[] = [];
   const tokenPattern = /\S+/g;
   let match: RegExpExecArray | null;
@@ -88,42 +110,49 @@ const tokenizeSearchBody = (body: string): TokenizedSearchBody => {
       continue;
     }
 
+    const nextTokenIndex = tokenPattern.lastIndex;
+    const followingSpaces = body.slice(nextTokenIndex).match(/^\s*/)?.[0] ?? "";
+
+    looseSearch += `${token}${followingSpaces}`;
     looseTokens.push(token);
   }
 
   return {
     committedTags,
+    looseSearch: looseSearch.trimStart(),
     looseTokens,
   };
 };
 
 const buildSearch = (
-  prefix: string,
+  star: boolean,
+  hidden: boolean,
+  separator: string,
   tags: string[],
   body: string,
   command: string,
 ) => {
+  const prefix = `${star ? "*" : ""}${hidden ? "!" : ""}`;
   const tagText = tags.map((tag) => `#${tag}`).join(" ");
   const nextBody = body.trimStart();
 
   if (!tagText) {
-    return `${prefix}${nextBody}${command}`;
+    return `${prefix}${separator}${nextBody}${command}`;
   }
 
-  const needsTrailingSpace = nextBody || command;
-
-  return `${prefix}${tagText}${needsTrailingSpace ? " " : ""}${nextBody}${command}`;
+  return `${prefix}${separator}${tagText} ${nextBody}${command}`;
 };
 
 export const getSearchBarViewModel = (input: string): SearchBarViewModel => {
   const { search, command } = splitCommand(input);
-  const { prefix, body } = splitSearchSyntax(search);
-  const { committedTags, looseTokens } = tokenizeSearchBody(body);
-  const looseSearch = looseTokens.join(" ");
+  const { star, hidden, separator, body } = splitSearchSyntax(search);
+  const { committedTags, looseSearch } = tokenizeSearchBody(body);
+  const displayPrefix = star ? "*" : "";
 
   return {
-    displayValue: `${prefix}${looseSearch}${command}`,
+    displayValue: `${displayPrefix}${star ? separator : ""}${looseSearch}${command}`,
     committedTags,
+    hidden,
   };
 };
 
@@ -135,23 +164,45 @@ export const buildSearchInputFromDisplay = (
   const previousSyntax = splitSearchSyntax(previousSearch);
   const previousTokens = tokenizeSearchBody(previousSyntax.body);
 
-  if (previousTokens.committedTags.length === 0) {
+  if (!previousSyntax.hidden && previousTokens.committedTags.length === 0) {
     return nextDisplayValue;
   }
 
   const { search, command } = splitCommand(nextDisplayValue);
-  const { prefix, body } = splitSearchSyntax(search);
+  const { star, hidden, separator, body } = splitSearchSyntax(search);
 
-  return buildSearch(prefix, previousTokens.committedTags, body, command);
+  return buildSearch(
+    star,
+    previousSyntax.hidden || hidden,
+    star ? separator : "",
+    previousTokens.committedTags,
+    body,
+    command,
+  );
 };
 
 export const removeCommittedTagAt = (input: string, tagIndex: number) => {
   const { search, command } = splitCommand(input);
-  const { prefix, body } = splitSearchSyntax(search);
-  const { committedTags, looseTokens } = tokenizeSearchBody(body);
+  const { star, hidden, separator, body } = splitSearchSyntax(search);
+  const { committedTags, looseSearch } = tokenizeSearchBody(body);
   const nextTags = committedTags.filter((_, index) => index !== tagIndex);
 
-  return buildSearch(prefix, nextTags, looseTokens.join(" "), command);
+  return buildSearch(star, hidden, separator, nextTags, looseSearch, command);
+};
+
+export const removeHiddenFilter = (input: string) => {
+  const { search, command } = splitCommand(input);
+  const { star, separator, body } = splitSearchSyntax(search);
+  const { committedTags, looseSearch } = tokenizeSearchBody(body);
+
+  return buildSearch(
+    star,
+    false,
+    star ? separator : "",
+    committedTags,
+    looseSearch,
+    command,
+  );
 };
 
 export const getTagCompletion = ({
@@ -209,14 +260,14 @@ export const getTagCompletion = ({
 
 export const completeActiveTag = (displayValue: string, tag: string) => {
   const { search, command } = splitCommand(displayValue);
-  const { prefix, body } = splitSearchSyntax(search);
+  const { star, hidden, separator, body } = splitSearchSyntax(search);
   const nextBody = body.replace(/(?:^|\s)(#[^\s]*)$/, (match) => {
     const leadingSpace = match.startsWith("#") ? "" : match[0];
 
     return `${leadingSpace}#${tag} `;
   });
 
-  return `${prefix}${nextBody}${command}`;
+  return buildSearch(star, hidden, separator, [], nextBody, command);
 };
 
 export const commitActiveTag = (displayValue: string) => {
@@ -226,7 +277,7 @@ export const commitActiveTag = (displayValue: string) => {
     return null;
   }
 
-  const { prefix, body } = splitSearchSyntax(search);
+  const { star, hidden, separator, body } = splitSearchSyntax(search);
 
   if (!body || /\s$/.test(body)) {
     return null;
@@ -238,5 +289,10 @@ export const commitActiveTag = (displayValue: string) => {
     return null;
   }
 
-  return `${prefix}${body} `;
+  return buildSearch(star, hidden, separator, [], `${body} `, command);
 };
+
+export const sortTagSuggestions = (entries: TagSuggestionEntry[]) =>
+  [...entries]
+    .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag))
+    .map((entry) => entry.tag);
