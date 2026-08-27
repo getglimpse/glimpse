@@ -8,6 +8,7 @@ import {
   getTagCompletion,
   removeCommittedTagAt,
   removeHiddenFilter,
+  removeInternalFilter,
   sortTagSuggestions,
 } from "./searchBarViewModel";
 
@@ -17,6 +18,7 @@ describe("searchBarViewModel", () => {
       displayValue: "#rust",
       committedTags: [],
       hidden: false,
+      internal: false,
     });
   });
 
@@ -25,6 +27,7 @@ describe("searchBarViewModel", () => {
       displayValue: "",
       committedTags: ["rust"],
       hidden: false,
+      internal: false,
     });
   });
 
@@ -33,6 +36,7 @@ describe("searchBarViewModel", () => {
       displayValue: "cargo async",
       committedTags: ["rust"],
       hidden: false,
+      internal: false,
     });
   });
 
@@ -41,6 +45,7 @@ describe("searchBarViewModel", () => {
       displayValue: "aaa ",
       committedTags: ["tag"],
       hidden: false,
+      internal: false,
     });
 
     expect(buildSearchInputFromDisplay("#tag aaa", "aaa ")).toBe("#tag aaa ");
@@ -58,6 +63,7 @@ describe("searchBarViewModel", () => {
       displayValue: "",
       committedTags: ["rust"],
       hidden: false,
+      internal: false,
     });
   });
 
@@ -72,6 +78,7 @@ describe("searchBarViewModel", () => {
       displayValue: "",
       committedTags: ["rust"],
       hidden: true,
+      internal: false,
     });
 
     expect(buildSearchInputFromDisplay("!#rust ", "cargo")).toBe(
@@ -84,12 +91,14 @@ describe("searchBarViewModel", () => {
       displayValue: "",
       committedTags: [],
       hidden: true,
+      internal: false,
     });
 
     expect(getSearchBarViewModel("! rust ")).toEqual({
       displayValue: "rust ",
       committedTags: [],
       hidden: true,
+      internal: false,
     });
   });
 
@@ -104,6 +113,7 @@ describe("searchBarViewModel", () => {
       displayValue: "",
       committedTags: ["rust"],
       hidden: true,
+      internal: false,
     });
 
     expect(buildSearchInputFromDisplay("! #rust cargo", "")).toBe("!#rust ");
@@ -115,6 +125,48 @@ describe("searchBarViewModel", () => {
       displayValue: "",
       committedTags: ["rust"],
       hidden: false,
+      internal: false,
+    });
+  });
+
+  it("shows internal search as a badge instead of visible punctuation", () => {
+    expect(getSearchBarViewModel(":")).toEqual({
+      displayValue: "",
+      committedTags: [],
+      hidden: false,
+      internal: true,
+    });
+
+    expect(getSearchBarViewModel(":tags ")).toEqual({
+      displayValue: "tags ",
+      committedTags: [],
+      hidden: false,
+      internal: true,
+    });
+  });
+
+  it("keeps internal search active while visible text changes", () => {
+    expect(buildSearchInputFromDisplay(":tags", "settings")).toBe(":settings");
+  });
+
+  it("keeps hidden and internal filters active together", () => {
+    expect(getSearchBarViewModel("!:tags")).toEqual({
+      displayValue: "tags",
+      committedTags: [],
+      hidden: true,
+      internal: true,
+    });
+
+    expect(buildSearchInputFromDisplay("!:tags", "debug")).toBe("!:debug");
+  });
+
+  it("removes internal search without disturbing other badges", () => {
+    expect(removeInternalFilter("! : #rust tags")).toBe("!#rust tags");
+    expect(getSearchBarViewModel(removeInternalFilter(": #rust "))).toEqual({
+      displayValue: "",
+      committedTags: ["rust"],
+      hidden: false,
+      internal: false,
     });
   });
 
@@ -130,6 +182,7 @@ describe("searchBarViewModel", () => {
       displayValue: "",
       committedTags: ["tauri"],
       hidden: false,
+      internal: false,
     });
   });
 
@@ -166,6 +219,7 @@ describe("searchBarViewModel", () => {
       displayValue: "",
       committedTags: ["rust"],
       hidden: false,
+      internal: false,
     });
   });
 

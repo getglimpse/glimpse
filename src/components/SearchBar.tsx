@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { EyeOff, Hash, RefreshCw, X } from "lucide-react";
+import { Command, EyeOff, Hash, RefreshCw, X } from "lucide-react";
 import { toast } from "@/utils/toast";
 
 import { indexingApi } from "@/api/indexing";
@@ -12,6 +12,7 @@ import {
   getSearchBarViewModel,
   removeCommittedTagAt,
   removeHiddenFilter,
+  removeInternalFilter,
   sortTagSuggestions,
 } from "@/features/search/searchBarViewModel";
 import { useI18nContext } from "@/i18n/I18nProvider";
@@ -32,7 +33,8 @@ export const SearchBar = ({
 }: Props) => {
   const { LL } = useI18nContext();
   const [availableTags, setAvailableTags] = useState<string[]>([]);
-  const { displayValue, committedTags, hidden } = getSearchBarViewModel(value);
+  const { displayValue, committedTags, hidden, internal } =
+    getSearchBarViewModel(value);
   const tagCompletion = useMemo(
     () =>
       getTagCompletion({
@@ -82,6 +84,11 @@ export const SearchBar = ({
     requestAnimationFrame(() => inputRef.current?.focus());
   };
 
+  const handleRemoveInternal = () => {
+    onChange(removeInternalFilter(value));
+    requestAnimationFrame(() => inputRef.current?.focus());
+  };
+
   const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (
       tagCompletion &&
@@ -117,6 +124,12 @@ export const SearchBar = ({
       return;
     }
 
+    if (event.key === "Backspace" && displayValue.length === 0 && internal) {
+      event.preventDefault();
+      onChange(removeInternalFilter(value));
+      return;
+    }
+
     if (event.key === "Backspace" && displayValue.length === 0 && hidden) {
       event.preventDefault();
       onChange(removeHiddenFilter(value));
@@ -146,6 +159,25 @@ export const SearchBar = ({
                 className="-mr-1 flex h-5 w-5 items-center justify-center rounded text-text-muted hover:bg-item-hover hover:text-text-main focus:outline-none"
                 aria-label="Remove hidden filter"
                 onClick={handleRemoveHidden}
+              >
+                <X size={12} aria-hidden="true" />
+              </button>
+            </Badge>
+          )}
+
+          {internal && (
+            <Badge
+              variant="outline"
+              className="h-7 rounded-md border-primary/40 bg-primary/10 px-2.5 text-sm font-medium text-text-main"
+              title="Internal search"
+            >
+              <Command size={13} aria-hidden="true" />
+              <span>internal</span>
+              <button
+                type="button"
+                className="-mr-1 flex h-5 w-5 items-center justify-center rounded text-text-muted hover:bg-item-hover hover:text-text-main focus:outline-none"
+                aria-label="Remove internal search"
+                onClick={handleRemoveInternal}
               >
                 <X size={12} aria-hidden="true" />
               </button>
@@ -189,7 +221,7 @@ export const SearchBar = ({
               ref={inputRef}
               className="relative z-10 w-full bg-transparent text-2xl font-light outline-none placeholder:text-placeholder"
               placeholder={
-                committedTags.length > 0 || hidden
+                committedTags.length > 0 || hidden || internal
                   ? ""
                   : LL.searchBar.placeholder()
               }
