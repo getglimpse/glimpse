@@ -245,6 +245,8 @@ const en = {
     },
     actions: {
       focusSearch: "Focus search",
+      toggleHiddenFilter: "Toggle hidden filter",
+      toggleInternalFilter: "Toggle internal search",
       moveDown: "Move selection down",
       moveUp: "Move selection up",
       openSelected: "Open selected item",

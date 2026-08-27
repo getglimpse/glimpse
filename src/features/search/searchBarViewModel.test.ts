@@ -10,6 +10,8 @@ import {
   removeHiddenFilter,
   removeInternalFilter,
   sortTagSuggestions,
+  toggleHiddenFilter,
+  toggleInternalFilter,
 } from "./searchBarViewModel";
 
 describe("searchBarViewModel", () => {
@@ -129,6 +131,11 @@ describe("searchBarViewModel", () => {
     });
   });
 
+  it("toggles hidden search without disturbing text or badges", () => {
+    expect(toggleHiddenFilter("#rust cargo")).toBe("!#rust cargo");
+    expect(toggleHiddenFilter("!#rust cargo")).toBe("#rust cargo");
+  });
+
   it("shows internal search as a badge instead of visible punctuation", () => {
     expect(getSearchBarViewModel(":")).toEqual({
       displayValue: "",
@@ -168,6 +175,12 @@ describe("searchBarViewModel", () => {
       hidden: false,
       internal: false,
     });
+  });
+
+  it("toggles internal search without disturbing text or badges", () => {
+    expect(toggleInternalFilter("tags")).toBe(":tags");
+    expect(toggleInternalFilter("!#rust tags")).toBe("!: #rust tags");
+    expect(toggleInternalFilter("!: #rust tags")).toBe("!#rust tags");
   });
 
   it("removes a committed tag without disturbing the query", () => {

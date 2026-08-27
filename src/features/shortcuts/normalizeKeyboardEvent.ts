@@ -8,9 +8,7 @@
  * - Ctrl + Shift + P -> "Ctrl+Shift+P"
  * - Ctrl + , -> "Ctrl+,"
  */
-export const normalizeKeyboardEvent = (
-  event: KeyboardEvent,
-): string => {
+export const normalizeKeyboardEvent = (event: KeyboardEvent): string => {
   const parts: string[] = [];
 
   if (event.ctrlKey) {
@@ -25,13 +23,17 @@ export const normalizeKeyboardEvent = (
     parts.push("Alt");
   }
 
-  if (event.shiftKey) {
+  if (event.shiftKey && event.key !== ":") {
     parts.push("Shift");
   }
 
   let key = event.key;
 
-  if (key === " ") {
+  const digit = event.code.match(/^Digit(\d)$/)?.[1];
+
+  if (digit) {
+    key = digit;
+  } else if (key === " ") {
     key = "Space";
   } else if (key.length === 1) {
     key = key.toUpperCase();

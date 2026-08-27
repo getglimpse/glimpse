@@ -249,6 +249,8 @@ const ja = {
     },
     actions: {
       focusSearch: "検索欄にフォーカス",
+      toggleHiddenFilter: "hidden フィルターを切り替え",
+      toggleInternalFilter: "internal 検索を切り替え",
       moveDown: "選択を下へ移動",
       moveUp: "選択を上へ移動",
       openSelected: "選択中の項目を開く",
@@ -544,7 +546,8 @@ const ja = {
       title: "さらに詳しく",
       shortcuts: ":shortcuts で全ショートカットを確認できます。",
       settings: ":settings で設定項目を確認できます。",
-      metadata: ":metadata で Markdown メタデータと .gjson 項目を確認できます。",
+      metadata:
+        ":metadata で Markdown メタデータと .gjson 項目を確認できます。",
       about: ":about でバージョンと技術情報を確認できます。",
     },
   },

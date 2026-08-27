@@ -28,9 +28,7 @@ export const isPluginActionPageShortcutAction = (
 export const pluginActionPageFromShortcutAction = (
   action: PluginActionPageShortcutAction,
 ): PluginInternalPage =>
-  action.slice(
-    PLUGIN_ACTION_PAGE_SHORTCUT_PREFIX.length,
-  ) as PluginInternalPage;
+  action.slice(PLUGIN_ACTION_PAGE_SHORTCUT_PREFIX.length) as PluginInternalPage;
 
 export type StaticShortcutAction =
   | "toggleMainWindow"
@@ -50,6 +48,8 @@ export type StaticShortcutAction =
   | "switchPrevPreviewTab"
   | "closeActivePreviewTab"
   | "focusSearch"
+  | "toggleHiddenFilter"
+  | "toggleInternalFilter"
   | "openActiveSourceFile"
   | "revealActiveSourceFile"
   | "togglePreviewLayout"

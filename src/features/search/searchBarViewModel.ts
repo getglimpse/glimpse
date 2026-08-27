@@ -158,7 +158,9 @@ const buildSearch = (
     return `${prefix}${separator}${nextBody}${command}`;
   }
 
-  return `${prefix}${separator}${tagText} ${nextBody}${command}`;
+  const tagSeparator = internal && !separator ? " " : separator;
+
+  return `${prefix}${tagSeparator}${tagText} ${nextBody}${command}`;
 };
 
 export const getSearchBarViewModel = (input: string): SearchBarViewModel => {
@@ -247,6 +249,38 @@ export const removeInternalFilter = (input: string) => {
     star,
     hidden,
     false,
+    star ? separator : "",
+    committedTags,
+    looseSearch,
+    command,
+  );
+};
+
+export const toggleHiddenFilter = (input: string) => {
+  const { search, command } = splitCommand(input);
+  const { star, hidden, internal, separator, body } = splitSearchSyntax(search);
+  const { committedTags, looseSearch } = tokenizeSearchBody(body);
+
+  return buildSearch(
+    star,
+    !hidden,
+    internal,
+    star ? separator : "",
+    committedTags,
+    looseSearch,
+    command,
+  );
+};
+
+export const toggleInternalFilter = (input: string) => {
+  const { search, command } = splitCommand(input);
+  const { star, hidden, internal, separator, body } = splitSearchSyntax(search);
+  const { committedTags, looseSearch } = tokenizeSearchBody(body);
+
+  return buildSearch(
+    star,
+    hidden,
+    !internal,
     star ? separator : "",
     committedTags,
     looseSearch,

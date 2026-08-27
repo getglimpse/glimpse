@@ -48,6 +48,16 @@ const normalizeKey = (key: string): string => {
   return key.length === 1 ? key.toUpperCase() : key;
 };
 
+const normalizeKeyboardShortcutKey = (
+  e: React.KeyboardEvent<HTMLButtonElement>,
+): string => {
+  const digit = e.code.match(/^Digit(\d)$/)?.[1];
+
+  if (digit) return digit;
+
+  return normalizeKey(e.key);
+};
+
 const normalizeShortcutEvent = (
   e: React.KeyboardEvent<HTMLButtonElement>,
 ): string | null => {
@@ -57,10 +67,10 @@ const normalizeShortcutEvent = (
 
   if (e.ctrlKey) parts.push("Ctrl");
   if (e.metaKey) parts.push("Meta");
-  if (e.shiftKey) parts.push("Shift");
+  if (e.shiftKey && e.key !== ":") parts.push("Shift");
   if (e.altKey) parts.push("Alt");
 
-  parts.push(normalizeKey(e.key));
+  parts.push(normalizeKeyboardShortcutKey(e));
 
   return parts.join("+");
 };
@@ -85,6 +95,16 @@ const getShortcutGroups = (
         actionId: "focusSearch",
         defaultShortcut: "Ctrl+L",
         label: LL.shortcutsPage.actions.focusSearch(),
+      },
+      {
+        actionId: "toggleHiddenFilter",
+        defaultShortcut: "Ctrl+Shift+1",
+        label: LL.shortcutsPage.actions.toggleHiddenFilter(),
+      },
+      {
+        actionId: "toggleInternalFilter",
+        defaultShortcut: "Ctrl+:",
+        label: LL.shortcutsPage.actions.toggleInternalFilter(),
       },
       {
         actionId: "switchTargetGroup",
@@ -188,7 +208,7 @@ const getShortcutGroups = (
       },
       {
         actionId: "togglePreviewMode",
-        defaultShortcut: "",
+        defaultShortcut: "Alt+V",
         label: LL.shortcutsPage.actions.togglePreviewMode(),
       },
     ],

@@ -772,6 +772,14 @@ type RootTranslation = {
 			 */
 			focusSearch: string
 			/**
+			 * T​o​g​g​l​e​ ​h​i​d​d​e​n​ ​f​i​l​t​e​r
+			 */
+			toggleHiddenFilter: string
+			/**
+			 * T​o​g​g​l​e​ ​i​n​t​e​r​n​a​l​ ​s​e​a​r​c​h
+			 */
+			toggleInternalFilter: string
+			/**
 			 * M​o​v​e​ ​s​e​l​e​c​t​i​o​n​ ​d​o​w​n
 			 */
 			moveDown: string
@@ -2767,6 +2775,14 @@ export type TranslationFunctions = {
 			 * Focus search
 			 */
 			focusSearch: () => LocalizedString
+			/**
+			 * Toggle hidden filter
+			 */
+			toggleHiddenFilter: () => LocalizedString
+			/**
+			 * Toggle internal search
+			 */
+			toggleInternalFilter: () => LocalizedString
 			/**
 			 * Move selection down
 			 */
