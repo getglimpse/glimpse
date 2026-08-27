@@ -108,6 +108,7 @@ pub fn default_keybindings() -> KeybindingMap {
         ("switchTargetGroup".into(), one("Ctrl+R")),
         ("toggleHiddenFilter".into(), one("Ctrl+Shift+1")),
         ("toggleInternalFilter".into(), one("Ctrl+:")),
+        ("togglePluginPlaygroundFilter".into(), many(&[])),
         ("openQueryInspector".into(), one("Ctrl+Alt+I")),
         ("openItemHelp".into(), one("Ctrl+H")),
         ("openCommandHistory".into(), many(&[])),

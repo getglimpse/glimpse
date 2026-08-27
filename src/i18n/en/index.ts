@@ -247,6 +247,7 @@ const en = {
       focusSearch: "Focus search",
       toggleHiddenFilter: "Toggle hidden filter",
       toggleInternalFilter: "Toggle internal search",
+      togglePluginPlaygroundFilter: "Toggle plugin playground search",
       moveDown: "Move selection down",
       moveUp: "Move selection up",
       openSelected: "Open selected item",

@@ -14,6 +14,7 @@ import { parseSearchInput } from "@/features/search/parseSearchInput";
 import {
   toggleHiddenFilter,
   toggleInternalFilter,
+  togglePluginPlaygroundFilter,
 } from "@/features/search/searchBarViewModel";
 import { commandApi } from "@/api/command";
 import { openerApi } from "@/api/opener";
@@ -397,6 +398,11 @@ export const createAppShortcuts = ({
 
     toggleInternalFilter: () => {
       setQuery(toggleInternalFilter(getQuery()));
+      inputRef.current?.focus();
+    },
+
+    togglePluginPlaygroundFilter: () => {
+      setQuery(togglePluginPlaygroundFilter(getQuery()));
       inputRef.current?.focus();
     },
 

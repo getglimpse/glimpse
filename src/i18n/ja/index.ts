@@ -251,6 +251,7 @@ const ja = {
       focusSearch: "検索欄にフォーカス",
       toggleHiddenFilter: "hidden フィルターを切り替え",
       toggleInternalFilter: "internal 検索を切り替え",
+      togglePluginPlaygroundFilter: "plugin playground 検索を切り替え",
       moveDown: "選択を下へ移動",
       moveUp: "選択を上へ移動",
       openSelected: "選択中の項目を開く",

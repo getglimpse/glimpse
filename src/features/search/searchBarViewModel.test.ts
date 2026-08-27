@@ -9,9 +9,11 @@ import {
   removeCommittedTagAt,
   removeHiddenFilter,
   removeInternalFilter,
+  removePluginPlaygroundFilter,
   sortTagSuggestions,
   toggleHiddenFilter,
   toggleInternalFilter,
+  togglePluginPlaygroundFilter,
 } from "./searchBarViewModel";
 
 describe("searchBarViewModel", () => {
@@ -21,6 +23,7 @@ describe("searchBarViewModel", () => {
       committedTags: [],
       hidden: false,
       internal: false,
+      pluginPlayground: false,
     });
   });
 
@@ -30,6 +33,7 @@ describe("searchBarViewModel", () => {
       committedTags: ["rust"],
       hidden: false,
       internal: false,
+      pluginPlayground: false,
     });
   });
 
@@ -39,6 +43,7 @@ describe("searchBarViewModel", () => {
       committedTags: ["rust"],
       hidden: false,
       internal: false,
+      pluginPlayground: false,
     });
   });
 
@@ -48,6 +53,7 @@ describe("searchBarViewModel", () => {
       committedTags: ["tag"],
       hidden: false,
       internal: false,
+      pluginPlayground: false,
     });
 
     expect(buildSearchInputFromDisplay("#tag aaa", "aaa ")).toBe("#tag aaa ");
@@ -66,6 +72,7 @@ describe("searchBarViewModel", () => {
       committedTags: ["rust"],
       hidden: false,
       internal: false,
+      pluginPlayground: false,
     });
   });
 
@@ -81,6 +88,7 @@ describe("searchBarViewModel", () => {
       committedTags: ["rust"],
       hidden: true,
       internal: false,
+      pluginPlayground: false,
     });
 
     expect(buildSearchInputFromDisplay("!#rust ", "cargo")).toBe(
@@ -94,6 +102,7 @@ describe("searchBarViewModel", () => {
       committedTags: [],
       hidden: true,
       internal: false,
+      pluginPlayground: false,
     });
 
     expect(getSearchBarViewModel("! rust ")).toEqual({
@@ -101,6 +110,7 @@ describe("searchBarViewModel", () => {
       committedTags: [],
       hidden: true,
       internal: false,
+      pluginPlayground: false,
     });
   });
 
@@ -116,6 +126,7 @@ describe("searchBarViewModel", () => {
       committedTags: ["rust"],
       hidden: true,
       internal: false,
+      pluginPlayground: false,
     });
 
     expect(buildSearchInputFromDisplay("! #rust cargo", "")).toBe("!#rust ");
@@ -128,6 +139,7 @@ describe("searchBarViewModel", () => {
       committedTags: ["rust"],
       hidden: false,
       internal: false,
+      pluginPlayground: false,
     });
   });
 
@@ -142,6 +154,7 @@ describe("searchBarViewModel", () => {
       committedTags: [],
       hidden: false,
       internal: true,
+      pluginPlayground: false,
     });
 
     expect(getSearchBarViewModel(":tags ")).toEqual({
@@ -149,6 +162,7 @@ describe("searchBarViewModel", () => {
       committedTags: [],
       hidden: false,
       internal: true,
+      pluginPlayground: false,
     });
   });
 
@@ -162,6 +176,7 @@ describe("searchBarViewModel", () => {
       committedTags: [],
       hidden: true,
       internal: true,
+      pluginPlayground: false,
     });
 
     expect(buildSearchInputFromDisplay("!:tags", "debug")).toBe("!:debug");
@@ -174,6 +189,7 @@ describe("searchBarViewModel", () => {
       committedTags: ["rust"],
       hidden: false,
       internal: false,
+      pluginPlayground: false,
     });
   });
 
@@ -181,6 +197,64 @@ describe("searchBarViewModel", () => {
     expect(toggleInternalFilter("tags")).toBe(":tags");
     expect(toggleInternalFilter("!#rust tags")).toBe("!: #rust tags");
     expect(toggleInternalFilter("!: #rust tags")).toBe("!#rust tags");
+  });
+
+  it("shows plugin playground search as a badge instead of visible punctuation", () => {
+    expect(getSearchBarViewModel("/")).toEqual({
+      displayValue: "",
+      committedTags: [],
+      hidden: false,
+      internal: false,
+      pluginPlayground: true,
+    });
+
+    expect(getSearchBarViewModel("/tools ")).toEqual({
+      displayValue: "tools ",
+      committedTags: [],
+      hidden: false,
+      internal: false,
+      pluginPlayground: true,
+    });
+  });
+
+  it("keeps plugin playground search active while visible text changes", () => {
+    expect(buildSearchInputFromDisplay("/tools", "debug")).toBe("/debug");
+  });
+
+  it("keeps hidden and plugin playground filters active together", () => {
+    expect(getSearchBarViewModel("!/tools")).toEqual({
+      displayValue: "tools",
+      committedTags: [],
+      hidden: true,
+      internal: false,
+      pluginPlayground: true,
+    });
+
+    expect(buildSearchInputFromDisplay("!/tools", "debug")).toBe("!/debug");
+  });
+
+  it("removes plugin playground search without disturbing other badges", () => {
+    expect(removePluginPlaygroundFilter("!/ #rust tools")).toBe("!#rust tools");
+    expect(
+      getSearchBarViewModel(removePluginPlaygroundFilter("/ #rust ")),
+    ).toEqual({
+      displayValue: "",
+      committedTags: ["rust"],
+      hidden: false,
+      internal: false,
+      pluginPlayground: false,
+    });
+  });
+
+  it("toggles plugin playground search without disturbing text or badges", () => {
+    expect(togglePluginPlaygroundFilter("tools")).toBe("/tools");
+    expect(togglePluginPlaygroundFilter("!#rust tools")).toBe("!/ #rust tools");
+    expect(togglePluginPlaygroundFilter("!/ #rust tools")).toBe("!#rust tools");
+  });
+
+  it("keeps internal and plugin playground search mutually exclusive", () => {
+    expect(toggleInternalFilter("/tools")).toBe(":tools");
+    expect(togglePluginPlaygroundFilter(":settings")).toBe("/settings");
   });
 
   it("removes a committed tag without disturbing the query", () => {
@@ -196,6 +270,7 @@ describe("searchBarViewModel", () => {
       committedTags: ["tauri"],
       hidden: false,
       internal: false,
+      pluginPlayground: false,
     });
   });
 
@@ -233,6 +308,7 @@ describe("searchBarViewModel", () => {
       committedTags: ["rust"],
       hidden: false,
       internal: false,
+      pluginPlayground: false,
     });
   });
 

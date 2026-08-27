@@ -107,6 +107,11 @@ const getShortcutGroups = (
         label: LL.shortcutsPage.actions.toggleInternalFilter(),
       },
       {
+        actionId: "togglePluginPlaygroundFilter",
+        defaultShortcut: "",
+        label: LL.shortcutsPage.actions.togglePluginPlaygroundFilter(),
+      },
+      {
         actionId: "switchTargetGroup",
         defaultShortcut: "Ctrl+R",
         label: LL.shortcutsPage.actions.switchTargetGroup(),

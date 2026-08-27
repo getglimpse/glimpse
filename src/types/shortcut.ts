@@ -50,6 +50,7 @@ export type StaticShortcutAction =
   | "focusSearch"
   | "toggleHiddenFilter"
   | "toggleInternalFilter"
+  | "togglePluginPlaygroundFilter"
   | "openActiveSourceFile"
   | "revealActiveSourceFile"
   | "togglePreviewLayout"

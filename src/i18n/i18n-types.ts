@@ -780,6 +780,10 @@ type RootTranslation = {
 			 */
 			toggleInternalFilter: string
 			/**
+			 * T​o​g​g​l​e​ ​p​l​u​g​i​n​ ​p​l​a​y​g​r​o​u​n​d​ ​s​e​a​r​c​h
+			 */
+			togglePluginPlaygroundFilter: string
+			/**
 			 * M​o​v​e​ ​s​e​l​e​c​t​i​o​n​ ​d​o​w​n
 			 */
 			moveDown: string
@@ -2783,6 +2787,10 @@ export type TranslationFunctions = {
 			 * Toggle internal search
 			 */
 			toggleInternalFilter: () => LocalizedString
+			/**
+			 * Toggle plugin playground search
+			 */
+			togglePluginPlaygroundFilter: () => LocalizedString
 			/**
 			 * Move selection down
 			 */
