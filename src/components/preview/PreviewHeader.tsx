@@ -70,6 +70,8 @@ const getPreviewIcon = (item: IndexItem) => {
       return Settings;
     case "help":
       return CircleHelp;
+    case "metadata":
+      return Tags;
     case "shortcuts":
       return Keyboard;
     case "about":

@@ -322,7 +322,7 @@ export const FileEditorPanel = ({
             type="button"
             onClick={onHelp}
             className="inline-flex h-8 w-8 items-center justify-center rounded-md text-text-muted hover:bg-item-hover hover:text-text-main"
-            title={LL.previewPanel.openHelp()}
+            title={LL.helpPage.internalPages.metadata()}
             tabIndex={-1}
           >
             <CircleHelp className="h-4 w-4" />

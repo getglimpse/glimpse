@@ -55,6 +55,29 @@ const INTERNAL_ITEMS: IndexItem[] = [
     },
   },
   {
+    id: "internal://metadata",
+    title: "metadata",
+    sourcePath: null,
+    updatedAt: new Date(0).toISOString(),
+    metadata: {
+      tags: ["internal", "metadata", "docs", "gjson", "frontmatter"],
+      aliases: [
+        "metadata",
+        "frontmatter",
+        "gjson",
+        ".gjson",
+        "document metadata",
+        "メタデータ",
+      ],
+      star: false,
+      boost: 1,
+    },
+    preview: {
+      type: "internal",
+      page: "metadata",
+    },
+  },
+  {
     id: "internal://about",
     title: "about",
     sourcePath: null,
@@ -154,6 +177,10 @@ const INTERNAL_ITEMS: IndexItem[] = [
 
 export const HELP_ITEM = INTERNAL_ITEMS.find(
   (item) => item.id === "internal://help",
+)!;
+
+export const METADATA_HELP_ITEM = INTERNAL_ITEMS.find(
+  (item) => item.id === "internal://metadata",
 )!;
 
 export const COMMAND_HISTORY_ITEM = INTERNAL_ITEMS.find(

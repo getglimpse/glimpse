@@ -481,7 +481,10 @@ const ja = {
   helpPage: {
     title: "ヘルプ",
     description:
-      "Glimpse の検索、ターゲットグループ、Markdown メタデータ、.gjson index、ショートカットのクイックリファレンスです。",
+      "Glimpse の検索、ターゲットグループ、内部ページ、ショートカットのクイックリファレンスです。",
+    groups: {
+      usage: "検索、ターゲットグループ、内部ページ、ショートカット",
+    },
 
     search: {
       title: "検索",
@@ -492,6 +495,60 @@ const ja = {
       global: "すべてのターゲットグループを検索",
       commandArgs: "選択中のコマンド項目に引数を渡す",
     },
+
+    open: {
+      title: "open",
+      file: "ソースファイルを開く",
+      url: "外部 URL を開く",
+      command: "コマンドを実行",
+      path: "コマンドパス",
+      openUrl: "URL",
+      openCommand: "コマンドパス",
+    },
+
+    internalPages: {
+      title: "内部ページ",
+      help: "ヘルプを開く",
+      settings: "設定を開く",
+      about: "About を開く",
+      debug: "Debug を開く",
+      shortcuts: "キーボードショートカットを開く",
+      metadata: "メタデータヘルプを開く",
+      commandHistory: "Command History を開く",
+      tagCloud: "Tag Cloud を開く",
+      plugin: "Plugins を開く",
+    },
+
+    targetGroups: {
+      title: "ターゲットグループ",
+      current: "通常検索で使用するターゲットグループです",
+      active: "Ctrl+R のサイクルに含まれます",
+      inactive: "設定には残りますが Ctrl+R のサイクルからは外れます",
+      switch: "Active Target Group の中で Current Target Group を切り替えます",
+      settings: "ターゲットグループと対象フォルダを編集します",
+      globalSearch: "すべてのターゲットグループを検索",
+    },
+
+    shortcuts: {
+      title: "ショートカット",
+      open: "選択中の項目を開く、または実行",
+      sidebar: "サイドバーを切り替え",
+      inspector: "Query Inspector を開く",
+      switchGroup: "Current Target Group を切り替え",
+    },
+
+    more: {
+      title: "さらに詳しく",
+      shortcuts: ":shortcuts で全ショートカットを確認できます。",
+      settings: ":settings で設定項目を確認できます。",
+      metadata: ":metadata で Markdown メタデータと .gjson 項目を確認できます。",
+      about: ":about でバージョンと技術情報を確認できます。",
+    },
+  },
+  metadataHelpPage: {
+    title: "メタデータ",
+    description:
+      "Markdown frontmatter、.gjson index、コマンド項目、open 動作のリファレンスです。",
 
     metadata: {
       title: "Markdown メタデータ",
@@ -513,16 +570,6 @@ const ja = {
 
     metadataExample: {
       title: "Markdown メタデータ例",
-    },
-
-    open: {
-      title: "open",
-      file: "ソースファイルを開く",
-      url: "外部 URL を開く",
-      command: "コマンドを実行",
-      path: "コマンドパス",
-      openUrl: "URL",
-      openCommand: "コマンドパス",
     },
 
     commands: {
@@ -555,43 +602,6 @@ const ja = {
 
     jsonExample: {
       title: ".gjson index 例",
-    },
-
-    internalPages: {
-      title: "内部ページ",
-      help: "ヘルプを開く",
-      settings: "設定を開く",
-      about: "About を開く",
-      debug: "Debug を開く",
-      shortcuts: "キーボードショートカットを開く",
-      commandHistory: "Command History を開く",
-      tagCloud: "Tag Cloud を開く",
-      plugin: "Plugins を開く",
-    },
-
-    targetGroups: {
-      title: "ターゲットグループ",
-      current: "通常検索で使用するターゲットグループです",
-      active: "Ctrl+R のサイクルに含まれます",
-      inactive: "設定には残りますが Ctrl+R のサイクルからは外れます",
-      switch: "Active Target Group の中で Current Target Group を切り替えます",
-      settings: "ターゲットグループと対象フォルダを編集します",
-      globalSearch: "すべてのターゲットグループを検索",
-    },
-
-    shortcuts: {
-      title: "ショートカット",
-      open: "選択中の項目を開く、または実行",
-      sidebar: "サイドバーを切り替え",
-      inspector: "Query Inspector を開く",
-      switchGroup: "Current Target Group を切り替え",
-    },
-
-    more: {
-      title: "さらに詳しく",
-      shortcuts: ":shortcuts で全ショートカットを確認できます。",
-      settings: ":settings で設定項目を確認できます。",
-      about: ":about でバージョンと技術情報を確認できます。",
     },
   },
   fileEditor: {

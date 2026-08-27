@@ -474,7 +474,10 @@ const en = {
   helpPage: {
     title: "Help",
     description:
-      "Quick reference for Glimpse search, target groups, Markdown metadata, .gjson indexes, and shortcuts.",
+      "Quick reference for Glimpse search, target groups, internal pages, and shortcuts.",
+    groups: {
+      usage: "Search, target groups, internal pages, and shortcuts",
+    },
 
     search: {
       title: "Search",
@@ -485,6 +488,60 @@ const en = {
       global: "Search all target groups",
       commandArgs: "Pass arguments to the selected command item",
     },
+
+    open: {
+      title: "open",
+      file: "Open source file",
+      url: "Open external URL",
+      command: "Run command",
+      path: "Command path",
+      openUrl: "URL",
+      openCommand: "Command path",
+    },
+
+    internalPages: {
+      title: "Internal Pages",
+      help: "Open Help",
+      settings: "Open Settings",
+      about: "Open About",
+      debug: "Open Debug",
+      shortcuts: "Open Keyboard Shortcuts",
+      metadata: "Open Metadata Help",
+      commandHistory: "Open Command History",
+      tagCloud: "Open Tag Cloud",
+      plugin: "Open Plugins",
+    },
+
+    targetGroups: {
+      title: "Target Groups",
+      current: "The target group used by normal search",
+      active: "Included in the Ctrl+R cycle",
+      inactive: "Kept in settings but skipped by the Ctrl+R cycle",
+      switch: "Switch the current target group among active target groups",
+      settings: "Edit target groups and choose folders",
+      globalSearch: "Search all target groups",
+    },
+
+    shortcuts: {
+      title: "Shortcuts",
+      open: "Open or run the selected item",
+      sidebar: "Toggle the sidebar",
+      inspector: "Open Query Inspector",
+      switchGroup: "Switch the current target group",
+    },
+
+    more: {
+      title: "Learn More",
+      shortcuts: "Use :shortcuts to view all keyboard shortcuts.",
+      settings: "Use :settings to view configuration options.",
+      metadata: "Use :metadata to view Markdown metadata and .gjson fields.",
+      about: "Use :about to view version and technical information.",
+    },
+  },
+  metadataHelpPage: {
+    title: "Metadata",
+    description:
+      "Reference for Markdown frontmatter, .gjson indexes, command items, and open behavior.",
 
     metadata: {
       title: "Markdown Metadata",
@@ -506,16 +563,6 @@ const en = {
 
     metadataExample: {
       title: "Markdown Metadata Example",
-    },
-
-    open: {
-      title: "open",
-      file: "Open source file",
-      url: "Open external URL",
-      command: "Run command",
-      path: "Command path",
-      openUrl: "URL",
-      openCommand: "Command path",
     },
 
     commands: {
@@ -547,43 +594,6 @@ const en = {
 
     jsonExample: {
       title: ".gjson Index Example",
-    },
-
-    internalPages: {
-      title: "Internal Pages",
-      help: "Open Help",
-      settings: "Open Settings",
-      about: "Open About",
-      debug: "Open Debug",
-      shortcuts: "Open Keyboard Shortcuts",
-      commandHistory: "Open Command History",
-      tagCloud: "Open Tag Cloud",
-      plugin: "Open Plugins",
-    },
-
-    targetGroups: {
-      title: "Target Groups",
-      current: "The target group used by normal search",
-      active: "Included in the Ctrl+R cycle",
-      inactive: "Kept in settings but skipped by the Ctrl+R cycle",
-      switch: "Switch the current target group among active target groups",
-      settings: "Edit target groups and choose folders",
-      globalSearch: "Search all target groups",
-    },
-
-    shortcuts: {
-      title: "Shortcuts",
-      open: "Open or run the selected item",
-      sidebar: "Toggle the sidebar",
-      inspector: "Open Query Inspector",
-      switchGroup: "Switch the current target group",
-    },
-
-    more: {
-      title: "Learn More",
-      shortcuts: "Use :shortcuts to view all keyboard shortcuts.",
-      settings: "Use :settings to view configuration options.",
-      about: "Use :about to view version and technical information.",
     },
   },
   fileEditor: {

@@ -11,6 +11,9 @@ export const getInternalPageTitle = (
     case "help":
       return LL.helpPage.title();
 
+    case "metadata":
+      return LL.metadataHelpPage.title();
+
     case "settings":
       return LL.settingsPage.title();
 

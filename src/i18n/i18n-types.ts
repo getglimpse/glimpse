@@ -1478,9 +1478,15 @@ type RootTranslation = {
 		 */
 		title: string
 		/**
-		 * Q​u​i​c​k​ ​r​e​f​e​r​e​n​c​e​ ​f​o​r​ ​G​l​i​m​p​s​e​ ​s​e​a​r​c​h​,​ ​t​a​r​g​e​t​ ​g​r​o​u​p​s​,​ ​M​a​r​k​d​o​w​n​ ​m​e​t​a​d​a​t​a​,​ ​.​g​j​s​o​n​ ​i​n​d​e​x​e​s​,​ ​a​n​d​ ​s​h​o​r​t​c​u​t​s​.
+		 * Q​u​i​c​k​ ​r​e​f​e​r​e​n​c​e​ ​f​o​r​ ​G​l​i​m​p​s​e​ ​s​e​a​r​c​h​,​ ​t​a​r​g​e​t​ ​g​r​o​u​p​s​,​ ​i​n​t​e​r​n​a​l​ ​p​a​g​e​s​,​ ​a​n​d​ ​s​h​o​r​t​c​u​t​s​.
 		 */
 		description: string
+		groups: {
+			/**
+			 * S​e​a​r​c​h​,​ ​t​a​r​g​e​t​ ​g​r​o​u​p​s​,​ ​i​n​t​e​r​n​a​l​ ​p​a​g​e​s​,​ ​a​n​d​ ​s​h​o​r​t​c​u​t​s
+			 */
+			usage: string
+		}
 		search: {
 			/**
 			 * S​e​a​r​c​h
@@ -1510,64 +1516,6 @@ type RootTranslation = {
 			 * P​a​s​s​ ​a​r​g​u​m​e​n​t​s​ ​t​o​ ​t​h​e​ ​s​e​l​e​c​t​e​d​ ​c​o​m​m​a​n​d​ ​i​t​e​m
 			 */
 			commandArgs: string
-		}
-		metadata: {
-			/**
-			 * M​a​r​k​d​o​w​n​ ​M​e​t​a​d​a​t​a
-			 */
-			title: string
-			/**
-			 * A​d​d​ ​a​ ​s​m​a​l​l​ ​Y​A​M​L​ ​f​r​o​n​t​m​a​t​t​e​r​ ​b​l​o​c​k​ ​t​o​ ​t​h​e​ ​b​e​g​i​n​n​i​n​g​ ​o​f​ ​a​ ​M​a​r​k​d​o​w​n​ ​f​i​l​e​ ​t​o​ ​c​o​n​t​r​o​l​ ​s​e​a​r​c​h​ ​m​e​t​a​d​a​t​a​ ​a​n​d​ ​o​p​e​n​ ​b​e​h​a​v​i​o​r​.
-			 */
-			description: string
-			fields: {
-				/**
-				 * T​i​t​l​e​ ​d​i​s​p​l​a​y​e​d​ ​i​n​ ​s​e​a​r​c​h​ ​r​e​s​u​l​t​s
-				 */
-				title: string
-				/**
-				 * S​e​a​r​c​h​ ​t​a​g​s​ ​(​m​u​l​t​i​p​l​e​ ​a​l​l​o​w​e​d​)
-				 */
-				tags: string
-				/**
-				 * A​l​t​e​r​n​a​t​i​v​e​ ​n​a​m​e​s​ ​o​r​ ​a​b​b​r​e​v​i​a​t​i​o​n​s
-				 */
-				aliases: string
-				/**
-				 * P​r​i​o​r​i​t​i​z​e​ ​t​h​i​s​ ​i​t​e​m​ ​i​n​ ​s​e​a​r​c​h​ ​r​e​s​u​l​t​s​ ​w​h​e​n​ ​t​r​u​e
-				 */
-				star: string
-				/**
-				 * H​i​d​e​ ​f​r​o​m​ ​n​o​r​m​a​l​ ​s​e​a​r​c​h​ ​a​n​d​ ​s​h​o​w​ ​o​n​l​y​ ​w​i​t​h​ ​!​ ​s​e​a​r​c​h
-				 */
-				hidden: string
-				/**
-				 * R​u​n​ ​a​ ​c​o​m​m​a​n​d​ ​w​h​e​n​ ​p​r​e​s​s​i​n​g​ ​E​n​t​e​r
-				 */
-				commandOpenType: string
-				/**
-				 * O​p​e​n​ ​a​n​ ​e​x​t​e​r​n​a​l​ ​U​R​L​ ​w​h​e​n​ ​p​r​e​s​s​i​n​g​ ​E​n​t​e​r
-				 */
-				externalOpenType: string
-				/**
-				 * C​o​m​m​a​n​d​ ​s​t​r​i​n​g​ ​u​s​e​d​ ​b​y​ ​c​o​m​m​a​n​d
-				 */
-				openPath: string
-				/**
-				 * U​R​L​ ​o​p​e​n​e​d​ ​b​y​ ​u​r​l
-				 */
-				openUrl: string
-				/**
-				 * I​g​n​o​r​e​d​ ​b​y​ ​t​h​e​ ​M​a​r​k​d​o​w​n​ ​m​e​t​a​d​a​t​a​ ​p​a​r​s​e​r
-				 */
-				unknown: string
-			}
-		}
-		metadataExample: {
-			/**
-			 * M​a​r​k​d​o​w​n​ ​M​e​t​a​d​a​t​a​ ​E​x​a​m​p​l​e
-			 */
-			title: string
 		}
 		open: {
 			/**
@@ -1599,85 +1547,6 @@ type RootTranslation = {
 			 */
 			openCommand: string
 		}
-		commands: {
-			/**
-			 * C​o​m​m​a​n​d​s
-			 */
-			title: string
-			/**
-			 * C​o​m​m​a​n​d​ ​i​t​e​m​s​ ​c​a​n​ ​r​e​c​e​i​v​e​ ​e​v​e​r​y​t​h​i​n​g​ ​a​f​t​e​r​ ​'​>​'​ ​i​n​ ​t​h​e​ ​s​e​a​r​c​h​ ​b​a​r​ ​a​s​ ​c​o​m​m​a​n​d​-​l​i​n​e​ ​a​r​g​u​m​e​n​t​s​.​ ​C​o​m​m​a​n​d​s​ ​a​r​e​ ​e​x​e​c​u​t​e​d​ ​d​i​r​e​c​t​l​y​ ​w​i​t​h​o​u​t​ ​u​s​i​n​g​ ​a​ ​s​h​e​l​l​.
-			 */
-			description: string
-			/**
-			 * C​o​m​m​a​n​d​s​ ​a​r​e​ ​e​x​e​c​u​t​e​d​ ​d​i​r​e​c​t​l​y​ ​w​i​t​h​o​u​t​ ​u​s​i​n​g​ ​a​ ​s​h​e​l​l​.
-			 */
-			security: string
-			/**
-			 * R​u​n​ ​{​c​o​m​m​a​n​d​}
-			 * @param {unknown} command
-			 */
-			runExample: RequiredParams<'command'>
-		}
-		jsonIndex: {
-			/**
-			 * .​g​j​s​o​n​ ​I​n​d​e​x
-			 */
-			title: string
-			/**
-			 * A​ ​.​g​j​s​o​n​ ​f​i​l​e​ ​c​a​n​ ​g​e​n​e​r​a​t​e​ ​m​u​l​t​i​p​l​e​ ​s​e​a​r​c​h​a​b​l​e​ ​i​t​e​m​s​ ​f​r​o​m​ ​o​n​e​ ​J​S​O​N​ ​f​i​l​e​.
-			 */
-			description: string
-			/**
-			 * O​n​l​y​ ​.​g​j​s​o​n​ ​f​i​l​e​s​ ​u​s​e​ ​t​h​e​ ​m​u​l​t​i​-​i​t​e​m​ ​J​S​O​N​ ​i​n​d​e​x​ ​p​a​r​s​e​r
-			 */
-			extension: string
-			/**
-			 * T​r​e​a​t​ ​t​h​e​ ​i​t​e​m​s​ ​a​r​r​a​y​ ​a​s​ ​s​e​a​r​c​h​a​b​l​e​ ​e​n​t​r​i​e​s
-			 */
-			items: string
-			/**
-			 * U​s​e​ ​e​a​c​h​ ​i​t​e​m​'​s​ ​t​i​t​l​e
-			 */
-			itemTitle: string
-			/**
-			 * U​R​L​ ​u​s​e​d​ ​f​o​r​ ​e​x​t​e​r​n​a​l​ ​p​r​e​v​i​e​w​ ​a​n​d​ ​d​e​f​a​u​l​t​ ​E​n​t​e​r​ ​a​c​t​i​o​n
-			 */
-			itemUrl: string
-			/**
-			 * S​e​a​r​c​h​a​b​l​e​ ​d​e​s​c​r​i​p​t​i​o​n​ ​a​n​d​ ​M​a​r​k​d​o​w​n​ ​p​r​e​v​i​e​w​ ​t​e​x​t
-			 */
-			itemDesc: string
-			/**
-			 * T​a​g​s​ ​u​s​e​d​ ​b​y​ ​#​t​a​g​ ​f​i​l​t​e​r​i​n​g
-			 */
-			metadataTags: string
-			/**
-			 * A​l​t​e​r​n​a​t​i​v​e​ ​s​e​a​r​c​h​a​b​l​e​ ​n​a​m​e​s
-			 */
-			metadataAliases: string
-			/**
-			 * P​r​i​o​r​i​t​i​z​e​ ​t​h​i​s​ ​i​t​e​m​ ​i​n​ ​s​e​a​r​c​h​ ​r​e​s​u​l​t​s​ ​w​h​e​n​ ​t​r​u​e
-			 */
-			metadataStar: string
-			/**
-			 * H​i​d​e​ ​f​r​o​m​ ​n​o​r​m​a​l​ ​s​e​a​r​c​h​ ​a​n​d​ ​s​h​o​w​ ​o​n​l​y​ ​w​i​t​h​ ​!​ ​s​e​a​r​c​h
-			 */
-			metadataHidden: string
-			/**
-			 * W​h​e​n​ ​t​r​u​e​,​ ​p​r​e​v​i​e​w​ ​t​h​e​ ​U​R​L​ ​i​n​ ​a​n​ ​i​f​r​a​m​e​;​ ​w​h​e​n​ ​f​a​l​s​e​,​ ​s​h​o​w​ ​M​a​r​k​d​o​w​n​ ​t​e​x​t
-			 */
-			iframe: string
-			/**
-			 * O​p​t​i​o​n​a​l​ ​E​n​t​e​r​ ​a​c​t​i​o​n​ ​o​v​e​r​r​i​d​e​ ​s​u​c​h​ ​a​s​ ​e​x​t​e​r​n​a​l​ ​U​R​L​ ​o​r​ ​c​o​m​m​a​n​d​ ​p​a​t​h
-			 */
-			openOverride: string
-		}
-		jsonExample: {
-			/**
-			 * .​g​j​s​o​n​ ​I​n​d​e​x​ ​E​x​a​m​p​l​e
-			 */
-			title: string
-		}
 		internalPages: {
 			/**
 			 * I​n​t​e​r​n​a​l​ ​P​a​g​e​s
@@ -1703,6 +1572,10 @@ type RootTranslation = {
 			 * O​p​e​n​ ​K​e​y​b​o​a​r​d​ ​S​h​o​r​t​c​u​t​s
 			 */
 			shortcuts: string
+			/**
+			 * O​p​e​n​ ​M​e​t​a​d​a​t​a​ ​H​e​l​p
+			 */
+			metadata: string
 			/**
 			 * O​p​e​n​ ​C​o​m​m​a​n​d​ ​H​i​s​t​o​r​y
 			 */
@@ -1782,9 +1655,160 @@ type RootTranslation = {
 			 */
 			settings: string
 			/**
+			 * U​s​e​ ​:​m​e​t​a​d​a​t​a​ ​t​o​ ​v​i​e​w​ ​M​a​r​k​d​o​w​n​ ​m​e​t​a​d​a​t​a​ ​a​n​d​ ​.​g​j​s​o​n​ ​f​i​e​l​d​s​.
+			 */
+			metadata: string
+			/**
 			 * U​s​e​ ​:​a​b​o​u​t​ ​t​o​ ​v​i​e​w​ ​v​e​r​s​i​o​n​ ​a​n​d​ ​t​e​c​h​n​i​c​a​l​ ​i​n​f​o​r​m​a​t​i​o​n​.
 			 */
 			about: string
+		}
+	}
+	metadataHelpPage: {
+		/**
+		 * M​e​t​a​d​a​t​a
+		 */
+		title: string
+		/**
+		 * R​e​f​e​r​e​n​c​e​ ​f​o​r​ ​M​a​r​k​d​o​w​n​ ​f​r​o​n​t​m​a​t​t​e​r​,​ ​.​g​j​s​o​n​ ​i​n​d​e​x​e​s​,​ ​c​o​m​m​a​n​d​ ​i​t​e​m​s​,​ ​a​n​d​ ​o​p​e​n​ ​b​e​h​a​v​i​o​r​.
+		 */
+		description: string
+		metadata: {
+			/**
+			 * M​a​r​k​d​o​w​n​ ​M​e​t​a​d​a​t​a
+			 */
+			title: string
+			/**
+			 * A​d​d​ ​a​ ​s​m​a​l​l​ ​Y​A​M​L​ ​f​r​o​n​t​m​a​t​t​e​r​ ​b​l​o​c​k​ ​t​o​ ​t​h​e​ ​b​e​g​i​n​n​i​n​g​ ​o​f​ ​a​ ​M​a​r​k​d​o​w​n​ ​f​i​l​e​ ​t​o​ ​c​o​n​t​r​o​l​ ​s​e​a​r​c​h​ ​m​e​t​a​d​a​t​a​ ​a​n​d​ ​o​p​e​n​ ​b​e​h​a​v​i​o​r​.
+			 */
+			description: string
+			fields: {
+				/**
+				 * T​i​t​l​e​ ​d​i​s​p​l​a​y​e​d​ ​i​n​ ​s​e​a​r​c​h​ ​r​e​s​u​l​t​s
+				 */
+				title: string
+				/**
+				 * S​e​a​r​c​h​ ​t​a​g​s​ ​(​m​u​l​t​i​p​l​e​ ​a​l​l​o​w​e​d​)
+				 */
+				tags: string
+				/**
+				 * A​l​t​e​r​n​a​t​i​v​e​ ​n​a​m​e​s​ ​o​r​ ​a​b​b​r​e​v​i​a​t​i​o​n​s
+				 */
+				aliases: string
+				/**
+				 * P​r​i​o​r​i​t​i​z​e​ ​t​h​i​s​ ​i​t​e​m​ ​i​n​ ​s​e​a​r​c​h​ ​r​e​s​u​l​t​s​ ​w​h​e​n​ ​t​r​u​e
+				 */
+				star: string
+				/**
+				 * H​i​d​e​ ​f​r​o​m​ ​n​o​r​m​a​l​ ​s​e​a​r​c​h​ ​a​n​d​ ​s​h​o​w​ ​o​n​l​y​ ​w​i​t​h​ ​!​ ​s​e​a​r​c​h
+				 */
+				hidden: string
+				/**
+				 * R​u​n​ ​a​ ​c​o​m​m​a​n​d​ ​w​h​e​n​ ​p​r​e​s​s​i​n​g​ ​E​n​t​e​r
+				 */
+				commandOpenType: string
+				/**
+				 * O​p​e​n​ ​a​n​ ​e​x​t​e​r​n​a​l​ ​U​R​L​ ​w​h​e​n​ ​p​r​e​s​s​i​n​g​ ​E​n​t​e​r
+				 */
+				externalOpenType: string
+				/**
+				 * C​o​m​m​a​n​d​ ​s​t​r​i​n​g​ ​u​s​e​d​ ​b​y​ ​c​o​m​m​a​n​d
+				 */
+				openPath: string
+				/**
+				 * U​R​L​ ​o​p​e​n​e​d​ ​b​y​ ​u​r​l
+				 */
+				openUrl: string
+				/**
+				 * I​g​n​o​r​e​d​ ​b​y​ ​t​h​e​ ​M​a​r​k​d​o​w​n​ ​m​e​t​a​d​a​t​a​ ​p​a​r​s​e​r
+				 */
+				unknown: string
+			}
+		}
+		metadataExample: {
+			/**
+			 * M​a​r​k​d​o​w​n​ ​M​e​t​a​d​a​t​a​ ​E​x​a​m​p​l​e
+			 */
+			title: string
+		}
+		commands: {
+			/**
+			 * C​o​m​m​a​n​d​s
+			 */
+			title: string
+			/**
+			 * C​o​m​m​a​n​d​ ​i​t​e​m​s​ ​c​a​n​ ​r​e​c​e​i​v​e​ ​e​v​e​r​y​t​h​i​n​g​ ​a​f​t​e​r​ ​'​>​'​ ​i​n​ ​t​h​e​ ​s​e​a​r​c​h​ ​b​a​r​ ​a​s​ ​c​o​m​m​a​n​d​-​l​i​n​e​ ​a​r​g​u​m​e​n​t​s​.​ ​C​o​m​m​a​n​d​s​ ​a​r​e​ ​e​x​e​c​u​t​e​d​ ​d​i​r​e​c​t​l​y​ ​w​i​t​h​o​u​t​ ​u​s​i​n​g​ ​a​ ​s​h​e​l​l​.
+			 */
+			description: string
+			/**
+			 * C​o​m​m​a​n​d​s​ ​a​r​e​ ​e​x​e​c​u​t​e​d​ ​d​i​r​e​c​t​l​y​ ​w​i​t​h​o​u​t​ ​u​s​i​n​g​ ​a​ ​s​h​e​l​l​.
+			 */
+			security: string
+			/**
+			 * R​u​n​ ​{​c​o​m​m​a​n​d​}
+			 * @param {unknown} command
+			 */
+			runExample: RequiredParams<'command'>
+		}
+		jsonIndex: {
+			/**
+			 * .​g​j​s​o​n​ ​I​n​d​e​x
+			 */
+			title: string
+			/**
+			 * A​ ​.​g​j​s​o​n​ ​f​i​l​e​ ​c​a​n​ ​g​e​n​e​r​a​t​e​ ​m​u​l​t​i​p​l​e​ ​s​e​a​r​c​h​a​b​l​e​ ​i​t​e​m​s​ ​f​r​o​m​ ​o​n​e​ ​J​S​O​N​ ​f​i​l​e​.
+			 */
+			description: string
+			/**
+			 * O​n​l​y​ ​.​g​j​s​o​n​ ​f​i​l​e​s​ ​u​s​e​ ​t​h​e​ ​m​u​l​t​i​-​i​t​e​m​ ​J​S​O​N​ ​i​n​d​e​x​ ​p​a​r​s​e​r
+			 */
+			extension: string
+			/**
+			 * T​r​e​a​t​ ​t​h​e​ ​i​t​e​m​s​ ​a​r​r​a​y​ ​a​s​ ​s​e​a​r​c​h​a​b​l​e​ ​e​n​t​r​i​e​s
+			 */
+			items: string
+			/**
+			 * U​s​e​ ​e​a​c​h​ ​i​t​e​m​'​s​ ​t​i​t​l​e
+			 */
+			itemTitle: string
+			/**
+			 * U​R​L​ ​u​s​e​d​ ​f​o​r​ ​e​x​t​e​r​n​a​l​ ​p​r​e​v​i​e​w​ ​a​n​d​ ​d​e​f​a​u​l​t​ ​E​n​t​e​r​ ​a​c​t​i​o​n
+			 */
+			itemUrl: string
+			/**
+			 * S​e​a​r​c​h​a​b​l​e​ ​d​e​s​c​r​i​p​t​i​o​n​ ​a​n​d​ ​M​a​r​k​d​o​w​n​ ​p​r​e​v​i​e​w​ ​t​e​x​t
+			 */
+			itemDesc: string
+			/**
+			 * T​a​g​s​ ​u​s​e​d​ ​b​y​ ​#​t​a​g​ ​f​i​l​t​e​r​i​n​g
+			 */
+			metadataTags: string
+			/**
+			 * A​l​t​e​r​n​a​t​i​v​e​ ​s​e​a​r​c​h​a​b​l​e​ ​n​a​m​e​s
+			 */
+			metadataAliases: string
+			/**
+			 * P​r​i​o​r​i​t​i​z​e​ ​t​h​i​s​ ​i​t​e​m​ ​i​n​ ​s​e​a​r​c​h​ ​r​e​s​u​l​t​s​ ​w​h​e​n​ ​t​r​u​e
+			 */
+			metadataStar: string
+			/**
+			 * H​i​d​e​ ​f​r​o​m​ ​n​o​r​m​a​l​ ​s​e​a​r​c​h​ ​a​n​d​ ​s​h​o​w​ ​o​n​l​y​ ​w​i​t​h​ ​!​ ​s​e​a​r​c​h
+			 */
+			metadataHidden: string
+			/**
+			 * W​h​e​n​ ​t​r​u​e​,​ ​p​r​e​v​i​e​w​ ​t​h​e​ ​U​R​L​ ​i​n​ ​a​n​ ​i​f​r​a​m​e​;​ ​w​h​e​n​ ​f​a​l​s​e​,​ ​s​h​o​w​ ​M​a​r​k​d​o​w​n​ ​t​e​x​t
+			 */
+			iframe: string
+			/**
+			 * O​p​t​i​o​n​a​l​ ​E​n​t​e​r​ ​a​c​t​i​o​n​ ​o​v​e​r​r​i​d​e​ ​s​u​c​h​ ​a​s​ ​e​x​t​e​r​n​a​l​ ​U​R​L​ ​o​r​ ​c​o​m​m​a​n​d​ ​p​a​t​h
+			 */
+			openOverride: string
+		}
+		jsonExample: {
+			/**
+			 * .​g​j​s​o​n​ ​I​n​d​e​x​ ​E​x​a​m​p​l​e
+			 */
+			title: string
 		}
 	}
 	fileEditor: {
@@ -3429,9 +3453,15 @@ export type TranslationFunctions = {
 		 */
 		title: () => LocalizedString
 		/**
-		 * Quick reference for Glimpse search, target groups, Markdown metadata, .gjson indexes, and shortcuts.
+		 * Quick reference for Glimpse search, target groups, internal pages, and shortcuts.
 		 */
 		description: () => LocalizedString
+		groups: {
+			/**
+			 * Search, target groups, internal pages, and shortcuts
+			 */
+			usage: () => LocalizedString
+		}
 		search: {
 			/**
 			 * Search
@@ -3461,64 +3491,6 @@ export type TranslationFunctions = {
 			 * Pass arguments to the selected command item
 			 */
 			commandArgs: () => LocalizedString
-		}
-		metadata: {
-			/**
-			 * Markdown Metadata
-			 */
-			title: () => LocalizedString
-			/**
-			 * Add a small YAML frontmatter block to the beginning of a Markdown file to control search metadata and open behavior.
-			 */
-			description: () => LocalizedString
-			fields: {
-				/**
-				 * Title displayed in search results
-				 */
-				title: () => LocalizedString
-				/**
-				 * Search tags (multiple allowed)
-				 */
-				tags: () => LocalizedString
-				/**
-				 * Alternative names or abbreviations
-				 */
-				aliases: () => LocalizedString
-				/**
-				 * Prioritize this item in search results when true
-				 */
-				star: () => LocalizedString
-				/**
-				 * Hide from normal search and show only with ! search
-				 */
-				hidden: () => LocalizedString
-				/**
-				 * Run a command when pressing Enter
-				 */
-				commandOpenType: () => LocalizedString
-				/**
-				 * Open an external URL when pressing Enter
-				 */
-				externalOpenType: () => LocalizedString
-				/**
-				 * Command string used by command
-				 */
-				openPath: () => LocalizedString
-				/**
-				 * URL opened by url
-				 */
-				openUrl: () => LocalizedString
-				/**
-				 * Ignored by the Markdown metadata parser
-				 */
-				unknown: () => LocalizedString
-			}
-		}
-		metadataExample: {
-			/**
-			 * Markdown Metadata Example
-			 */
-			title: () => LocalizedString
 		}
 		open: {
 			/**
@@ -3550,84 +3522,6 @@ export type TranslationFunctions = {
 			 */
 			openCommand: () => LocalizedString
 		}
-		commands: {
-			/**
-			 * Commands
-			 */
-			title: () => LocalizedString
-			/**
-			 * Command items can receive everything after '>' in the search bar as command-line arguments. Commands are executed directly without using a shell.
-			 */
-			description: () => LocalizedString
-			/**
-			 * Commands are executed directly without using a shell.
-			 */
-			security: () => LocalizedString
-			/**
-			 * Run {command}
-			 */
-			runExample: (arg: { command: unknown }) => LocalizedString
-		}
-		jsonIndex: {
-			/**
-			 * .gjson Index
-			 */
-			title: () => LocalizedString
-			/**
-			 * A .gjson file can generate multiple searchable items from one JSON file.
-			 */
-			description: () => LocalizedString
-			/**
-			 * Only .gjson files use the multi-item JSON index parser
-			 */
-			extension: () => LocalizedString
-			/**
-			 * Treat the items array as searchable entries
-			 */
-			items: () => LocalizedString
-			/**
-			 * Use each item's title
-			 */
-			itemTitle: () => LocalizedString
-			/**
-			 * URL used for external preview and default Enter action
-			 */
-			itemUrl: () => LocalizedString
-			/**
-			 * Searchable description and Markdown preview text
-			 */
-			itemDesc: () => LocalizedString
-			/**
-			 * Tags used by #tag filtering
-			 */
-			metadataTags: () => LocalizedString
-			/**
-			 * Alternative searchable names
-			 */
-			metadataAliases: () => LocalizedString
-			/**
-			 * Prioritize this item in search results when true
-			 */
-			metadataStar: () => LocalizedString
-			/**
-			 * Hide from normal search and show only with ! search
-			 */
-			metadataHidden: () => LocalizedString
-			/**
-			 * When true, preview the URL in an iframe; when false, show Markdown text
-			 */
-			iframe: () => LocalizedString
-			/**
-			 * Optional Enter action override such as external URL or command path
-			 */
-			openOverride: () => LocalizedString
-		}
-		jsonExample: {
-			/**
-			 * .gjson Index Example
-			 */
-			title: () => LocalizedString
-		}
 		internalPages: {
 			/**
 			 * Internal Pages
@@ -3653,6 +3547,10 @@ export type TranslationFunctions = {
 			 * Open Keyboard Shortcuts
 			 */
 			shortcuts: () => LocalizedString
+			/**
+			 * Open Metadata Help
+			 */
+			metadata: () => LocalizedString
 			/**
 			 * Open Command History
 			 */
@@ -3732,9 +3630,159 @@ export type TranslationFunctions = {
 			 */
 			settings: () => LocalizedString
 			/**
+			 * Use :metadata to view Markdown metadata and .gjson fields.
+			 */
+			metadata: () => LocalizedString
+			/**
 			 * Use :about to view version and technical information.
 			 */
 			about: () => LocalizedString
+		}
+	}
+	metadataHelpPage: {
+		/**
+		 * Metadata
+		 */
+		title: () => LocalizedString
+		/**
+		 * Reference for Markdown frontmatter, .gjson indexes, command items, and open behavior.
+		 */
+		description: () => LocalizedString
+		metadata: {
+			/**
+			 * Markdown Metadata
+			 */
+			title: () => LocalizedString
+			/**
+			 * Add a small YAML frontmatter block to the beginning of a Markdown file to control search metadata and open behavior.
+			 */
+			description: () => LocalizedString
+			fields: {
+				/**
+				 * Title displayed in search results
+				 */
+				title: () => LocalizedString
+				/**
+				 * Search tags (multiple allowed)
+				 */
+				tags: () => LocalizedString
+				/**
+				 * Alternative names or abbreviations
+				 */
+				aliases: () => LocalizedString
+				/**
+				 * Prioritize this item in search results when true
+				 */
+				star: () => LocalizedString
+				/**
+				 * Hide from normal search and show only with ! search
+				 */
+				hidden: () => LocalizedString
+				/**
+				 * Run a command when pressing Enter
+				 */
+				commandOpenType: () => LocalizedString
+				/**
+				 * Open an external URL when pressing Enter
+				 */
+				externalOpenType: () => LocalizedString
+				/**
+				 * Command string used by command
+				 */
+				openPath: () => LocalizedString
+				/**
+				 * URL opened by url
+				 */
+				openUrl: () => LocalizedString
+				/**
+				 * Ignored by the Markdown metadata parser
+				 */
+				unknown: () => LocalizedString
+			}
+		}
+		metadataExample: {
+			/**
+			 * Markdown Metadata Example
+			 */
+			title: () => LocalizedString
+		}
+		commands: {
+			/**
+			 * Commands
+			 */
+			title: () => LocalizedString
+			/**
+			 * Command items can receive everything after '>' in the search bar as command-line arguments. Commands are executed directly without using a shell.
+			 */
+			description: () => LocalizedString
+			/**
+			 * Commands are executed directly without using a shell.
+			 */
+			security: () => LocalizedString
+			/**
+			 * Run {command}
+			 */
+			runExample: (arg: { command: unknown }) => LocalizedString
+		}
+		jsonIndex: {
+			/**
+			 * .gjson Index
+			 */
+			title: () => LocalizedString
+			/**
+			 * A .gjson file can generate multiple searchable items from one JSON file.
+			 */
+			description: () => LocalizedString
+			/**
+			 * Only .gjson files use the multi-item JSON index parser
+			 */
+			extension: () => LocalizedString
+			/**
+			 * Treat the items array as searchable entries
+			 */
+			items: () => LocalizedString
+			/**
+			 * Use each item's title
+			 */
+			itemTitle: () => LocalizedString
+			/**
+			 * URL used for external preview and default Enter action
+			 */
+			itemUrl: () => LocalizedString
+			/**
+			 * Searchable description and Markdown preview text
+			 */
+			itemDesc: () => LocalizedString
+			/**
+			 * Tags used by #tag filtering
+			 */
+			metadataTags: () => LocalizedString
+			/**
+			 * Alternative searchable names
+			 */
+			metadataAliases: () => LocalizedString
+			/**
+			 * Prioritize this item in search results when true
+			 */
+			metadataStar: () => LocalizedString
+			/**
+			 * Hide from normal search and show only with ! search
+			 */
+			metadataHidden: () => LocalizedString
+			/**
+			 * When true, preview the URL in an iframe; when false, show Markdown text
+			 */
+			iframe: () => LocalizedString
+			/**
+			 * Optional Enter action override such as external URL or command path
+			 */
+			openOverride: () => LocalizedString
+		}
+		jsonExample: {
+			/**
+			 * .gjson Index Example
+			 */
+			title: () => LocalizedString
 		}
 	}
 	fileEditor: {

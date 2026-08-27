@@ -4,6 +4,7 @@ export type BuiltInInternalPage =
   | "debug"
   | "plugin"
   | "shortcuts"
+  | "metadata"
   | "command-history"
   | "tag-cloud"
   | "help";

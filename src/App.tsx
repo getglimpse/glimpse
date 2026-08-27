@@ -24,7 +24,7 @@ import { ShortcutProvider } from "@/contexts/ShortcutContext";
 import {
   COMMAND_HISTORY_ITEM,
   DEBUG_ITEM,
-  HELP_ITEM,
+  METADATA_HELP_ITEM,
   searchInternalItems,
   TAG_CLOUD_ITEM,
 } from "@/features/internal/internalItems";
@@ -1272,7 +1272,7 @@ export default function App() {
                 onTagCloudTagSelect={handleTagCloudTagSelect}
                 onFileEditorChange={updateFileEditorTab}
                 onFileEditorHelp={() => {
-                  openPreviewTab(HELP_ITEM);
+                  openPreviewTab(METADATA_HELP_ITEM);
                 }}
                 onCloseTab={closePreviewTab}
                 onFileEditorSaved={(tabId, result) => {

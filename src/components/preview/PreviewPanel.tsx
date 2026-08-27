@@ -29,6 +29,7 @@ import { RawPreview, RawPreviewHandle } from "@/views/preview/RawPreview";
 
 import { AboutPage } from "@/views/internal/AboutPage";
 import { HelpPage } from "@/views/internal/HelpPage";
+import { MetadataHelpPage } from "@/views/internal/MetadataHelpPage";
 import { PluginPage } from "@/views/internal/PluginPage";
 import { ShortcutsPage } from "@/views/internal/ShortcutsPage";
 import { SettingsPage } from "@/views/internal/SettingsPage";
@@ -328,6 +329,9 @@ export const PreviewPanel = forwardRef<PreviewPanelHandle, Props>(
           switch (item.preview.page) {
             case "help":
               return <HelpPage />;
+
+            case "metadata":
+              return <MetadataHelpPage />;
 
             case "shortcuts":
               return <ShortcutsPage />;
