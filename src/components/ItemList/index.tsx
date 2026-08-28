@@ -58,6 +58,7 @@ export const ItemList = ({
           itemContent={(index, item) => (
             <ListItem
               item={item}
+              score={results?.[index]?.score}
               snippets={results?.[index]?.snippets}
               isSelected={index === selectedIndex}
               onClick={() => onSelect(index)}

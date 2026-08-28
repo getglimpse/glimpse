@@ -23,9 +23,7 @@ use crate::store::item_repository::{
 
 use super::index::{open_or_create_index, TantivyState};
 use super::query::build_tantivy_query;
-use super::ranking::{
-    adjusted_score, ItemHitAccumulator, SnippetCandidate, DEFAULT_METADATA_BOOST,
-};
+use super::ranking::{HitScore, ItemHitAccumulator, SnippetCandidate, DEFAULT_METADATA_BOOST};
 use super::snippet::build_snippet;
 use super::writer::{commit_index_mutation, delete_ids as delete_index_ids, upsert_items};
 
@@ -311,12 +309,12 @@ impl SearchEngine for TantivyEngine {
                         .unwrap_or(DEFAULT_METADATA_BOOST as f64)
                         as f32;
 
-                    let adjusted_score = adjusted_score(score, star, updated_at, boost);
+                    let hit_score = HitScore::new(score, star, updated_at, boost);
 
                     let snippet_candidate = build_snippet(state.fields, &doc, &structured_query)
-                        .map(|snippet| SnippetCandidate::new(snippet, adjusted_score));
+                        .map(|snippet| SnippetCandidate::new(snippet, hit_score.score()));
 
-                    hits.push(id, adjusted_score, snippet_candidate);
+                    hits.push(id, hit_score, snippet_candidate);
                 }
 
                 if hits.is_full() || reached_available_docs || top_docs_limit >= max_top_docs_limit

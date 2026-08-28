@@ -94,6 +94,33 @@ const titleSnippet: SearchSnippet = {
 };
 
 describe("ListItem snippets", () => {
+  it("renders the search score", () => {
+    render(
+      <ListItem
+        item={item}
+        score={12.345}
+        isSelected={false}
+        onClick={() => undefined}
+      />,
+    );
+
+    expect(screen.getByText("12.345")).toBeTruthy();
+  });
+
+  it("renders the search score in compact mode", () => {
+    render(
+      <ListItem
+        item={item}
+        score={12.345}
+        isSelected={false}
+        onClick={() => undefined}
+        compact
+      />,
+    );
+
+    expect(screen.getByText("12.345")).toBeTruthy();
+  });
+
   it("renders the first snippet with a source label", () => {
     render(
       <ListItem

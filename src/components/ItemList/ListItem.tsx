@@ -9,6 +9,7 @@ import { IndexItem, SearchSnippet } from "@/types";
 
 type Props = {
   item: IndexItem;
+  score?: number;
   snippets?: SearchSnippet[];
   isSelected: boolean;
   onClick: () => void;
@@ -59,6 +60,32 @@ const getSnippetLabel = (snippet: SearchSnippet, LL: TranslationFunctions) => {
   }
 };
 
+const formatScore = (score: number) => {
+  if (!Number.isFinite(score)) {
+    return String(score);
+  }
+
+  const absoluteScore = Math.abs(score);
+
+  if (absoluteScore >= 100_000) {
+    return score.toExponential(2);
+  }
+
+  if (absoluteScore >= 100) {
+    return score.toFixed(1);
+  }
+
+  if (absoluteScore >= 1) {
+    return score.toFixed(3);
+  }
+
+  if (absoluteScore > 0) {
+    return score.toPrecision(3);
+  }
+
+  return "0";
+};
+
 function formatRelativeTime(
   dateString: string,
   LL: TranslationFunctions,
@@ -76,6 +103,7 @@ function formatRelativeTime(
 
 export const ListItem = ({
   item,
+  score,
   snippets,
   isSelected,
   onClick,
@@ -84,7 +112,12 @@ export const ListItem = ({
 }: Props) => {
   if (compact) {
     return (
-      <CompactListItem item={item} isSelected={isSelected} onClick={onClick} />
+      <CompactListItem
+        item={item}
+        score={score}
+        isSelected={isSelected}
+        onClick={onClick}
+      />
     );
   }
 
@@ -124,12 +157,36 @@ export const ListItem = ({
             >
               {title}
             </span>
-            {shouldShowDate(item) && (
-              <span
-                className={`text-[10px] whitespace-nowrap ${isSelected ? "opacity-80" : "opacity-40"}`}
-              >
-                {formatRelativeTime(item.updatedAt, LL)}
-              </span>
+            {(score !== undefined || shouldShowDate(item)) && (
+              <div className="flex shrink-0 items-baseline gap-1.5">
+                {score !== undefined && (
+                  <span
+                    className={`font-mono text-[9px] tabular-nums whitespace-nowrap ${
+                      isSelected ? "opacity-80" : "opacity-45"
+                    }`}
+                    title={`Score: ${score}`}
+                  >
+                    {formatScore(score)}
+                  </span>
+                )}
+                {score !== undefined && shouldShowDate(item) && (
+                  <span
+                    className={`text-[10px] whitespace-nowrap ${
+                      isSelected ? "opacity-60" : "opacity-30"
+                    }`}
+                    aria-hidden="true"
+                  >
+                    /
+                  </span>
+                )}
+                {shouldShowDate(item) && (
+                  <span
+                    className={`text-[10px] whitespace-nowrap ${isSelected ? "opacity-80" : "opacity-40"}`}
+                  >
+                    {formatRelativeTime(item.updatedAt, LL)}
+                  </span>
+                )}
+              </div>
             )}
           </div>
 
@@ -199,7 +256,7 @@ export const ListItem = ({
   );
 };
 
-const CompactListItem = ({ item, isSelected, onClick }: Props) => {
+const CompactListItem = ({ item, score, isSelected, onClick }: Props) => {
   const { LL } = useI18nContext();
 
   const title =
@@ -220,15 +277,27 @@ const CompactListItem = ({ item, isSelected, onClick }: Props) => {
         <Icon className="h-4 w-4 shrink-0 opacity-80" />
 
         <div className="min-w-0 flex-1">
-          <div
-            className={`truncate text-sm font-medium ${
-              isSelected ? "text-text-accent" : "text-text-main"
-            }`}
-          >
-            {item.metadata.star && (
-              <Star className="mr-1 inline h-3 w-3 fill-current" />
+          <div className="flex items-baseline gap-2">
+            <div
+              className={`min-w-0 flex-1 truncate text-sm font-medium ${
+                isSelected ? "text-text-accent" : "text-text-main"
+              }`}
+            >
+              {item.metadata.star && (
+                <Star className="mr-1 inline h-3 w-3 fill-current" />
+              )}
+              {title}
+            </div>
+            {score !== undefined && (
+              <span
+                className={`shrink-0 font-mono text-[9px] tabular-nums ${
+                  isSelected ? "opacity-80" : "opacity-45"
+                }`}
+                title={`Score: ${score}`}
+              >
+                {formatScore(score)}
+              </span>
             )}
-            {title}
           </div>
         </div>
       </div>
