@@ -34,6 +34,7 @@ export const SearchBar = ({
 }: Props) => {
   const { LL } = useI18nContext();
   const [availableTags, setAvailableTags] = useState<string[]>([]);
+  const [isFullScanning, setIsFullScanning] = useState(false);
   const { displayValue, committedTags, hidden, internal, pluginPlayground } =
     getSearchBarViewModel(value);
   const tagCompletion = useMemo(
@@ -60,7 +61,12 @@ export const SearchBar = ({
   }, []);
 
   const handleFullScan = async () => {
+    if (isFullScanning) {
+      return;
+    }
+
     try {
+      setIsFullScanning(true);
       await indexingApi.fullScan();
       await loadTagSuggestions();
       await onFullScanCompleted?.();
@@ -68,6 +74,8 @@ export const SearchBar = ({
     } catch (error) {
       console.error(error);
       toast.error(LL.searchBar.refreshIndexFailed());
+    } finally {
+      setIsFullScanning(false);
     }
   };
 
@@ -276,9 +284,14 @@ export const SearchBar = ({
           className="flex h-9 w-9 items-center justify-center rounded-lg text-text-muted hover:bg-hover-bg hover:text-text-main focus:outline-none"
           title={LL.searchBar.fullScan()}
           onClick={handleFullScan}
+          disabled={isFullScanning}
+          aria-busy={isFullScanning}
           data-tauri-drag-region="false"
         >
-          <RefreshCw size={18} />
+          <RefreshCw
+            size={18}
+            className={isFullScanning ? "animate-spin" : undefined}
+          />
         </button>
       </div>
     </header>

@@ -398,7 +398,7 @@ const addTagToSearchQuery = (currentQuery: string, tag: string) => {
   const tagToken = `#${normalizedTag}`;
 
   if (isInternalSearchQuery(parsed.query)) {
-    return tagToken;
+    return `${tagToken} `;
   }
 
   const searchPart = currentQuery.split(">")[0].trim();
@@ -409,10 +409,10 @@ const addTagToSearchQuery = (currentQuery: string, tag: string) => {
   );
 
   if (existingTags.has(normalizedTag.toLowerCase())) {
-    return searchPart;
+    return searchPart ? `${searchPart} ` : "";
   }
 
-  return [searchPart, tagToken].filter(Boolean).join(" ");
+  return `${[searchPart, tagToken].filter(Boolean).join(" ")} `;
 };
 
 export const sanitizeSqliteFtsQuery = (query: string) => {
