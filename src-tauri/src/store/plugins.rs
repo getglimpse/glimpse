@@ -238,7 +238,7 @@ pub fn uninstall_plugin(
             canonical_plugin_root.display()
         )
     })?;
-    revoke_plugin_trust_record(settings_path, plugin_id)?;
+    remove_plugin_settings_record(settings_path, plugin_id)?;
 
     Ok(PluginUninstallResult {
         plugin_id: plugin_id.to_string(),
@@ -272,17 +272,15 @@ pub fn set_plugin_trust(
     let mut settings = load_settings(settings_path);
 
     if trusted {
-        settings.plugins.trusted_plugins.insert(
-            manifest.id.clone(),
-            PluginTrustRecord {
-                trusted: true,
-                trusted_at: Some(Utc::now().to_rfc3339()),
-                manifest_fingerprint: Some(fingerprint.clone()),
-                version: Some(manifest.version.clone()),
-            },
-        );
+        let plugin_settings = settings.plugins.entry(manifest.id.clone()).or_default();
+
+        plugin_settings.trust = Some(PluginTrustRecord {
+            trusted_at: Some(Utc::now().to_rfc3339()),
+            manifest_fingerprint: Some(fingerprint.clone()),
+            version: Some(manifest.version.clone()),
+        });
     } else {
-        settings.plugins.trusted_plugins.remove(&manifest.id);
+        remove_plugin_trust(&mut settings.plugins, &manifest.id);
     }
 
     save_settings(settings_path, &settings)?;
@@ -292,8 +290,27 @@ pub fn set_plugin_trust(
 
 fn revoke_plugin_trust_record(settings_path: &Path, plugin_id: &str) -> Result<(), String> {
     let mut settings = load_settings(settings_path);
-    settings.plugins.trusted_plugins.remove(plugin_id);
+    remove_plugin_trust(&mut settings.plugins, plugin_id);
     save_settings(settings_path, &settings)
+}
+
+fn remove_plugin_settings_record(settings_path: &Path, plugin_id: &str) -> Result<(), String> {
+    let mut settings = load_settings(settings_path);
+    settings.plugins.remove(plugin_id);
+    save_settings(settings_path, &settings)
+}
+
+fn remove_plugin_trust(settings: &mut crate::models::settings::PluginSettingsMap, plugin_id: &str) {
+    if let Some(plugin_settings) = settings.get_mut(plugin_id) {
+        plugin_settings.trust = None;
+
+        if plugin_settings
+            .copy_successful_playground_results
+            .is_empty()
+        {
+            settings.remove(plugin_id);
+        }
+    }
 }
 
 pub fn ensure_plugin_trusted(
@@ -427,20 +444,20 @@ fn build_plugin_trust_status(
     settings: &crate::models::settings::AppSettings,
     fingerprint: String,
 ) -> PluginTrustStatus {
-    let record = settings.plugins.trusted_plugins.get(&manifest.id);
+    let record = settings
+        .plugins
+        .get(&manifest.id)
+        .and_then(|plugin_settings| plugin_settings.trust.as_ref());
     let trusted_fingerprint = record.and_then(|record| record.manifest_fingerprint.clone());
     let trusted_version = record.and_then(|record| record.version.clone());
     let trusted_at = record.and_then(|record| record.trusted_at.clone());
-    let record_is_trusted = record.is_some_and(|record| record.trusted);
     let fingerprint_matches = trusted_fingerprint.as_deref() == Some(fingerprint.as_str());
     let version_matches = trusted_version.as_deref() == Some(manifest.version.as_str());
-    let trusted = record_is_trusted && fingerprint_matches && version_matches;
+    let trusted = record.is_some() && fingerprint_matches && version_matches;
     let reason = if trusted {
         None
     } else if record.is_none() {
         Some("plugin has not been trusted yet".to_string())
-    } else if !record_is_trusted {
-        Some("plugin trust was revoked".to_string())
     } else if !version_matches {
         Some("plugin version changed since it was trusted".to_string())
     } else if !fingerprint_matches {
@@ -963,7 +980,7 @@ mod tests {
 
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    use crate::models::settings::{AppSettings, PluginTrustRecord};
+    use crate::models::settings::{AppSettings, PluginSettings, PluginTrustRecord};
 
     fn unique_test_dir(name: &str) -> PathBuf {
         let unique = SystemTime::now()
@@ -1653,13 +1670,19 @@ mod tests {
         .unwrap();
 
         let mut settings = AppSettings::default();
-        settings.plugins.trusted_plugins.insert(
+        settings.plugins.insert(
             plugin_id.to_string(),
-            PluginTrustRecord {
-                trusted: true,
-                trusted_at: Some("2026-07-26T00:00:00Z".to_string()),
-                manifest_fingerprint: Some("test".to_string()),
-                version: Some("0.1.0".to_string()),
+            PluginSettings {
+                trust: Some(PluginTrustRecord {
+                    trusted_at: Some("2026-07-26T00:00:00Z".to_string()),
+                    manifest_fingerprint: Some("test".to_string()),
+                    version: Some("0.1.0".to_string()),
+                }),
+                copy_successful_playground_results: std::collections::HashMap::from([(
+                    "calculate".to_string(),
+                    true,
+                )]),
+                ..Default::default()
             },
         );
         save_settings(&settings_path, &settings).unwrap();
@@ -1670,7 +1693,6 @@ mod tests {
         assert!(!app_data_dir.join("plugins").join(plugin_id).exists());
         assert!(!load_settings(&settings_path)
             .plugins
-            .trusted_plugins
             .contains_key(plugin_id));
 
         fs::remove_dir_all(app_data_dir).ok();

@@ -27,7 +27,7 @@
 //!
 //! Invalid or unreadable settings fall back to [`AppSettings::default`].
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::Path;
 use tracing::{debug, info, warn};
@@ -404,26 +404,65 @@ fn normalize_ui(settings: &mut AppSettings) {
 }
 
 fn normalize_plugins(settings: &mut AppSettings) {
-    settings
-        .plugins
-        .trusted_plugins
-        .retain(|plugin_id, record| {
-            let keep = is_valid_plugin_id(plugin_id)
-                && record.trusted
-                && record
-                    .manifest_fingerprint
-                    .as_ref()
-                    .is_some_and(|fingerprint| !fingerprint.trim().is_empty());
+    settings.plugins.retain(|plugin_id, plugin_settings| {
+        let keep = is_valid_plugin_id(plugin_id);
 
-            if !keep {
-                warn!(
-                    plugin_id = %plugin_id,
-                    "removed invalid plugin trust record"
-                );
-            }
+        if keep {
+            normalize_plugin_trust(plugin_id, plugin_settings);
+            normalize_plugin_playground_copy_settings(
+                &mut plugin_settings.copy_successful_playground_results,
+            );
+        } else {
+            warn!(
+                plugin_id = %plugin_id,
+                "removed invalid plugin settings record"
+            );
+        }
 
-            keep
-        });
+        keep && (plugin_settings.trust.is_some()
+            || !plugin_settings
+                .copy_successful_playground_results
+                .is_empty())
+    });
+}
+
+fn normalize_plugin_trust(
+    plugin_id: &str,
+    plugin_settings: &mut crate::models::settings::PluginSettings,
+) {
+    let keep = plugin_settings.trust.as_ref().is_some_and(|record| {
+        record
+            .manifest_fingerprint
+            .as_ref()
+            .is_some_and(|fingerprint| !fingerprint.trim().is_empty())
+            && record
+                .version
+                .as_ref()
+                .is_some_and(|version| !version.trim().is_empty())
+    });
+
+    if !keep && plugin_settings.trust.is_some() {
+        warn!(
+            plugin_id = %plugin_id,
+            "removed invalid plugin trust record"
+        );
+        plugin_settings.trust = None;
+    }
+}
+
+fn normalize_plugin_playground_copy_settings(action_settings: &mut HashMap<String, bool>) {
+    action_settings.retain(|action_id, enabled| {
+        let keep = *enabled && is_valid_plugin_action_id(action_id);
+
+        if !keep {
+            warn!(
+                action_id = %action_id,
+                "removed invalid plugin playground copy setting"
+            );
+        }
+
+        keep
+    });
 }
 
 /// Normalizes command execution policy settings.
@@ -594,6 +633,14 @@ fn is_valid_plugin_id(plugin_id: &str) -> bool {
             character.is_ascii_lowercase()
                 || character.is_ascii_digit()
                 || matches!(character, '-' | '_' | '.')
+        })
+}
+
+fn is_valid_plugin_action_id(action_id: &str) -> bool {
+    !action_id.is_empty()
+        && !action_id.contains("..")
+        && action_id.chars().all(|character| {
+            character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '.' | ':')
         })
 }
 
@@ -777,45 +824,130 @@ mod tests {
     fn removes_invalid_plugin_trust_records() {
         let mut settings = AppSettings::default();
 
-        settings.plugins.trusted_plugins.insert(
+        settings.plugins.insert(
             "sample-plugin".into(),
-            crate::models::settings::PluginTrustRecord {
-                trusted: true,
-                trusted_at: Some("2026-07-26T00:00:00Z".into()),
-                manifest_fingerprint: Some("abc".into()),
-                version: Some("1.0.0".into()),
+            crate::models::settings::PluginSettings {
+                trust: Some(crate::models::settings::PluginTrustRecord {
+                    trusted_at: Some("2026-07-26T00:00:00Z".into()),
+                    manifest_fingerprint: Some("abc".into()),
+                    version: Some("1.0.0".into()),
+                }),
+                ..Default::default()
             },
         );
-        settings.plugins.trusted_plugins.insert(
+        settings.plugins.insert(
             "../escape".into(),
-            crate::models::settings::PluginTrustRecord {
-                trusted: true,
-                trusted_at: Some("2026-07-26T00:00:00Z".into()),
-                manifest_fingerprint: Some("abc".into()),
-                version: Some("1.0.0".into()),
+            crate::models::settings::PluginSettings {
+                trust: Some(crate::models::settings::PluginTrustRecord {
+                    trusted_at: Some("2026-07-26T00:00:00Z".into()),
+                    manifest_fingerprint: Some("abc".into()),
+                    version: Some("1.0.0".into()),
+                }),
+                ..Default::default()
             },
         );
-        settings.plugins.trusted_plugins.insert(
+        settings.plugins.insert(
             "missing-fingerprint".into(),
-            crate::models::settings::PluginTrustRecord {
-                trusted: true,
-                trusted_at: Some("2026-07-26T00:00:00Z".into()),
-                manifest_fingerprint: None,
-                version: Some("1.0.0".into()),
+            crate::models::settings::PluginSettings {
+                trust: Some(crate::models::settings::PluginTrustRecord {
+                    trusted_at: Some("2026-07-26T00:00:00Z".into()),
+                    manifest_fingerprint: None,
+                    version: Some("1.0.0".into()),
+                }),
+                ..Default::default()
             },
         );
 
         let settings = normalize_settings(settings);
 
-        assert!(settings
-            .plugins
-            .trusted_plugins
-            .contains_key("sample-plugin"));
-        assert!(!settings.plugins.trusted_plugins.contains_key("../escape"));
-        assert!(!settings
-            .plugins
-            .trusted_plugins
-            .contains_key("missing-fingerprint"));
+        assert!(settings.plugins["sample-plugin"].trust.is_some());
+        assert!(!settings.plugins.contains_key("../escape"));
+        assert!(!settings.plugins.contains_key("missing-fingerprint"));
+    }
+
+    #[test]
+    fn normalizes_plugin_playground_copy_settings() {
+        let mut settings = AppSettings::default();
+
+        settings.plugins.insert(
+            "date-calculator-plugin".into(),
+            crate::models::settings::PluginSettings {
+                copy_successful_playground_results: std::collections::HashMap::from([
+                    ("calculate".into(), true),
+                    ("".into(), true),
+                    ("../escape".into(), true),
+                    ("disabled".into(), false),
+                ]),
+                ..Default::default()
+            },
+        );
+        settings.plugins.insert(
+            "../escape".into(),
+            crate::models::settings::PluginSettings {
+                copy_successful_playground_results: std::collections::HashMap::from([(
+                    "calculate".into(),
+                    true,
+                )]),
+                ..Default::default()
+            },
+        );
+
+        let settings = normalize_settings(settings);
+        let action_settings =
+            &settings.plugins["date-calculator-plugin"].copy_successful_playground_results;
+
+        assert_eq!(action_settings.len(), 1);
+        assert_eq!(action_settings.get("calculate"), Some(&true));
+        assert!(!settings.plugins.contains_key("../escape"));
+    }
+
+    #[test]
+    fn migrates_legacy_plugin_settings_shape() {
+        let settings_dir = unique_test_dir("legacy_plugins");
+        let settings_path = settings_dir.join("settings.json");
+
+        fs::create_dir_all(&settings_dir).unwrap();
+        fs::write(
+            &settings_path,
+            r#"{
+  "theme": "nord",
+  "plugins": {
+    "trustedPlugins": {
+      "sample-plugin": {
+        "trusted": true,
+        "trustedAt": "2026-07-26T00:00:00Z",
+        "manifestFingerprint": "abc",
+        "version": "1.0.0"
+      }
+    },
+    "copySuccessfulPlaygroundResults": {
+      "sample-plugin": {
+        "calculate": true
+      }
+    }
+  }
+}"#,
+        )
+        .unwrap();
+
+        let settings = load_settings(&settings_path);
+        let plugin_settings = &settings.plugins["sample-plugin"];
+
+        assert_eq!(
+            plugin_settings
+                .trust
+                .as_ref()
+                .and_then(|trust| trust.manifest_fingerprint.as_deref()),
+            Some("abc")
+        );
+        assert_eq!(
+            plugin_settings
+                .copy_successful_playground_results
+                .get("calculate"),
+            Some(&true)
+        );
+
+        fs::remove_dir_all(settings_dir).ok();
     }
 
     #[test]

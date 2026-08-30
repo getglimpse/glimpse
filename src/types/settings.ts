@@ -10,15 +10,17 @@ export type CommandSettings = {
 };
 
 export type PluginTrustRecord = {
-  trusted: boolean;
   trustedAt?: string | null;
   manifestFingerprint?: string | null;
   version?: string | null;
 };
 
-export type PluginSecuritySettings = {
-  trustedPlugins: Record<string, PluginTrustRecord>;
+export type PluginSettings = {
+  trust?: PluginTrustRecord | null;
+  copySuccessfulPlaygroundResults?: Record<string, boolean>;
 };
+
+export type PluginSettingsMap = Record<string, PluginSettings>;
 
 export type TargetGroup = {
   id: string;
@@ -48,7 +50,7 @@ export type KeybindingMap = Partial<
 export type AppSettings = {
   theme: string;
   commands: CommandSettings;
-  plugins: PluginSecuritySettings;
+  plugins: PluginSettingsMap;
   targetGroups: TargetGroup[];
   currentTargetGroupId: string | null;
   ui: UiSettings;
@@ -59,7 +61,7 @@ export type AppSettings = {
 export type PartialSettings = {
   theme?: string;
   commands?: Partial<CommandSettings>;
-  plugins?: PluginSecuritySettings;
+  plugins?: PluginSettingsMap;
   targetGroups?: TargetGroup[];
   currentTargetGroupId?: string | null;
   ui?: Partial<UiSettings>;

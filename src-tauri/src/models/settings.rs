@@ -20,7 +20,7 @@
 //! ├─ commands
 //! │   └─ CommandSettings
 //! ├─ plugins
-//! │   └─ PluginSecuritySettings
+//! │   └─ PluginSettingsMap
 //! └─ ui
 //!     └─ UiSettings
 //! ```
@@ -32,8 +32,11 @@
 //! - `store::indexer::runtime`
 //! - frontend settings pages
 
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use serde::{Deserialize, Deserializer, Serialize};
+use std::{
+    collections::HashMap,
+    ops::{Deref, DerefMut},
+};
 
 /// Search target group.
 ///
@@ -161,9 +164,9 @@ pub struct AppSettings {
     #[serde(default)]
     pub commands: CommandSettings,
 
-    /// Plugin security and trust settings.
+    /// Plugin trust and per-plugin preferences.
     #[serde(default)]
-    pub plugins: PluginSecuritySettings,
+    pub plugins: PluginSettingsMap,
 
     /// User interface settings.
     #[serde(default)]
@@ -186,7 +189,7 @@ impl Default for AppSettings {
             current_target_group_id: None,
             indexing: IndexingSettings::default(),
             commands: CommandSettings::default(),
-            plugins: PluginSecuritySettings::default(),
+            plugins: PluginSettingsMap::default(),
             ui: UiSettings::default(),
             experimental: ExperimentalSettings::default(),
             keybindings: default_keybindings(),
@@ -207,37 +210,128 @@ pub struct PartialAppSettings {
     pub current_target_group_id: Option<String>,
     pub indexing: Option<IndexingSettings>,
     pub commands: Option<CommandSettings>,
-    pub plugins: Option<PluginSecuritySettings>,
+    pub plugins: Option<PluginSettingsMap>,
     pub ui: Option<PartialUiSettings>,
     pub experimental: Option<PartialExperimentalSettings>,
     pub keybindings: Option<KeybindingMap>,
 }
 
-/// Plugin security settings.
+/// Plugin settings keyed by plugin ID.
 ///
 /// Plugins are local frontend code. `main.js` is blocked until the user
 /// explicitly trusts the current plugin fingerprint.
+#[derive(Debug, Clone, Serialize, Default)]
+#[serde(transparent)]
+pub struct PluginSettingsMap(pub HashMap<String, PluginSettings>);
+
+impl Deref for PluginSettingsMap {
+    type Target = HashMap<String, PluginSettings>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for PluginSettingsMap {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl<'de> Deserialize<'de> for PluginSettingsMap {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = serde_json::Value::deserialize(deserializer)?;
+
+        if value.as_object().is_some_and(|object| {
+            object.contains_key("trustedPlugins")
+                || object.contains_key("copySuccessfulPlaygroundResults")
+        }) {
+            return deserialize_legacy_plugin_settings(value).map_err(serde::de::Error::custom);
+        }
+
+        serde_json::from_value::<HashMap<String, PluginSettings>>(value)
+            .map(Self)
+            .map_err(serde::de::Error::custom)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
-pub struct PluginSecuritySettings {
-    #[serde(default)]
-    pub trusted_plugins: HashMap<String, PluginTrustRecord>,
+pub struct PluginSettings {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trust: Option<PluginTrustRecord>,
+
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub copy_successful_playground_results: HashMap<String, bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct PluginTrustRecord {
-    #[serde(default)]
-    pub trusted: bool,
-
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub trusted_at: Option<String>,
 
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub manifest_fingerprint: Option<String>,
 
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LegacyPluginSettings {
+    #[serde(default)]
+    trusted_plugins: HashMap<String, LegacyPluginTrustRecord>,
+
+    #[serde(default)]
+    copy_successful_playground_results: HashMap<String, HashMap<String, bool>>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LegacyPluginTrustRecord {
+    #[serde(default)]
+    trusted: bool,
+
+    #[serde(default)]
+    trusted_at: Option<String>,
+
+    #[serde(default)]
+    manifest_fingerprint: Option<String>,
+
+    #[serde(default)]
+    version: Option<String>,
+}
+
+fn deserialize_legacy_plugin_settings(
+    value: serde_json::Value,
+) -> Result<PluginSettingsMap, serde_json::Error> {
+    let legacy = serde_json::from_value::<LegacyPluginSettings>(value)?;
+    let mut settings: HashMap<String, PluginSettings> = HashMap::new();
+
+    for (plugin_id, trust) in legacy.trusted_plugins {
+        if trust.trusted {
+            settings.entry(plugin_id).or_default().trust = Some(PluginTrustRecord {
+                trusted_at: trust.trusted_at,
+                manifest_fingerprint: trust.manifest_fingerprint,
+                version: trust.version,
+            });
+        }
+    }
+
+    for (plugin_id, copy_successful_playground_results) in legacy.copy_successful_playground_results
+    {
+        settings
+            .entry(plugin_id)
+            .or_default()
+            .copy_successful_playground_results = copy_successful_playground_results;
+    }
+
+    Ok(PluginSettingsMap(settings))
 }
 
 /// User interface preferences.
