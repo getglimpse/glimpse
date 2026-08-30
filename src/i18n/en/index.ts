@@ -482,9 +482,9 @@ const en = {
   helpPage: {
     title: "Help",
     description:
-      "Quick reference for Glimpse search, target groups, internal pages, and shortcuts.",
+      "Quick reference for Glimpse search, target groups, and internal pages.",
     groups: {
-      usage: "Search, target groups, internal pages, and shortcuts",
+      usage: "Search, target groups, and internal pages",
     },
 
     search: {
@@ -492,7 +492,11 @@ const en = {
       description: "Search indexed items using keywords.",
       currentGroup: "Search the current target group",
       tag: "Filter by tag",
+      unstar: "Exclude starred items from results",
       hidden: "Search hidden items in the current target group",
+      reverse: "Show older items first",
+      internal: "Search Glimpse internal pages",
+      pluginPlayground: "Search plugin playground pages",
       global: "Search all target groups",
       commandArgs: "Pass arguments to the selected command item",
     },

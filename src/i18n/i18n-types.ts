@@ -1503,12 +1503,12 @@ type RootTranslation = {
 		 */
 		title: string
 		/**
-		 * Q​u​i​c​k​ ​r​e​f​e​r​e​n​c​e​ ​f​o​r​ ​G​l​i​m​p​s​e​ ​s​e​a​r​c​h​,​ ​t​a​r​g​e​t​ ​g​r​o​u​p​s​,​ ​i​n​t​e​r​n​a​l​ ​p​a​g​e​s​,​ ​a​n​d​ ​s​h​o​r​t​c​u​t​s​.
+		 * Q​u​i​c​k​ ​r​e​f​e​r​e​n​c​e​ ​f​o​r​ ​G​l​i​m​p​s​e​ ​s​e​a​r​c​h​,​ ​t​a​r​g​e​t​ ​g​r​o​u​p​s​,​ ​a​n​d​ ​i​n​t​e​r​n​a​l​ ​p​a​g​e​s​.
 		 */
 		description: string
 		groups: {
 			/**
-			 * S​e​a​r​c​h​,​ ​t​a​r​g​e​t​ ​g​r​o​u​p​s​,​ ​i​n​t​e​r​n​a​l​ ​p​a​g​e​s​,​ ​a​n​d​ ​s​h​o​r​t​c​u​t​s
+			 * S​e​a​r​c​h​,​ ​t​a​r​g​e​t​ ​g​r​o​u​p​s​,​ ​a​n​d​ ​i​n​t​e​r​n​a​l​ ​p​a​g​e​s
 			 */
 			usage: string
 		}
@@ -1530,9 +1530,25 @@ type RootTranslation = {
 			 */
 			tag: string
 			/**
+			 * E​x​c​l​u​d​e​ ​s​t​a​r​r​e​d​ ​i​t​e​m​s​ ​f​r​o​m​ ​r​e​s​u​l​t​s
+			 */
+			unstar: string
+			/**
 			 * S​e​a​r​c​h​ ​h​i​d​d​e​n​ ​i​t​e​m​s​ ​i​n​ ​t​h​e​ ​c​u​r​r​e​n​t​ ​t​a​r​g​e​t​ ​g​r​o​u​p
 			 */
 			hidden: string
+			/**
+			 * S​h​o​w​ ​o​l​d​e​r​ ​i​t​e​m​s​ ​f​i​r​s​t
+			 */
+			reverse: string
+			/**
+			 * S​e​a​r​c​h​ ​G​l​i​m​p​s​e​ ​i​n​t​e​r​n​a​l​ ​p​a​g​e​s
+			 */
+			internal: string
+			/**
+			 * S​e​a​r​c​h​ ​p​l​u​g​i​n​ ​p​l​a​y​g​r​o​u​n​d​ ​p​a​g​e​s
+			 */
+			pluginPlayground: string
 			/**
 			 * S​e​a​r​c​h​ ​a​l​l​ ​t​a​r​g​e​t​ ​g​r​o​u​p​s
 			 */
@@ -3503,12 +3519,12 @@ export type TranslationFunctions = {
 		 */
 		title: () => LocalizedString
 		/**
-		 * Quick reference for Glimpse search, target groups, internal pages, and shortcuts.
+		 * Quick reference for Glimpse search, target groups, and internal pages.
 		 */
 		description: () => LocalizedString
 		groups: {
 			/**
-			 * Search, target groups, internal pages, and shortcuts
+			 * Search, target groups, and internal pages
 			 */
 			usage: () => LocalizedString
 		}
@@ -3530,9 +3546,25 @@ export type TranslationFunctions = {
 			 */
 			tag: () => LocalizedString
 			/**
+			 * Exclude starred items from results
+			 */
+			unstar: () => LocalizedString
+			/**
 			 * Search hidden items in the current target group
 			 */
 			hidden: () => LocalizedString
+			/**
+			 * Show older items first
+			 */
+			reverse: () => LocalizedString
+			/**
+			 * Search Glimpse internal pages
+			 */
+			internal: () => LocalizedString
+			/**
+			 * Search plugin playground pages
+			 */
+			pluginPlayground: () => LocalizedString
 			/**
 			 * Search all target groups
 			 */

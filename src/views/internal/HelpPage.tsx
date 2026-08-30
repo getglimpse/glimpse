@@ -1,5 +1,15 @@
 import React from "react";
+import {
+  ArrowDownUp,
+  Command,
+  EyeOff,
+  Hash,
+  Slash,
+  StarOff,
+  type LucideIcon,
+} from "lucide-react";
 
+import { Badge } from "@/components/ui/badge";
 import { useI18nContext } from "@/i18n/I18nProvider";
 
 export const HelpPage = () => {
@@ -20,10 +30,47 @@ export const HelpPage = () => {
               command="keyword"
               description={LL.helpPage.search.currentGroup()}
             />
-            <HelpRow command="#tag" description={LL.helpPage.search.tag()} />
             <HelpRow
-              command="!keyword"
+              command={<SearchBadge icon={Hash} label="tag" syntax="#tag" />}
+              description={LL.helpPage.search.tag()}
+            />
+            <HelpRow
+              command={
+                <SearchBadge icon={StarOff} label="unstar" syntax="*keyword" />
+              }
+              description={LL.helpPage.search.unstar()}
+            />
+            <HelpRow
+              command={
+                <SearchBadge icon={EyeOff} label="hidden" syntax="!keyword" />
+              }
               description={LL.helpPage.search.hidden()}
+            />
+            <HelpRow
+              command={
+                <SearchBadge
+                  icon={ArrowDownUp}
+                  label="reverse"
+                  syntax="^keyword"
+                />
+              }
+              description={LL.helpPage.search.reverse()}
+            />
+            <HelpRow
+              command={
+                <SearchBadge icon={Command} label="internal" syntax=":query" />
+              }
+              description={LL.helpPage.search.internal()}
+            />
+            <HelpRow
+              command={
+                <SearchBadge
+                  icon={Slash}
+                  label="playground"
+                  syntax="/query"
+                />
+              }
+              description={LL.helpPage.search.pluginPlayground()}
             />
             <HelpRow
               command="item > args"
@@ -64,10 +111,6 @@ export const HelpPage = () => {
               description={LL.helpPage.internalPages.settings()}
             />
             <HelpRow
-              command=":shortcuts"
-              description={LL.helpPage.internalPages.shortcuts()}
-            />
-            <HelpRow
               command=":metadata"
               description={LL.helpPage.internalPages.metadata()}
             />
@@ -90,25 +133,6 @@ export const HelpPage = () => {
             <HelpRow
               command=":about"
               description={LL.helpPage.internalPages.about()}
-            />
-          </Section>
-
-          <Section title={LL.helpPage.shortcuts.title()}>
-            <HelpRow
-              command="Enter"
-              description={LL.helpPage.shortcuts.open()}
-            />
-            <HelpRow
-              command="Ctrl+B"
-              description={LL.helpPage.shortcuts.sidebar()}
-            />
-            <HelpRow
-              command="Ctrl+R"
-              description={LL.helpPage.shortcuts.switchGroup()}
-            />
-            <HelpRow
-              command="Ctrl+Alt+I"
-              description={LL.helpPage.shortcuts.inspector()}
             />
           </Section>
         </SectionGroup>
@@ -155,11 +179,41 @@ const HelpRow = ({
   command,
   description,
 }: {
-  command: string;
+  command: React.ReactNode;
   description: React.ReactNode;
+}) => {
+  const commandNode =
+    typeof command === "string" ? (
+      <code className="font-mono text-text-main">{command}</code>
+    ) : (
+      command
+    );
+
+  return (
+    <div className="flex items-center justify-between gap-4 py-2">
+      <div className="shrink-0">{commandNode}</div>
+      <span className="text-right text-text-muted">{description}</span>
+    </div>
+  );
+};
+
+const SearchBadge = ({
+  icon: Icon,
+  label,
+  syntax,
+}: {
+  icon: LucideIcon;
+  label: string;
+  syntax: string;
 }) => (
-  <div className="flex items-center justify-between gap-4 py-2">
-    <code className="shrink-0 font-mono text-text-main">{command}</code>
-    <span className="text-right text-text-muted">{description}</span>
+  <div className="flex items-center gap-2">
+    <Badge
+      variant="outline"
+      className="h-6 rounded-md border-primary/40 bg-primary/10 px-2 text-xs font-medium text-text-main"
+    >
+      <Icon size={12} aria-hidden="true" />
+      <span>{label}</span>
+    </Badge>
+    <code className="font-mono text-text-main">{syntax}</code>
   </div>
 );

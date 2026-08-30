@@ -489,9 +489,9 @@ const ja = {
   helpPage: {
     title: "ヘルプ",
     description:
-      "Glimpse の検索、ターゲットグループ、内部ページ、ショートカットのクイックリファレンスです。",
+      "Glimpse の検索、ターゲットグループ、内部ページのクイックリファレンスです。",
     groups: {
-      usage: "検索、ターゲットグループ、内部ページ、ショートカット",
+      usage: "検索、ターゲットグループ、内部ページ",
     },
 
     search: {
@@ -499,7 +499,11 @@ const ja = {
       description: "キーワードでインデックス済み項目を検索します。",
       currentGroup: "Current Target Group を検索",
       tag: "タグで絞り込み",
+      unstar: "star 付き項目を検索結果から除外",
       hidden: "Current Target Group の hidden 項目を検索",
+      reverse: "古い項目から表示",
+      internal: "Glimpse の内部ページを検索",
+      pluginPlayground: "plugin playground ページを検索",
       global: "すべてのターゲットグループを検索",
       commandArgs: "選択中のコマンド項目に引数を渡す",
     },
