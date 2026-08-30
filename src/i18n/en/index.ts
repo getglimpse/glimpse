@@ -246,6 +246,8 @@ const en = {
     actions: {
       focusSearch: "Focus search",
       toggleHiddenFilter: "Toggle hidden filter",
+      toggleUnstarFilter: "Toggle unstar filter",
+      toggleReverseSearch: "Toggle reverse order",
       toggleInternalFilter: "Toggle internal search",
       togglePluginPlaygroundFilter: "Toggle plugin playground search",
       moveDown: "Move selection down",

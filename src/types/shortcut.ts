@@ -49,6 +49,8 @@ export type StaticShortcutAction =
   | "closeActivePreviewTab"
   | "focusSearch"
   | "toggleHiddenFilter"
+  | "toggleUnstarFilter"
+  | "toggleReverseSearch"
   | "toggleInternalFilter"
   | "togglePluginPlaygroundFilter"
   | "openActiveSourceFile"

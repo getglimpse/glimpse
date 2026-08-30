@@ -250,6 +250,8 @@ const ja = {
     actions: {
       focusSearch: "検索欄にフォーカス",
       toggleHiddenFilter: "hidden フィルターを切り替え",
+      toggleUnstarFilter: "unstar フィルターを切り替え",
+      toggleReverseSearch: "reverse 順を切り替え",
       toggleInternalFilter: "internal 検索を切り替え",
       togglePluginPlaygroundFilter: "plugin playground 検索を切り替え",
       moveDown: "選択を下へ移動",

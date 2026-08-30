@@ -107,6 +107,8 @@ pub fn default_keybindings() -> KeybindingMap {
         ("togglePreviewMode".into(), one("Alt+V")),
         ("switchTargetGroup".into(), one("Ctrl+R")),
         ("toggleHiddenFilter".into(), one("Ctrl+Shift+1")),
+        ("toggleUnstarFilter".into(), many(&[])),
+        ("toggleReverseSearch".into(), many(&[])),
         ("toggleInternalFilter".into(), one("Ctrl+:")),
         ("togglePluginPlaygroundFilter".into(), many(&[])),
         ("openQueryInspector".into(), one("Ctrl+Alt+I")),

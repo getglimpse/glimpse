@@ -173,7 +173,9 @@ impl SearchEngine for SqliteEngine {
             dictionary_id = ?req.dictionary_id,
             limit = req.limit,
             global = req.global,
+            unstar_only = req.unstar_only,
             hidden_only = req.hidden_only,
+            reverse_order = req.reverse_order,
             "sqlite search started"
         );
 
@@ -190,18 +192,32 @@ impl SearchEngine for SqliteEngine {
             match_query = %match_query,
             has_tag_filter,
             limit = req.limit,
+            unstar_only = req.unstar_only,
             hidden_only = req.hidden_only,
+            reverse_order = req.reverse_order,
             "sqlite search query built"
         );
 
         if match_query.is_empty() {
             debug!("using recent-items sqlite query");
-            return item_repository::recent_items(&db, req.limit, req.hidden_only);
+            return item_repository::recent_items(
+                &db,
+                req.limit,
+                req.unstar_only,
+                req.hidden_only,
+                req.reverse_order,
+            );
         }
 
         debug!("using matched-items sqlite query");
 
-        let mut stmt = db.prepare(sql::SELECT_MATCHED_ITEMS).map_err(|error| {
+        let search_sql = if req.reverse_order {
+            sql::SELECT_MATCHED_ITEMS_REVERSE
+        } else {
+            sql::SELECT_MATCHED_ITEMS
+        };
+
+        let mut stmt = db.prepare(search_sql).map_err(|error| {
             error!(
                 error = %error,
                 "failed to prepare sqlite search statement"
@@ -210,7 +226,8 @@ impl SearchEngine for SqliteEngine {
             SearchError::DbError(error.to_string())
         })?;
 
-        let params_vec: Vec<&dyn ToSql> = vec![&match_query, &hidden_i64, &limit_i64];
+        let unstar_i64 = if req.unstar_only { 1_i64 } else { 0_i64 };
+        let params_vec: Vec<&dyn ToSql> = vec![&match_query, &hidden_i64, &unstar_i64, &limit_i64];
 
         let rows = stmt
             .query_map(&*params_vec, map_search_result)
@@ -246,7 +263,14 @@ impl SearchEngine for SqliteEngine {
                 "sqlite search returned no results; running fuzzy fallback"
             );
 
-            let fuzzy_results = fuzzy_filter_results(&db, &req.query, req.limit, req.hidden_only)?;
+            let fuzzy_results = fuzzy_filter_results(
+                &db,
+                &req.query,
+                req.limit,
+                req.unstar_only,
+                req.hidden_only,
+                req.reverse_order,
+            )?;
 
             debug!(
                 query = %req.query,
@@ -627,6 +651,124 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn reverse_order_ranks_lower_scores_first() {
+        let conn = create_test_db();
+
+        let engine = SqliteEngine::new(Arc::new(Mutex::new(conn)));
+
+        let low_boost = IndexItem::new(
+            "low",
+            "Low Boost",
+            Utc::now(),
+            Preview::Markdown {
+                content: "reverse keyword".to_string(),
+            },
+        )
+        .set_boost(0.5);
+
+        let high_boost = IndexItem::new(
+            "high",
+            "High Boost",
+            Utc::now(),
+            Preview::Markdown {
+                content: "reverse keyword".to_string(),
+            },
+        )
+        .set_boost(5.0);
+
+        engine.upsert(low_boost).await.unwrap();
+        engine.upsert(high_boost).await.unwrap();
+
+        let results = engine
+            .search(SearchRequest::new("keyword", 10).reverse_order(true))
+            .await
+            .unwrap();
+
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0].item.id, "low");
+        assert!(results[0].score <= results[1].score);
+    }
+
+    #[tokio::test]
+    async fn reverse_order_empty_query_returns_oldest_recent_items_first() {
+        let conn = create_test_db();
+
+        let engine = SqliteEngine::new(Arc::new(Mutex::new(conn)));
+
+        let old = IndexItem::new(
+            "old",
+            "Old",
+            chrono::DateTime::parse_from_rfc3339("2024-01-01T00:00:00Z")
+                .unwrap()
+                .with_timezone(&Utc),
+            Preview::Markdown {
+                content: String::new(),
+            },
+        );
+
+        let new = IndexItem::new(
+            "new",
+            "New",
+            chrono::DateTime::parse_from_rfc3339("2024-01-02T00:00:00Z")
+                .unwrap()
+                .with_timezone(&Utc),
+            Preview::Markdown {
+                content: String::new(),
+            },
+        );
+
+        engine.upsert(old).await.unwrap();
+        engine.upsert(new).await.unwrap();
+
+        let results = engine
+            .search(SearchRequest::new("", 10).reverse_order(true))
+            .await
+            .unwrap();
+
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0].item.id, "old");
+        assert_eq!(results[1].item.id, "new");
+    }
+
+    #[tokio::test]
+    async fn unstar_search_excludes_starred_items() {
+        let conn = create_test_db();
+
+        let engine = SqliteEngine::new(Arc::new(Mutex::new(conn)));
+
+        let starred = IndexItem::new(
+            "starred",
+            "Starred",
+            Utc::now(),
+            Preview::Markdown {
+                content: "unstar keyword".to_string(),
+            },
+        )
+        .set_star(true);
+
+        let unstarred = IndexItem::new(
+            "unstarred",
+            "Unstarred",
+            Utc::now(),
+            Preview::Markdown {
+                content: "unstar keyword".to_string(),
+            },
+        );
+
+        engine.upsert(starred).await.unwrap();
+        engine.upsert(unstarred).await.unwrap();
+
+        let results = engine
+            .search(SearchRequest::new("keyword", 10).unstar_only(true))
+            .await
+            .unwrap();
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].item.id, "unstarred");
+        assert!(!results[0].item.metadata.star);
+    }
+
+    #[tokio::test]
     async fn fuzzy_search_falls_back_when_fts_has_no_matches() {
         let conn = create_test_db();
 
@@ -684,6 +826,47 @@ mod tests {
 
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].item.id, "item-1");
+    }
+
+    #[tokio::test]
+    async fn fuzzy_unstar_search_excludes_starred_items() {
+        let conn = create_test_db();
+
+        let engine = SqliteEngine::new(Arc::new(Mutex::new(conn)));
+
+        engine
+            .upsert(
+                IndexItem::new(
+                    "starred",
+                    "Rust Book",
+                    Utc::now(),
+                    Preview::Markdown {
+                        content: "starred".to_string(),
+                    },
+                )
+                .set_star(true),
+            )
+            .await
+            .unwrap();
+        engine
+            .upsert(IndexItem::new(
+                "unstarred",
+                "Rust Book",
+                Utc::now(),
+                Preview::Markdown {
+                    content: "unstarred".to_string(),
+                },
+            ))
+            .await
+            .unwrap();
+
+        let results = engine
+            .search(SearchRequest::new("rust bok", 10).unstar_only(true))
+            .await
+            .unwrap();
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].item.id, "unstarred");
     }
 
     #[tokio::test]

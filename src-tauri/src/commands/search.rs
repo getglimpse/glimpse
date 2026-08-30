@@ -22,7 +22,9 @@ pub async fn search_items(
     dictionary_id: Option<String>,
     limit: Option<usize>,
     global: Option<bool>,
+    unstar_only: Option<bool>,
     hidden_only: Option<bool>,
+    reverse_order: Option<bool>,
     engine: State<'_, Arc<ActiveSearchEngine>>,
 ) -> Result<Vec<SearchResult>, String> {
     let _ = global;
@@ -31,14 +33,18 @@ pub async fn search_items(
         dictionary_id,
         limit,
         false,
+        unstar_only.unwrap_or(false),
         hidden_only.unwrap_or(false),
+        reverse_order.unwrap_or(false),
     );
 
     debug!(
         query = %req.query,
         dictionary_id = ?req.dictionary_id,
         limit = req.limit,
+        unstar_only = req.unstar_only,
         hidden_only = req.hidden_only,
+        reverse_order = req.reverse_order,
         "search request built"
     );
 
@@ -46,7 +52,9 @@ pub async fn search_items(
         query = %req.query,
         dictionary_id = ?req.dictionary_id,
         limit = req.limit,
+        unstar_only = req.unstar_only,
         hidden_only = req.hidden_only,
+        reverse_order = req.reverse_order,
         "executing local search"
     );
 

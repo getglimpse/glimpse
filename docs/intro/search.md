@@ -69,6 +69,8 @@ The search bar supports several prefixes.
 | `rust`                       | Search the current Target Group            |
 | `#rust`                      | Search by tag                              |
 | `!rust`                      | Search hidden items                        |
+| `*rust`                      | Search unstarred items                     |
+| `*`                          | Browse unstarred items                     |
 | `:settings`                  | Search Internal Pages                      |
 | `/plugin`                    | Search plugin playground pages             |
 | `numeric calculator > 1 + 2` | Pass arguments to the selected page/action |

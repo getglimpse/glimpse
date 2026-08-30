@@ -33,9 +33,19 @@ export interface SearchParams {
   limit?: number;
 
   /**
+   * Searches only items that are not marked as starred metadata.
+   */
+  unstar?: boolean;
+
+  /**
    * Searches only items marked as hidden metadata.
    */
   hidden?: boolean;
+
+  /**
+   * Displays matching results in ascending score order.
+   */
+  reverse?: boolean;
 }
 
 /**
@@ -78,7 +88,9 @@ export const searchApi = {
         query: params.query,
         dictionaryId: params.dictionaryId,
         limit: params.limit,
+        unstarOnly: params.unstar,
         hiddenOnly: params.hidden,
+        reverseOrder: params.reverse,
       });
 
       return results;

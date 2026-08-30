@@ -102,6 +102,16 @@ const getShortcutGroups = (
         label: LL.shortcutsPage.actions.toggleHiddenFilter(),
       },
       {
+        actionId: "toggleUnstarFilter",
+        defaultShortcut: "",
+        label: LL.shortcutsPage.actions.toggleUnstarFilter(),
+      },
+      {
+        actionId: "toggleReverseSearch",
+        defaultShortcut: "",
+        label: LL.shortcutsPage.actions.toggleReverseSearch(),
+      },
+      {
         actionId: "toggleInternalFilter",
         defaultShortcut: "Ctrl+:",
         label: LL.shortcutsPage.actions.toggleInternalFilter(),

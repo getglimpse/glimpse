@@ -286,6 +286,12 @@ pub struct SearchRequest {
     /// Whether the search should return hidden items instead of visible items.
     pub hidden_only: bool,
 
+    /// Whether the search should return unstarred items only.
+    pub unstar_only: bool,
+
+    /// Whether results should be returned in ascending score order.
+    pub reverse_order: bool,
+
     /// Restricts search scope to a specific dictionary or target group.
     ///
     /// `None` means the default search scope selected by the caller.
@@ -305,6 +311,8 @@ impl SearchRequest {
             limit,
             global: false,
             hidden_only: false,
+            unstar_only: false,
+            reverse_order: false,
             dictionary_id: None,
         }
     }
@@ -318,6 +326,18 @@ impl SearchRequest {
     /// Restricts results to hidden items when enabled.
     pub fn hidden_only(mut self, hidden_only: bool) -> Self {
         self.hidden_only = hidden_only;
+        self
+    }
+
+    /// Restricts results to unstarred items when enabled.
+    pub fn unstar_only(mut self, unstar_only: bool) -> Self {
+        self.unstar_only = unstar_only;
+        self
+    }
+
+    /// Reverses score ordering when enabled.
+    pub fn reverse_order(mut self, reverse_order: bool) -> Self {
+        self.reverse_order = reverse_order;
         self
     }
 

@@ -24,9 +24,41 @@ FROM items i
 LEFT JOIN item_metadata m
     ON m.item_id = i.id
 WHERE COALESCE(m.hidden, 0) = ?
+  AND (? = 0 OR COALESCE(m.star, 0) = 0)
 ORDER BY
     star DESC,
     i.updated_at DESC
+LIMIT ?
+"#;
+
+/// Selects the least recently updated items.
+///
+/// Used when the search query is empty and reverse ordering is enabled.
+pub const SELECT_RECENT_ITEMS_REVERSE: &str = r#"
+SELECT
+    i.id,
+    i.title,
+    i.source_path,
+    COALESCE(m.star, 0) AS star,
+    COALESCE(m.hidden, 0) AS hidden,
+    i.updated_at,
+    i.preview_type,
+    NULL AS preview_content,
+    i.preview_url,
+    i.item_url,
+    i.item_command,
+    i.default_action,
+    0.0 AS rank,
+    '' AS tags_str,
+    '' AS aliases_str
+FROM items i
+LEFT JOIN item_metadata m
+    ON m.item_id = i.id
+WHERE COALESCE(m.hidden, 0) = ?
+  AND (? = 0 OR COALESCE(m.star, 0) = 0)
+ORDER BY
+    star ASC,
+    i.updated_at ASC
 LIMIT ?
 "#;
 

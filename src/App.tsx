@@ -359,6 +359,10 @@ const filterTemporaryResultsForQuery = (
       return false;
     }
 
+    if (parsed.unstar && result.item.metadata.star) {
+      return false;
+    }
+
     if (requiredTags.length === 0) {
       return true;
     }
@@ -536,7 +540,9 @@ export default function App() {
 
       const results = await searchApi.getItems({
         query: searchQuery,
+        unstar: parsed.unstar,
         hidden: parsed.hidden,
+        reverse: parsed.reverse,
       });
 
       const foundTemporarySource = Boolean(
@@ -1133,6 +1139,7 @@ export default function App() {
 
     if (
       previousParsed.query !== nextParsed.query ||
+      previousParsed.unstar !== nextParsed.unstar ||
       previousParsed.hidden !== nextParsed.hidden ||
       previousParsed.tags.join("\0") !== nextParsed.tags.join("\0")
     ) {

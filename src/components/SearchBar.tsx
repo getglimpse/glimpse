@@ -1,5 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { Command, EyeOff, Hash, RefreshCw, Slash, X } from "lucide-react";
+import {
+  ArrowDownUp,
+  Command,
+  EyeOff,
+  Hash,
+  RefreshCw,
+  Slash,
+  StarOff,
+  X,
+} from "lucide-react";
 import { toast } from "@/utils/toast";
 
 import { indexingApi } from "@/api/indexing";
@@ -14,6 +23,8 @@ import {
   removeHiddenFilter,
   removeInternalFilter,
   removePluginPlaygroundFilter,
+  removeReverseSearch,
+  removeUnstarFilter,
   sortTagSuggestions,
 } from "@/features/search/searchBarViewModel";
 import { useI18nContext } from "@/i18n/I18nProvider";
@@ -35,8 +46,15 @@ export const SearchBar = ({
   const { LL } = useI18nContext();
   const [availableTags, setAvailableTags] = useState<string[]>([]);
   const [isFullScanning, setIsFullScanning] = useState(false);
-  const { displayValue, committedTags, hidden, internal, pluginPlayground } =
-    getSearchBarViewModel(value);
+  const {
+    displayValue,
+    committedTags,
+    unstar,
+    hidden,
+    reverse,
+    internal,
+    pluginPlayground,
+  } = getSearchBarViewModel(value);
   const tagCompletion = useMemo(
     () =>
       getTagCompletion({
@@ -88,8 +106,18 @@ export const SearchBar = ({
     requestAnimationFrame(() => inputRef.current?.focus());
   };
 
+  const handleRemoveUnstar = () => {
+    onChange(removeUnstarFilter(value));
+    requestAnimationFrame(() => inputRef.current?.focus());
+  };
+
   const handleRemoveHidden = () => {
     onChange(removeHiddenFilter(value));
+    requestAnimationFrame(() => inputRef.current?.focus());
+  };
+
+  const handleRemoveReverse = () => {
+    onChange(removeReverseSearch(value));
     requestAnimationFrame(() => inputRef.current?.focus());
   };
 
@@ -138,6 +166,12 @@ export const SearchBar = ({
       return;
     }
 
+    if (event.key === "Backspace" && displayValue.length === 0 && unstar) {
+      event.preventDefault();
+      onChange(removeUnstarFilter(value));
+      return;
+    }
+
     if (event.key === "Backspace" && displayValue.length === 0 && internal) {
       event.preventDefault();
       onChange(removeInternalFilter(value));
@@ -151,6 +185,12 @@ export const SearchBar = ({
     ) {
       event.preventDefault();
       onChange(removePluginPlaygroundFilter(value));
+      return;
+    }
+
+    if (event.key === "Backspace" && displayValue.length === 0 && reverse) {
+      event.preventDefault();
+      onChange(removeReverseSearch(value));
       return;
     }
 
@@ -170,6 +210,25 @@ export const SearchBar = ({
           className="flex min-w-0 flex-1 flex-wrap items-center gap-2"
           data-tauri-drag-region="false"
         >
+          {unstar && (
+            <Badge
+              variant="outline"
+              className="h-7 rounded-md border-primary/40 bg-primary/10 px-2.5 text-sm font-medium text-text-main"
+              title="Unstar filter"
+            >
+              <StarOff size={13} aria-hidden="true" />
+              <span>unstar</span>
+              <button
+                type="button"
+                className="-mr-1 flex h-5 w-5 items-center justify-center rounded text-text-muted hover:bg-item-hover hover:text-text-main focus:outline-none"
+                aria-label="Remove unstar filter"
+                onClick={handleRemoveUnstar}
+              >
+                <X size={12} aria-hidden="true" />
+              </button>
+            </Badge>
+          )}
+
           {hidden && (
             <Badge
               variant="outline"
@@ -183,6 +242,25 @@ export const SearchBar = ({
                 className="-mr-1 flex h-5 w-5 items-center justify-center rounded text-text-muted hover:bg-item-hover hover:text-text-main focus:outline-none"
                 aria-label="Remove hidden filter"
                 onClick={handleRemoveHidden}
+              >
+                <X size={12} aria-hidden="true" />
+              </button>
+            </Badge>
+          )}
+
+          {reverse && (
+            <Badge
+              variant="outline"
+              className="h-7 rounded-md border-primary/40 bg-primary/10 px-2.5 text-sm font-medium text-text-main"
+              title="Reverse order"
+            >
+              <ArrowDownUp size={13} aria-hidden="true" />
+              <span>reverse</span>
+              <button
+                type="button"
+                className="-mr-1 flex h-5 w-5 items-center justify-center rounded text-text-muted hover:bg-item-hover hover:text-text-main focus:outline-none"
+                aria-label="Remove reverse order"
+                onClick={handleRemoveReverse}
               >
                 <X size={12} aria-hidden="true" />
               </button>
@@ -265,7 +343,9 @@ export const SearchBar = ({
               className="relative z-10 w-full bg-transparent text-2xl font-light outline-none placeholder:text-placeholder"
               placeholder={
                 committedTags.length > 0 ||
+                unstar ||
                 hidden ||
+                reverse ||
                 internal ||
                 pluginPlayground
                   ? ""

@@ -38,6 +38,17 @@ Hidden search returns hidden items instead of normal visible items.
 !rust
 ```
 
+## Unstar Search
+
+Use `*` to search only items that are not marked with `star: true`.
+
+```text
+*rust
+*
+```
+
+Unstar search excludes starred items from both keyword searches and empty browsing results.
+
 ## Internal Pages
 
 Use `:` to search built-in Internal Pages and trusted plugin pages.
@@ -81,6 +92,8 @@ Everything to the right of `>` is passed as the argument string when you press `
 | `rust`                       | Search the current Target Group            |
 | `#rust`                      | Tag search                                 |
 | `!rust`                      | Search hidden items                        |
+| `*rust`                      | Search unstarred items                     |
+| `*`                          | Browse unstarred items                     |
 | `:settings`                  | Search Internal Pages                      |
 | `/plugin`                    | Search plugin playground pages             |
 | `numeric calculator > 1 + 2` | Pass arguments to the selected page/action |

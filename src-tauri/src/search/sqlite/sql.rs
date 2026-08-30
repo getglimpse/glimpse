@@ -33,10 +33,46 @@ LEFT JOIN item_metadata m
     ON m.item_id = i.id
 WHERE search_index MATCH ?
   AND COALESCE(m.hidden, 0) = ?
+  AND (? = 0 OR COALESCE(m.star, 0) = 0)
 ORDER BY
     star DESC,
     rank DESC,
     i.updated_at DESC
+LIMIT ?
+"#;
+
+/// Selects items matching a SQLite FTS5 query in reverse result order.
+///
+/// Column order must match `mapper::map_search_result`.
+pub const SELECT_MATCHED_ITEMS_REVERSE: &str = r#"
+SELECT
+    i.id,
+    i.title,
+    i.source_path,
+    COALESCE(m.star, 0) AS star,
+    COALESCE(m.hidden, 0) AS hidden,
+    i.updated_at,
+    i.preview_type,
+    i.preview_content,
+    i.preview_url,
+    i.item_url,
+    i.item_command,
+    i.default_action,
+    (-bm25(search_index)) * COALESCE(NULLIF(m.boost, 0), 1.0) AS rank,
+    COALESCE(s.tags, '') AS tags_str,
+    COALESCE(s.aliases, '') AS aliases_str
+FROM search_index s
+JOIN items i
+    ON i.id = s.id
+LEFT JOIN item_metadata m
+    ON m.item_id = i.id
+WHERE search_index MATCH ?
+  AND COALESCE(m.hidden, 0) = ?
+  AND (? = 0 OR COALESCE(m.star, 0) = 0)
+ORDER BY
+    rank ASC,
+    star ASC,
+    i.updated_at ASC
 LIMIT ?
 "#;
 
@@ -108,6 +144,7 @@ LEFT JOIN item_metadata m
 LEFT JOIN search_index s
     ON s.id = i.id
 WHERE COALESCE(m.hidden, 0) = ?
+  AND (? = 0 OR COALESCE(m.star, 0) = 0)
 ORDER BY
     star DESC,
     i.updated_at DESC

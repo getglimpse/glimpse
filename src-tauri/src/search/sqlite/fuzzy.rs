@@ -43,14 +43,16 @@ const FUZZY_THRESHOLD: f64 = 0.75;
 /// and aliases. Results below [`FUZZY_THRESHOLD`] are discarded.
 ///
 /// Returned results are sorted by fuzzy score in descending order and truncated
-/// to `limit`.
+/// to `limit`, or ascending score order when `reverse_order` is enabled.
 ///
 /// Returns an empty list when the query is blank.
 pub fn fuzzy_filter_results(
     db: &Connection,
     query: &str,
     limit: usize,
+    unstar_only: bool,
     hidden_only: bool,
+    reverse_order: bool,
 ) -> Result<Vec<SearchResult>, SearchError> {
     let query = query.trim();
 
@@ -63,9 +65,13 @@ pub fn fuzzy_filter_results(
         .map_err(|e| SearchError::DbError(e.to_string()))?;
 
     let hidden_i64 = if hidden_only { 1_i64 } else { 0_i64 };
+    let unstar_i64 = if unstar_only { 1_i64 } else { 0_i64 };
 
     let rows = stmt
-        .query_map([hidden_i64, FUZZY_CANDIDATE_LIMIT], map_search_result)
+        .query_map(
+            [hidden_i64, unstar_i64, FUZZY_CANDIDATE_LIMIT],
+            map_search_result,
+        )
         .map_err(|e| SearchError::DbError(e.to_string()))?;
 
     let mut scored = Vec::new();
@@ -82,9 +88,16 @@ pub fn fuzzy_filter_results(
     }
 
     scored.sort_by(|a, b| {
-        b.score
-            .partial_cmp(&a.score)
-            .unwrap_or(std::cmp::Ordering::Equal)
+        let ordering = a
+            .score
+            .partial_cmp(&b.score)
+            .unwrap_or(std::cmp::Ordering::Equal);
+
+        if reverse_order {
+            ordering
+        } else {
+            ordering.reverse()
+        }
     });
 
     scored.truncate(limit);

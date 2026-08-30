@@ -79,15 +79,24 @@ pub fn get_item_summary(
 pub fn recent_items(
     conn: &Connection,
     limit: usize,
+    unstar_only: bool,
     hidden_only: bool,
+    reverse_order: bool,
 ) -> Result<Vec<SearchResult>, SearchError> {
+    let sql = if reverse_order {
+        sql::SELECT_RECENT_ITEMS_REVERSE
+    } else {
+        sql::SELECT_RECENT_ITEMS
+    };
+
     let mut stmt = conn
-        .prepare(sql::SELECT_RECENT_ITEMS)
+        .prepare(sql)
         .map_err(|error| SearchError::DbError(error.to_string()))?;
 
     let hidden_i64 = if hidden_only { 1_i64 } else { 0_i64 };
+    let unstar_i64 = if unstar_only { 1_i64 } else { 0_i64 };
     let rows = stmt
-        .query_map([hidden_i64, limit as i64], map_search_result)
+        .query_map([hidden_i64, unstar_i64, limit as i64], map_search_result)
         .map_err(|error| SearchError::DbError(error.to_string()))?;
 
     let mut results = Vec::new();
@@ -941,6 +950,100 @@ mod tests {
         let paths = list_source_paths(&conn).unwrap();
 
         assert!(paths.is_empty());
+    }
+
+    #[test]
+    fn returns_recent_items_in_reverse_order() {
+        let mut conn = create_test_db();
+
+        {
+            let tx = conn.transaction().unwrap();
+
+            upsert_item(
+                &tx,
+                &IndexItem::new(
+                    "old",
+                    "Old",
+                    chrono::DateTime::parse_from_rfc3339("2024-01-01T00:00:00Z")
+                        .unwrap()
+                        .with_timezone(&Utc),
+                    Preview::Markdown {
+                        content: String::new(),
+                    },
+                ),
+            )
+            .unwrap();
+
+            upsert_item(
+                &tx,
+                &IndexItem::new(
+                    "new",
+                    "New",
+                    chrono::DateTime::parse_from_rfc3339("2024-01-02T00:00:00Z")
+                        .unwrap()
+                        .with_timezone(&Utc),
+                    Preview::Markdown {
+                        content: String::new(),
+                    },
+                ),
+            )
+            .unwrap();
+
+            tx.commit().unwrap();
+        }
+
+        let results = recent_items(&conn, 10, false, false, true).unwrap();
+
+        assert_eq!(
+            results
+                .iter()
+                .map(|result| result.item.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["old", "new"]
+        );
+    }
+
+    #[test]
+    fn returns_recent_unstarred_items_only() {
+        let mut conn = create_test_db();
+
+        {
+            let tx = conn.transaction().unwrap();
+
+            upsert_item(
+                &tx,
+                &IndexItem::new(
+                    "starred",
+                    "Starred",
+                    Utc::now(),
+                    Preview::Markdown {
+                        content: String::new(),
+                    },
+                )
+                .set_star(true),
+            )
+            .unwrap();
+
+            upsert_item(
+                &tx,
+                &IndexItem::new(
+                    "unstarred",
+                    "Unstarred",
+                    Utc::now(),
+                    Preview::Markdown {
+                        content: String::new(),
+                    },
+                ),
+            )
+            .unwrap();
+
+            tx.commit().unwrap();
+        }
+
+        let results = recent_items(&conn, 10, true, false, false).unwrap();
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].item.id, "unstarred");
     }
 
     #[test]

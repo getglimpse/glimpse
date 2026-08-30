@@ -1,7 +1,9 @@
 export type SearchBarViewModel = {
   displayValue: string;
   committedTags: string[];
+  unstar: boolean;
   hidden: boolean;
+  reverse: boolean;
   internal: boolean;
   pluginPlayground: boolean;
 };
@@ -22,8 +24,9 @@ type SearchInputParts = {
 };
 
 type SearchSyntaxParts = {
-  star: boolean;
+  unstar: boolean;
   hidden: boolean;
+  reverse: boolean;
   internal: boolean;
   pluginPlayground: boolean;
   separator: string;
@@ -54,8 +57,9 @@ const splitCommand = (input: string): SearchInputParts => {
 
 const splitSearchSyntax = (search: string): SearchSyntaxParts => {
   let index = 0;
-  let star = false;
+  let unstar = false;
   let hidden = false;
+  let reverse = false;
   let internal = false;
   let pluginPlayground = false;
   let separator = "";
@@ -65,7 +69,7 @@ const splitSearchSyntax = (search: string): SearchSyntaxParts => {
   }
 
   if (search[index] === "*") {
-    star = true;
+    unstar = true;
     index += 1;
 
     const separatorStart = index;
@@ -79,6 +83,19 @@ const splitSearchSyntax = (search: string): SearchSyntaxParts => {
 
   if (search[index] === "!") {
     hidden = true;
+    index += 1;
+
+    const separatorStart = index;
+
+    while (/\s/.test(search[index] ?? "")) {
+      index += 1;
+    }
+
+    separator = search.slice(separatorStart, index);
+  }
+
+  if (search[index] === "^") {
+    reverse = true;
     index += 1;
 
     const separatorStart = index;
@@ -105,8 +122,9 @@ const splitSearchSyntax = (search: string): SearchSyntaxParts => {
   }
 
   return {
-    star,
+    unstar,
     hidden,
+    reverse,
     internal,
     pluginPlayground,
     separator,
@@ -147,8 +165,9 @@ const tokenizeSearchBody = (body: string): TokenizedSearchBody => {
 };
 
 const buildSearch = (
-  star: boolean,
+  unstar: boolean,
   hidden: boolean,
+  reverse: boolean,
   internal: boolean,
   pluginPlayground: boolean,
   separator: string,
@@ -157,7 +176,7 @@ const buildSearch = (
   command: string,
 ) => {
   const scopePrefix = internal ? ":" : pluginPlayground ? "/" : "";
-  const prefix = `${star ? "*" : ""}${hidden ? "!" : ""}${scopePrefix}`;
+  const prefix = `${unstar ? "*" : ""}${hidden ? "!" : ""}${reverse ? "^" : ""}${scopePrefix}`;
   const tagText = tags.map((tag) => `#${tag}`).join(" ");
   const nextBody = body.trimStart();
 
@@ -173,15 +192,16 @@ const buildSearch = (
 
 export const getSearchBarViewModel = (input: string): SearchBarViewModel => {
   const { search, command } = splitCommand(input);
-  const { star, hidden, internal, pluginPlayground, separator, body } =
+  const { unstar, hidden, reverse, internal, pluginPlayground, body } =
     splitSearchSyntax(search);
   const { committedTags, looseSearch } = tokenizeSearchBody(body);
-  const displayPrefix = star ? "*" : "";
 
   return {
-    displayValue: `${displayPrefix}${star ? separator : ""}${looseSearch}${command}`,
+    displayValue: `${looseSearch}${command}`,
     committedTags,
+    unstar,
     hidden,
+    reverse,
     internal,
     pluginPlayground,
   };
@@ -196,7 +216,9 @@ export const buildSearchInputFromDisplay = (
   const previousTokens = tokenizeSearchBody(previousSyntax.body);
 
   if (
+    !previousSyntax.unstar &&
     !previousSyntax.hidden &&
+    !previousSyntax.reverse &&
     !previousSyntax.internal &&
     !previousSyntax.pluginPlayground &&
     previousTokens.committedTags.length === 0
@@ -205,17 +227,18 @@ export const buildSearchInputFromDisplay = (
   }
 
   const { search, command } = splitCommand(nextDisplayValue);
-  const { star, hidden, internal, pluginPlayground, separator, body } =
+  const { unstar, hidden, reverse, internal, pluginPlayground, separator, body } =
     splitSearchSyntax(search);
   const hasPreviousScope =
     previousSyntax.internal || previousSyntax.pluginPlayground;
 
   return buildSearch(
-    star,
+    previousSyntax.unstar || unstar,
     previousSyntax.hidden || hidden,
+    previousSyntax.reverse || reverse,
     hasPreviousScope ? previousSyntax.internal : internal,
     hasPreviousScope ? previousSyntax.pluginPlayground : pluginPlayground,
-    star ? separator : "",
+    unstar ? separator : "",
     previousTokens.committedTags,
     body,
     command,
@@ -224,14 +247,15 @@ export const buildSearchInputFromDisplay = (
 
 export const removeCommittedTagAt = (input: string, tagIndex: number) => {
   const { search, command } = splitCommand(input);
-  const { star, hidden, internal, pluginPlayground, separator, body } =
+  const { unstar, hidden, reverse, internal, pluginPlayground, separator, body } =
     splitSearchSyntax(search);
   const { committedTags, looseSearch } = tokenizeSearchBody(body);
   const nextTags = committedTags.filter((_, index) => index !== tagIndex);
 
   return buildSearch(
-    star,
+    unstar,
     hidden,
+    reverse,
     internal,
     pluginPlayground,
     separator,
@@ -241,18 +265,76 @@ export const removeCommittedTagAt = (input: string, tagIndex: number) => {
   );
 };
 
-export const removeHiddenFilter = (input: string) => {
+export const removeUnstarFilter = (input: string) => {
   const { search, command } = splitCommand(input);
-  const { star, internal, pluginPlayground, separator, body } =
+  const { hidden, reverse, internal, pluginPlayground, body } =
     splitSearchSyntax(search);
   const { committedTags, looseSearch } = tokenizeSearchBody(body);
 
   return buildSearch(
-    star,
+    false,
+    hidden,
+    reverse,
+    internal,
+    pluginPlayground,
+    "",
+    committedTags,
+    looseSearch,
+    command,
+  );
+};
+
+export const toggleUnstarFilter = (input: string) => {
+  const { search, command } = splitCommand(input);
+  const { unstar, hidden, reverse, internal, pluginPlayground, separator, body } =
+    splitSearchSyntax(search);
+  const { committedTags, looseSearch } = tokenizeSearchBody(body);
+
+  return buildSearch(
+    !unstar,
+    hidden,
+    reverse,
+    internal,
+    pluginPlayground,
+    !unstar ? separator : "",
+    committedTags,
+    looseSearch,
+    command,
+  );
+};
+
+export const removeHiddenFilter = (input: string) => {
+  const { search, command } = splitCommand(input);
+  const { unstar, reverse, internal, pluginPlayground, separator, body } =
+    splitSearchSyntax(search);
+  const { committedTags, looseSearch } = tokenizeSearchBody(body);
+
+  return buildSearch(
+    unstar,
+    false,
+    reverse,
+    internal,
+    pluginPlayground,
+    unstar ? separator : "",
+    committedTags,
+    looseSearch,
+    command,
+  );
+};
+
+export const removeReverseSearch = (input: string) => {
+  const { search, command } = splitCommand(input);
+  const { unstar, hidden, internal, pluginPlayground, separator, body } =
+    splitSearchSyntax(search);
+  const { committedTags, looseSearch } = tokenizeSearchBody(body);
+
+  return buildSearch(
+    unstar,
+    hidden,
     false,
     internal,
     pluginPlayground,
-    star ? separator : "",
+    unstar ? separator : "",
     committedTags,
     looseSearch,
     command,
@@ -261,16 +343,17 @@ export const removeHiddenFilter = (input: string) => {
 
 export const removeInternalFilter = (input: string) => {
   const { search, command } = splitCommand(input);
-  const { star, hidden, pluginPlayground, separator, body } =
+  const { unstar, hidden, reverse, pluginPlayground, separator, body } =
     splitSearchSyntax(search);
   const { committedTags, looseSearch } = tokenizeSearchBody(body);
 
   return buildSearch(
-    star,
+    unstar,
     hidden,
+    reverse,
     false,
     pluginPlayground,
-    star ? separator : "",
+    unstar ? separator : "",
     committedTags,
     looseSearch,
     command,
@@ -279,15 +362,17 @@ export const removeInternalFilter = (input: string) => {
 
 export const removePluginPlaygroundFilter = (input: string) => {
   const { search, command } = splitCommand(input);
-  const { star, hidden, internal, separator, body } = splitSearchSyntax(search);
+  const { unstar, hidden, reverse, internal, separator, body } =
+    splitSearchSyntax(search);
   const { committedTags, looseSearch } = tokenizeSearchBody(body);
 
   return buildSearch(
-    star,
+    unstar,
     hidden,
+    reverse,
     internal,
     false,
-    star ? separator : "",
+    unstar ? separator : "",
     committedTags,
     looseSearch,
     command,
@@ -296,16 +381,36 @@ export const removePluginPlaygroundFilter = (input: string) => {
 
 export const toggleHiddenFilter = (input: string) => {
   const { search, command } = splitCommand(input);
-  const { star, hidden, internal, pluginPlayground, separator, body } =
+  const { unstar, hidden, reverse, internal, pluginPlayground, separator, body } =
     splitSearchSyntax(search);
   const { committedTags, looseSearch } = tokenizeSearchBody(body);
 
   return buildSearch(
-    star,
+    unstar,
     !hidden,
+    reverse,
     internal,
     pluginPlayground,
-    star ? separator : "",
+    unstar ? separator : "",
+    committedTags,
+    looseSearch,
+    command,
+  );
+};
+
+export const toggleReverseSearch = (input: string) => {
+  const { search, command } = splitCommand(input);
+  const { unstar, hidden, reverse, internal, pluginPlayground, separator, body } =
+    splitSearchSyntax(search);
+  const { committedTags, looseSearch } = tokenizeSearchBody(body);
+
+  return buildSearch(
+    unstar,
+    hidden,
+    !reverse,
+    internal,
+    pluginPlayground,
+    unstar ? separator : "",
     committedTags,
     looseSearch,
     command,
@@ -314,15 +419,17 @@ export const toggleHiddenFilter = (input: string) => {
 
 export const toggleInternalFilter = (input: string) => {
   const { search, command } = splitCommand(input);
-  const { star, hidden, internal, separator, body } = splitSearchSyntax(search);
+  const { unstar, hidden, reverse, internal, separator, body } =
+    splitSearchSyntax(search);
   const { committedTags, looseSearch } = tokenizeSearchBody(body);
 
   return buildSearch(
-    star,
+    unstar,
     hidden,
+    reverse,
     !internal,
     false,
-    star ? separator : "",
+    unstar ? separator : "",
     committedTags,
     looseSearch,
     command,
@@ -331,16 +438,17 @@ export const toggleInternalFilter = (input: string) => {
 
 export const togglePluginPlaygroundFilter = (input: string) => {
   const { search, command } = splitCommand(input);
-  const { star, hidden, pluginPlayground, separator, body } =
+  const { unstar, hidden, reverse, pluginPlayground, separator, body } =
     splitSearchSyntax(search);
   const { committedTags, looseSearch } = tokenizeSearchBody(body);
 
   return buildSearch(
-    star,
+    unstar,
     hidden,
+    reverse,
     false,
     !pluginPlayground,
-    star ? separator : "",
+    unstar ? separator : "",
     committedTags,
     looseSearch,
     command,
@@ -402,7 +510,7 @@ export const getTagCompletion = ({
 
 export const completeActiveTag = (displayValue: string, tag: string) => {
   const { search, command } = splitCommand(displayValue);
-  const { star, hidden, internal, pluginPlayground, separator, body } =
+  const { unstar, hidden, reverse, internal, pluginPlayground, separator, body } =
     splitSearchSyntax(search);
   const nextBody = body.replace(/(?:^|\s)(#[^\s]*)$/, (match) => {
     const leadingSpace = match.startsWith("#") ? "" : match[0];
@@ -411,8 +519,9 @@ export const completeActiveTag = (displayValue: string, tag: string) => {
   });
 
   return buildSearch(
-    star,
+    unstar,
     hidden,
+    reverse,
     internal,
     pluginPlayground,
     separator,
@@ -429,7 +538,7 @@ export const commitActiveTag = (displayValue: string) => {
     return null;
   }
 
-  const { star, hidden, internal, pluginPlayground, separator, body } =
+  const { unstar, hidden, reverse, internal, pluginPlayground, separator, body } =
     splitSearchSyntax(search);
 
   if (!body || /\s$/.test(body)) {
@@ -443,8 +552,9 @@ export const commitActiveTag = (displayValue: string) => {
   }
 
   return buildSearch(
-    star,
+    unstar,
     hidden,
+    reverse,
     internal,
     pluginPlayground,
     separator,

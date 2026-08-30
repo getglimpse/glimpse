@@ -775,6 +775,11 @@ type RootTranslation = {
 			 * T​o​g​g​l​e​ ​h​i​d​d​e​n​ ​f​i​l​t​e​r
 			 */
 			toggleHiddenFilter: string
+			toggleUnstarFilter: string
+			/**
+			 * T​o​g​g​l​e​ ​r​e​v​e​r​s​e​ ​s​e​a​r​c​h
+			 */
+			toggleReverseSearch: string
 			/**
 			 * T​o​g​g​l​e​ ​i​n​t​e​r​n​a​l​ ​s​e​a​r​c​h
 			 */
@@ -2783,6 +2788,11 @@ export type TranslationFunctions = {
 			 * Toggle hidden filter
 			 */
 			toggleHiddenFilter: () => LocalizedString
+			toggleUnstarFilter: () => LocalizedString
+			/**
+			 * Toggle reverse order
+			 */
+			toggleReverseSearch: () => LocalizedString
 			/**
 			 * Toggle internal search
 			 */

@@ -1313,7 +1313,8 @@ impl IndexerRuntime {
     /// the results.
     ///
     /// Results are sorted by score descending and truncated to the request
-    /// limit after merging.
+    /// limit after merging, or by score ascending when reverse ordering is
+    /// requested.
     pub async fn search_global(
         &self,
         req: SearchRequest,
@@ -1322,6 +1323,7 @@ impl IndexerRuntime {
         debug!(
             query = %req.query,
             limit = req.limit,
+            reverse_order = req.reverse_order,
             "global search started"
         );
 
@@ -1363,10 +1365,26 @@ impl IndexerRuntime {
             results.append(&mut group_results);
         }
 
+        let empty_query = req.query.trim().is_empty();
+
         results.sort_by(|a, b| {
-            b.score
-                .partial_cmp(&a.score)
-                .unwrap_or(std::cmp::Ordering::Equal)
+            let ordering = if empty_query {
+                a.item
+                    .metadata
+                    .star
+                    .cmp(&b.item.metadata.star)
+                    .then_with(|| a.item.updated_at.cmp(&b.item.updated_at))
+            } else {
+                a.score
+                    .partial_cmp(&b.score)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            };
+
+            if req.reverse_order {
+                ordering
+            } else {
+                ordering.reverse()
+            }
         });
 
         results.truncate(req.limit);

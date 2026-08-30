@@ -240,13 +240,21 @@ impl SearchEngine for TantivyEngine {
         debug!(
             query = %req.query,
             limit = req.limit,
+            unstar_only = req.unstar_only,
             hidden_only = req.hidden_only,
+            reverse_order = req.reverse_order,
             "tantivy search started"
         );
 
         if req.query.trim().is_empty() {
             let db = self.db.lock().unwrap();
-            return recent_items(&db, req.limit, req.hidden_only);
+            return recent_items(
+                &db,
+                req.limit,
+                req.unstar_only,
+                req.hidden_only,
+                req.reverse_order,
+            );
         }
 
         if req.limit == 0 {
@@ -297,6 +305,10 @@ impl SearchEngine for TantivyEngine {
                         .and_then(|value| value.as_u64())
                         .unwrap_or(0)
                         == 1;
+
+                    if req.unstar_only && star {
+                        continue;
+                    }
 
                     let updated_at = doc
                         .get_first(state.fields.updated_at)
@@ -356,9 +368,16 @@ impl SearchEngine for TantivyEngine {
         }
 
         results.sort_by(|a, b| {
-            b.score
-                .partial_cmp(&a.score)
-                .unwrap_or(std::cmp::Ordering::Equal)
+            let ordering = a
+                .score
+                .partial_cmp(&b.score)
+                .unwrap_or(std::cmp::Ordering::Equal);
+
+            if req.reverse_order {
+                ordering
+            } else {
+                ordering.reverse()
+            }
         });
 
         results.truncate(req.limit);
@@ -1015,6 +1034,115 @@ mod tests {
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].item.id, "starred-item");
         assert!(results[0].score > 10_000.0);
+    }
+
+    #[tokio::test]
+    async fn reverse_order_ranks_lower_scores_first() {
+        let engine = test_engine("reverse-order-ranking");
+
+        engine
+            .upsert(markdown_item("low", "Low Boost", "reverse keyword").set_boost(0.5))
+            .await
+            .unwrap();
+        engine
+            .upsert(markdown_item("high", "High Boost", "reverse keyword").set_boost(5.0))
+            .await
+            .unwrap();
+
+        let results = engine
+            .search(SearchRequest::new("keyword", 10).reverse_order(true))
+            .await
+            .unwrap();
+
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0].item.id, "low");
+        assert!(results[0].score <= results[1].score);
+    }
+
+    #[tokio::test]
+    async fn reverse_order_empty_query_returns_oldest_recent_items_first() {
+        let engine = test_engine("reverse-empty-query");
+
+        engine
+            .upsert(IndexItem::new(
+                "old",
+                "Old",
+                chrono::DateTime::parse_from_rfc3339("2024-01-01T00:00:00Z")
+                    .unwrap()
+                    .with_timezone(&Utc),
+                Preview::Markdown {
+                    content: String::new(),
+                },
+            ))
+            .await
+            .unwrap();
+        engine
+            .upsert(IndexItem::new(
+                "new",
+                "New",
+                chrono::DateTime::parse_from_rfc3339("2024-01-02T00:00:00Z")
+                    .unwrap()
+                    .with_timezone(&Utc),
+                Preview::Markdown {
+                    content: String::new(),
+                },
+            ))
+            .await
+            .unwrap();
+
+        let results = engine
+            .search(SearchRequest::new("", 10).reverse_order(true))
+            .await
+            .unwrap();
+
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0].item.id, "old");
+        assert_eq!(results[1].item.id, "new");
+    }
+
+    #[tokio::test]
+    async fn unstar_search_excludes_starred_items() {
+        let engine = test_engine("unstar-search");
+
+        engine
+            .upsert(markdown_item("starred", "Starred", "unstar keyword").set_star(true))
+            .await
+            .unwrap();
+        engine
+            .upsert(markdown_item("unstarred", "Unstarred", "unstar keyword"))
+            .await
+            .unwrap();
+
+        let results = engine
+            .search(SearchRequest::new("keyword", 10).unstar_only(true))
+            .await
+            .unwrap();
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].item.id, "unstarred");
+        assert!(!results[0].item.metadata.star);
+    }
+
+    #[tokio::test]
+    async fn unstar_empty_query_excludes_starred_items() {
+        let engine = test_engine("unstar-empty-query");
+
+        engine
+            .upsert(markdown_item("starred", "Starred", "").set_star(true))
+            .await
+            .unwrap();
+        engine
+            .upsert(markdown_item("unstarred", "Unstarred", ""))
+            .await
+            .unwrap();
+
+        let results = engine
+            .search(SearchRequest::new("", 10).unstar_only(true))
+            .await
+            .unwrap();
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].item.id, "unstarred");
     }
 
     #[tokio::test]

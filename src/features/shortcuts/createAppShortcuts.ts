@@ -15,6 +15,8 @@ import {
   toggleHiddenFilter,
   toggleInternalFilter,
   togglePluginPlaygroundFilter,
+  toggleReverseSearch,
+  toggleUnstarFilter,
 } from "@/features/search/searchBarViewModel";
 import { commandApi } from "@/api/command";
 import { openerApi } from "@/api/opener";
@@ -393,6 +395,16 @@ export const createAppShortcuts = ({
 
     toggleHiddenFilter: () => {
       setQuery(toggleHiddenFilter(getQuery()));
+      inputRef.current?.focus();
+    },
+
+    toggleUnstarFilter: () => {
+      setQuery(toggleUnstarFilter(getQuery()));
+      inputRef.current?.focus();
+    },
+
+    toggleReverseSearch: () => {
+      setQuery(toggleReverseSearch(getQuery()));
       inputRef.current?.focus();
     },
 

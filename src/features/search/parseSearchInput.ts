@@ -2,7 +2,9 @@ export type ParsedSearchInput = {
   query: string;
   tags: string[];
   commandArgs: string | null;
+  unstar: boolean;
   hidden: boolean;
+  reverse: boolean;
 };
 
 export const parseSearchInput = (input: string): ParsedSearchInput => {
@@ -15,14 +17,19 @@ export const parseSearchInput = (input: string): ParsedSearchInput => {
     commandIndex === -1 ? null : input.slice(commandIndex + 1).trim();
 
   const trimmed = rawSearch.trimStart();
-  const searchPrefixRemoved = trimmed.startsWith("*")
+  const unstar = trimmed.startsWith("*");
+  const searchPrefixRemoved = unstar
     ? trimmed.slice(1).trimStart()
     : trimmed;
   const hidden = searchPrefixRemoved.startsWith("!");
-
-  const searchPart = hidden
-    ? searchPrefixRemoved.slice(1).trim()
+  const hiddenPrefixRemoved = hidden
+    ? searchPrefixRemoved.slice(1).trimStart()
     : searchPrefixRemoved;
+  const reverse = hiddenPrefixRemoved.startsWith("^");
+
+  const searchPart = reverse
+    ? hiddenPrefixRemoved.slice(1).trim()
+    : hiddenPrefixRemoved.trim();
 
   const tags: string[] = [];
   const queryTokens: string[] = [];
@@ -41,7 +48,9 @@ export const parseSearchInput = (input: string): ParsedSearchInput => {
   return {
     query: queryTokens.join(" "),
     tags,
+    unstar,
     hidden,
+    reverse,
     commandArgs,
   };
 };

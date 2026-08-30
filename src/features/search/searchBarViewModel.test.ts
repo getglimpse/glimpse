@@ -10,10 +10,14 @@ import {
   removeHiddenFilter,
   removeInternalFilter,
   removePluginPlaygroundFilter,
+  removeReverseSearch,
+  removeUnstarFilter,
   sortTagSuggestions,
   toggleHiddenFilter,
   toggleInternalFilter,
   togglePluginPlaygroundFilter,
+  toggleReverseSearch,
+  toggleUnstarFilter,
 } from "./searchBarViewModel";
 
 describe("searchBarViewModel", () => {
@@ -21,7 +25,9 @@ describe("searchBarViewModel", () => {
     expect(getSearchBarViewModel("#rust")).toEqual({
       displayValue: "#rust",
       committedTags: [],
+      unstar: false,
       hidden: false,
+      reverse: false,
       internal: false,
       pluginPlayground: false,
     });
@@ -31,7 +37,9 @@ describe("searchBarViewModel", () => {
     expect(getSearchBarViewModel("#rust ")).toEqual({
       displayValue: "",
       committedTags: ["rust"],
+      unstar: false,
       hidden: false,
+      reverse: false,
       internal: false,
       pluginPlayground: false,
     });
@@ -41,7 +49,9 @@ describe("searchBarViewModel", () => {
     expect(getSearchBarViewModel("cargo #rust async")).toEqual({
       displayValue: "cargo async",
       committedTags: ["rust"],
+      unstar: false,
       hidden: false,
+      reverse: false,
       internal: false,
       pluginPlayground: false,
     });
@@ -51,7 +61,9 @@ describe("searchBarViewModel", () => {
     expect(getSearchBarViewModel("#tag aaa ")).toEqual({
       displayValue: "aaa ",
       committedTags: ["tag"],
+      unstar: false,
       hidden: false,
+      reverse: false,
       internal: false,
       pluginPlayground: false,
     });
@@ -70,7 +82,9 @@ describe("searchBarViewModel", () => {
     ).toEqual({
       displayValue: "",
       committedTags: ["rust"],
+      unstar: false,
       hidden: false,
+      reverse: false,
       internal: false,
       pluginPlayground: false,
     });
@@ -86,7 +100,9 @@ describe("searchBarViewModel", () => {
     expect(getSearchBarViewModel("!#rust ")).toEqual({
       displayValue: "",
       committedTags: ["rust"],
+      unstar: false,
       hidden: true,
+      reverse: false,
       internal: false,
       pluginPlayground: false,
     });
@@ -100,7 +116,9 @@ describe("searchBarViewModel", () => {
     expect(getSearchBarViewModel("! ")).toEqual({
       displayValue: "",
       committedTags: [],
+      unstar: false,
       hidden: true,
+      reverse: false,
       internal: false,
       pluginPlayground: false,
     });
@@ -108,7 +126,9 @@ describe("searchBarViewModel", () => {
     expect(getSearchBarViewModel("! rust ")).toEqual({
       displayValue: "rust ",
       committedTags: [],
+      unstar: false,
       hidden: true,
+      reverse: false,
       internal: false,
       pluginPlayground: false,
     });
@@ -124,7 +144,9 @@ describe("searchBarViewModel", () => {
     expect(getSearchBarViewModel("! #rust ")).toEqual({
       displayValue: "",
       committedTags: ["rust"],
+      unstar: false,
       hidden: true,
+      reverse: false,
       internal: false,
       pluginPlayground: false,
     });
@@ -137,7 +159,9 @@ describe("searchBarViewModel", () => {
     expect(getSearchBarViewModel(removeHiddenFilter("! #rust "))).toEqual({
       displayValue: "",
       committedTags: ["rust"],
+      unstar: false,
       hidden: false,
+      reverse: false,
       internal: false,
       pluginPlayground: false,
     });
@@ -148,11 +172,151 @@ describe("searchBarViewModel", () => {
     expect(toggleHiddenFilter("!#rust cargo")).toBe("#rust cargo");
   });
 
+  it("shows unstar search as a badge instead of visible punctuation", () => {
+    expect(getSearchBarViewModel("*")).toEqual({
+      displayValue: "",
+      committedTags: [],
+      unstar: true,
+      hidden: false,
+      reverse: false,
+      internal: false,
+      pluginPlayground: false,
+    });
+
+    expect(getSearchBarViewModel("*rust ")).toEqual({
+      displayValue: "rust ",
+      committedTags: [],
+      unstar: true,
+      hidden: false,
+      reverse: false,
+      internal: false,
+      pluginPlayground: false,
+    });
+  });
+
+  it("keeps unstar search active while visible text changes", () => {
+    expect(buildSearchInputFromDisplay("*rust", "rust async")).toBe(
+      "*rust async",
+    );
+  });
+
+  it("keeps unstar and hidden searches active together", () => {
+    expect(getSearchBarViewModel("*!rust")).toEqual({
+      displayValue: "rust",
+      committedTags: [],
+      unstar: true,
+      hidden: true,
+      reverse: false,
+      internal: false,
+      pluginPlayground: false,
+    });
+
+    expect(buildSearchInputFromDisplay("*!rust", "debug")).toBe("*!debug");
+  });
+
+  it("removes unstar search without disturbing other badges", () => {
+    expect(removeUnstarFilter("*! #rust cargo")).toBe("!#rust cargo");
+    expect(getSearchBarViewModel(removeUnstarFilter("* #rust "))).toEqual({
+      displayValue: "",
+      committedTags: ["rust"],
+      unstar: false,
+      hidden: false,
+      reverse: false,
+      internal: false,
+      pluginPlayground: false,
+    });
+  });
+
+  it("toggles unstar search without disturbing text or badges", () => {
+    expect(toggleUnstarFilter("cargo")).toBe("*cargo");
+    expect(toggleUnstarFilter("!#rust cargo")).toBe("*!#rust cargo");
+    expect(toggleUnstarFilter("*!#rust cargo")).toBe("!#rust cargo");
+  });
+
+  it("shows reverse search as a badge instead of visible punctuation", () => {
+    expect(getSearchBarViewModel("^")).toEqual({
+      displayValue: "",
+      committedTags: [],
+      unstar: false,
+      hidden: false,
+      reverse: true,
+      internal: false,
+      pluginPlayground: false,
+    });
+
+    expect(getSearchBarViewModel("^rust ")).toEqual({
+      displayValue: "rust ",
+      committedTags: [],
+      unstar: false,
+      hidden: false,
+      reverse: true,
+      internal: false,
+      pluginPlayground: false,
+    });
+  });
+
+  it("keeps reverse search active while visible text changes", () => {
+    expect(buildSearchInputFromDisplay("^rust", "rust async")).toBe(
+      "^rust async",
+    );
+  });
+
+  it("keeps hidden and reverse searches active together", () => {
+    expect(getSearchBarViewModel("!^rust")).toEqual({
+      displayValue: "rust",
+      committedTags: [],
+      unstar: false,
+      hidden: true,
+      reverse: true,
+      internal: false,
+      pluginPlayground: false,
+    });
+
+    expect(buildSearchInputFromDisplay("!^rust", "debug")).toBe("!^debug");
+  });
+
+  it("removes reverse search without disturbing other badges", () => {
+    expect(removeReverseSearch("!^ #rust cargo")).toBe("!#rust cargo");
+    expect(getSearchBarViewModel(removeReverseSearch("^ #rust "))).toEqual({
+      displayValue: "",
+      committedTags: ["rust"],
+      unstar: false,
+      hidden: false,
+      reverse: false,
+      internal: false,
+      pluginPlayground: false,
+    });
+  });
+
+  it("toggles reverse search without disturbing text or badges", () => {
+    expect(toggleReverseSearch("cargo")).toBe("^cargo");
+    expect(toggleReverseSearch("!#rust cargo")).toBe("!^#rust cargo");
+    expect(toggleReverseSearch("!^#rust cargo")).toBe("!#rust cargo");
+  });
+
+  it("keeps reverse search active with internal scopes", () => {
+    expect(getSearchBarViewModel("!^:settings")).toEqual({
+      displayValue: "settings",
+      committedTags: [],
+      unstar: false,
+      hidden: true,
+      reverse: true,
+      internal: true,
+      pluginPlayground: false,
+    });
+
+    expect(buildSearchInputFromDisplay("!^:settings", "debug")).toBe(
+      "!^:debug",
+    );
+  });
+
   it("shows internal search as a badge instead of visible punctuation", () => {
     expect(getSearchBarViewModel(":")).toEqual({
       displayValue: "",
       committedTags: [],
+      unstar: false,
       hidden: false,
+      reverse: false,
       internal: true,
       pluginPlayground: false,
     });
@@ -160,7 +324,9 @@ describe("searchBarViewModel", () => {
     expect(getSearchBarViewModel(":tags ")).toEqual({
       displayValue: "tags ",
       committedTags: [],
+      unstar: false,
       hidden: false,
+      reverse: false,
       internal: true,
       pluginPlayground: false,
     });
@@ -174,7 +340,9 @@ describe("searchBarViewModel", () => {
     expect(getSearchBarViewModel("!:tags")).toEqual({
       displayValue: "tags",
       committedTags: [],
+      unstar: false,
       hidden: true,
+      reverse: false,
       internal: true,
       pluginPlayground: false,
     });
@@ -187,7 +355,9 @@ describe("searchBarViewModel", () => {
     expect(getSearchBarViewModel(removeInternalFilter(": #rust "))).toEqual({
       displayValue: "",
       committedTags: ["rust"],
+      unstar: false,
       hidden: false,
+      reverse: false,
       internal: false,
       pluginPlayground: false,
     });
@@ -203,7 +373,9 @@ describe("searchBarViewModel", () => {
     expect(getSearchBarViewModel("/")).toEqual({
       displayValue: "",
       committedTags: [],
+      unstar: false,
       hidden: false,
+      reverse: false,
       internal: false,
       pluginPlayground: true,
     });
@@ -211,7 +383,9 @@ describe("searchBarViewModel", () => {
     expect(getSearchBarViewModel("/tools ")).toEqual({
       displayValue: "tools ",
       committedTags: [],
+      unstar: false,
       hidden: false,
+      reverse: false,
       internal: false,
       pluginPlayground: true,
     });
@@ -225,7 +399,9 @@ describe("searchBarViewModel", () => {
     expect(getSearchBarViewModel("!/tools")).toEqual({
       displayValue: "tools",
       committedTags: [],
+      unstar: false,
       hidden: true,
+      reverse: false,
       internal: false,
       pluginPlayground: true,
     });
@@ -240,7 +416,9 @@ describe("searchBarViewModel", () => {
     ).toEqual({
       displayValue: "",
       committedTags: ["rust"],
+      unstar: false,
       hidden: false,
+      reverse: false,
       internal: false,
       pluginPlayground: false,
     });
@@ -268,7 +446,9 @@ describe("searchBarViewModel", () => {
     expect(getSearchBarViewModel(nextInput)).toEqual({
       displayValue: "",
       committedTags: ["tauri"],
+      unstar: false,
       hidden: false,
+      reverse: false,
       internal: false,
       pluginPlayground: false,
     });
@@ -306,7 +486,9 @@ describe("searchBarViewModel", () => {
     expect(getSearchBarViewModel(commitActiveTag("#rust") ?? "")).toEqual({
       displayValue: "",
       committedTags: ["rust"],
+      unstar: false,
       hidden: false,
+      reverse: false,
       internal: false,
       pluginPlayground: false,
     });

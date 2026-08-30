@@ -38,7 +38,9 @@ pub const DEFAULT_SEARCH_LIMIT: usize = 50;
 /// - default result limit (`DEFAULT_SEARCH_LIMIT`)
 /// - optional dictionary filter
 /// - optional global search mode
+/// - optional unstar-only mode
 /// - optional hidden-only mode
+/// - optional reverse result ordering
 ///
 /// # Arguments
 ///
@@ -67,6 +69,14 @@ pub const DEFAULT_SEARCH_LIMIT: usize = 50;
 ///
 ///   Returns hidden items instead of normal visible results.
 ///
+/// - `unstar_only`
+///
+///   Returns unstarred items only.
+///
+/// - `reverse_order`
+///
+///   Returns matched results in ascending score order when enabled.
+///
 /// # Returns
 ///
 /// A fully initialized [`SearchRequest`] ready to be executed
@@ -88,11 +98,15 @@ pub fn build_search_request(
     dictionary_id: Option<String>,
     limit: Option<usize>,
     global: bool,
+    unstar_only: bool,
     hidden_only: bool,
+    reverse_order: bool,
 ) -> SearchRequest {
     let mut req = SearchRequest::new(query, limit.unwrap_or(DEFAULT_SEARCH_LIMIT))
         .global(global)
-        .hidden_only(hidden_only);
+        .unstar_only(unstar_only)
+        .hidden_only(hidden_only)
+        .reverse_order(reverse_order);
 
     if let Some(id) = dictionary_id {
         req = req.with_dictionary(id);
@@ -107,18 +121,36 @@ mod tests {
 
     #[test]
     fn builds_normal_search_request() {
-        let req = build_search_request("rust".to_string(), None, Some(25), false, false);
+        let req = build_search_request(
+            "rust".to_string(),
+            None,
+            Some(25),
+            false,
+            false,
+            false,
+            false,
+        );
 
         assert_eq!(req.query, "rust");
         assert_eq!(req.limit, 25);
         assert_eq!(req.dictionary_id, None);
         assert!(!req.global);
+        assert!(!req.unstar_only);
         assert!(!req.hidden_only);
+        assert!(!req.reverse_order);
     }
 
     #[test]
     fn builds_global_search_request() {
-        let req = build_search_request("rust".to_string(), None, Some(25), true, false);
+        let req = build_search_request(
+            "rust".to_string(),
+            None,
+            Some(25),
+            true,
+            false,
+            false,
+            false,
+        );
 
         assert_eq!(req.query, "rust");
         assert_eq!(req.limit, 25);
@@ -134,6 +166,8 @@ mod tests {
             None,
             true,
             false,
+            false,
+            false,
         );
 
         assert_eq!(req.query, "rust");
@@ -144,8 +178,46 @@ mod tests {
 
     #[test]
     fn builds_hidden_search_request() {
-        let req = build_search_request("rust".to_string(), None, Some(25), false, true);
+        let req = build_search_request(
+            "rust".to_string(),
+            None,
+            Some(25),
+            false,
+            false,
+            true,
+            false,
+        );
 
         assert!(req.hidden_only);
+    }
+
+    #[test]
+    fn builds_unstar_search_request() {
+        let req = build_search_request(
+            "rust".to_string(),
+            None,
+            Some(25),
+            false,
+            true,
+            false,
+            false,
+        );
+
+        assert!(req.unstar_only);
+    }
+
+    #[test]
+    fn builds_reverse_order_search_request() {
+        let req = build_search_request(
+            "rust".to_string(),
+            None,
+            Some(25),
+            false,
+            false,
+            false,
+            true,
+        );
+
+        assert!(req.reverse_order);
     }
 }
