@@ -29,9 +29,7 @@ ctx.py
 generated/
 */.vitepress/cache
 
-# glimpse plugins
-plugins/
-
-# private docs live in a separate local repo
+# other repo
+.plugins/
 .private-docs/
 demo/

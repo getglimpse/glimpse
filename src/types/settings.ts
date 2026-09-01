@@ -17,7 +17,7 @@ export type PluginTrustRecord = {
 
 export type PluginSettings = {
   trust?: PluginTrustRecord | null;
-  copySuccessfulPlaygroundResults?: Record<string, boolean>;
+  copySuccessfulSearchResults?: Record<string, boolean>;
 };
 
 export type PluginSettingsMap = Record<string, PluginSettings>;

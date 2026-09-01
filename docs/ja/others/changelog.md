@@ -2,6 +2,25 @@
 
 このページでは、Glimpse のリリース履歴を記録しています。
 
+## v0.2.4
+
+### Added
+
+#### Plugins
+
+- 検索から実行した plugin action の成功結果を clipboard にコピーする per-action plugin setting を追加
+- plugin ActionPlayground の成功 result bubble をクリックでコピーできるようにした
+
+### Changed
+
+#### Plugins
+
+- 自動コピーが使われる場所に合わせて、plugin search result copy setting の名前を変更
+
+#### Shortcuts
+
+- 選択テキストの通常コピーを自然に使えるように、active preview content 全体コピーのデフォルト `Ctrl+C` shortcut を削除
+
 ## v0.2.3
 
 ### Added

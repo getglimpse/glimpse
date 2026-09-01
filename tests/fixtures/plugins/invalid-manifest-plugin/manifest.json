@@ -1,0 +1,17 @@
+{
+  "id": "invalid-manifest-plugin",
+  "name": "Invalid Manifest Plugin",
+  "version": "0.1.0",
+  "apiVersion": "0.1.0",
+  "entrypoints": {
+    "main": "../main.js"
+  },
+  "contributes": {
+    "actions": [
+      {
+        "id": "../escape",
+        "title": "Invalid action"
+      }
+    ]
+  }
+}

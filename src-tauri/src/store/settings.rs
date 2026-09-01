@@ -305,6 +305,8 @@ fn normalize_keybindings(settings: &mut AppSettings) {
                     continue;
                 };
 
+                let value = remove_legacy_copy_preview_content_keybinding(&action, value);
+
                 keybindings.insert(action.clone(), value);
                 debug!(
                     action = %action,
@@ -322,6 +324,29 @@ fn normalize_keybindings(settings: &mut AppSettings) {
     }
 
     settings.keybindings = keybindings;
+}
+
+fn remove_legacy_copy_preview_content_keybinding(
+    action: &str,
+    value: KeybindingValue,
+) -> KeybindingValue {
+    if action != "copyActivePreviewContent" {
+        return value;
+    }
+
+    match value {
+        KeybindingValue::One(key) if key == "Ctrl+C" => KeybindingValue::Many(Vec::new()),
+        KeybindingValue::One(key) => KeybindingValue::One(key),
+        KeybindingValue::Many(keys) => {
+            let keys: Vec<String> = keys.into_iter().filter(|key| key != "Ctrl+C").collect();
+
+            match keys.len() {
+                0 => KeybindingValue::Many(Vec::new()),
+                1 => keys.into_iter().next().map(KeybindingValue::One).unwrap(),
+                _ => KeybindingValue::Many(keys),
+            }
+        }
+    }
 }
 
 fn remove_legacy_search_boundary_keybindings(
@@ -409,8 +434,8 @@ fn normalize_plugins(settings: &mut AppSettings) {
 
         if keep {
             normalize_plugin_trust(plugin_id, plugin_settings);
-            normalize_plugin_playground_copy_settings(
-                &mut plugin_settings.copy_successful_playground_results,
+            normalize_plugin_search_result_copy_settings(
+                &mut plugin_settings.copy_successful_search_results,
             );
         } else {
             warn!(
@@ -420,9 +445,7 @@ fn normalize_plugins(settings: &mut AppSettings) {
         }
 
         keep && (plugin_settings.trust.is_some()
-            || !plugin_settings
-                .copy_successful_playground_results
-                .is_empty())
+            || !plugin_settings.copy_successful_search_results.is_empty())
     });
 }
 
@@ -450,14 +473,14 @@ fn normalize_plugin_trust(
     }
 }
 
-fn normalize_plugin_playground_copy_settings(action_settings: &mut HashMap<String, bool>) {
+fn normalize_plugin_search_result_copy_settings(action_settings: &mut HashMap<String, bool>) {
     action_settings.retain(|action_id, enabled| {
         let keep = *enabled && is_valid_plugin_action_id(action_id);
 
         if !keep {
             warn!(
                 action_id = %action_id,
-                "removed invalid plugin playground copy setting"
+                "removed invalid plugin search result copy setting"
             );
         }
 
@@ -866,13 +889,13 @@ mod tests {
     }
 
     #[test]
-    fn normalizes_plugin_playground_copy_settings() {
+    fn normalizes_plugin_search_result_copy_settings() {
         let mut settings = AppSettings::default();
 
         settings.plugins.insert(
             "date-calculator-plugin".into(),
             crate::models::settings::PluginSettings {
-                copy_successful_playground_results: std::collections::HashMap::from([
+                copy_successful_search_results: std::collections::HashMap::from([
                     ("calculate".into(), true),
                     ("".into(), true),
                     ("../escape".into(), true),
@@ -884,7 +907,7 @@ mod tests {
         settings.plugins.insert(
             "../escape".into(),
             crate::models::settings::PluginSettings {
-                copy_successful_playground_results: std::collections::HashMap::from([(
+                copy_successful_search_results: std::collections::HashMap::from([(
                     "calculate".into(),
                     true,
                 )]),
@@ -894,7 +917,7 @@ mod tests {
 
         let settings = normalize_settings(settings);
         let action_settings =
-            &settings.plugins["date-calculator-plugin"].copy_successful_playground_results;
+            &settings.plugins["date-calculator-plugin"].copy_successful_search_results;
 
         assert_eq!(action_settings.len(), 1);
         assert_eq!(action_settings.get("calculate"), Some(&true));
@@ -902,7 +925,7 @@ mod tests {
     }
 
     #[test]
-    fn migrates_legacy_plugin_settings_shape() {
+    fn does_not_migrate_legacy_plugin_settings_shape() {
         let settings_dir = unique_test_dir("legacy_plugins");
         let settings_path = settings_dir.join("settings.json");
 
@@ -931,21 +954,8 @@ mod tests {
         .unwrap();
 
         let settings = load_settings(&settings_path);
-        let plugin_settings = &settings.plugins["sample-plugin"];
 
-        assert_eq!(
-            plugin_settings
-                .trust
-                .as_ref()
-                .and_then(|trust| trust.manifest_fingerprint.as_deref()),
-            Some("abc")
-        );
-        assert_eq!(
-            plugin_settings
-                .copy_successful_playground_results
-                .get("calculate"),
-            Some(&true)
-        );
+        assert!(settings.plugins.is_empty());
 
         fs::remove_dir_all(settings_dir).ok();
     }
@@ -1006,5 +1016,51 @@ mod tests {
 
         assert!(!settings.keybindings.contains_key("selectFirstItem"));
         assert!(!settings.keybindings.contains_key("selectLastItem"));
+    }
+
+    #[test]
+    fn disables_legacy_copy_preview_content_ctrl_c_keybinding() {
+        let mut settings = AppSettings::default();
+
+        settings.keybindings.insert(
+            "copyActivePreviewContent".into(),
+            KeybindingValue::One("Ctrl+C".into()),
+        );
+
+        let settings = normalize_settings(settings);
+
+        match settings
+            .keybindings
+            .get("copyActivePreviewContent")
+            .unwrap()
+        {
+            KeybindingValue::Many(keys) => {
+                assert!(keys.is_empty());
+            }
+            _ => panic!("expected disabled keybinding list"),
+        }
+    }
+
+    #[test]
+    fn preserves_custom_copy_preview_content_keybinding() {
+        let mut settings = AppSettings::default();
+
+        settings.keybindings.insert(
+            "copyActivePreviewContent".into(),
+            KeybindingValue::One("Ctrl+Shift+C".into()),
+        );
+
+        let settings = normalize_settings(settings);
+
+        match settings
+            .keybindings
+            .get("copyActivePreviewContent")
+            .unwrap()
+        {
+            KeybindingValue::One(key) => {
+                assert_eq!(key, "Ctrl+Shift+C");
+            }
+            _ => panic!("expected custom keybinding"),
+        }
     }
 }

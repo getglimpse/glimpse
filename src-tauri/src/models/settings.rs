@@ -32,7 +32,7 @@
 //! - `store::indexer::runtime`
 //! - frontend settings pages
 
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     ops::{Deref, DerefMut},
@@ -121,7 +121,7 @@ pub fn default_keybindings() -> KeybindingMap {
         ("openTagCloudPage".into(), many(&[])),
         ("inspectActiveItem".into(), many(&[])),
         ("closePreviewWindow".into(), one("Escape")),
-        ("copyActivePreviewContent".into(), one("Ctrl+C")),
+        ("copyActivePreviewContent".into(), many(&[])),
         ("copyActivePreviewCodeBlock1".into(), one("Ctrl+1")),
         ("copyActivePreviewCodeBlock2".into(), one("Ctrl+2")),
         ("copyActivePreviewCodeBlock3".into(), one("Ctrl+3")),
@@ -220,7 +220,7 @@ pub struct PartialAppSettings {
 ///
 /// Plugins are local frontend code. `main.js` is blocked until the user
 /// explicitly trusts the current plugin fingerprint.
-#[derive(Debug, Clone, Serialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(transparent)]
 pub struct PluginSettingsMap(pub HashMap<String, PluginSettings>);
 
@@ -238,26 +238,6 @@ impl DerefMut for PluginSettingsMap {
     }
 }
 
-impl<'de> Deserialize<'de> for PluginSettingsMap {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let value = serde_json::Value::deserialize(deserializer)?;
-
-        if value.as_object().is_some_and(|object| {
-            object.contains_key("trustedPlugins")
-                || object.contains_key("copySuccessfulPlaygroundResults")
-        }) {
-            return deserialize_legacy_plugin_settings(value).map_err(serde::de::Error::custom);
-        }
-
-        serde_json::from_value::<HashMap<String, PluginSettings>>(value)
-            .map(Self)
-            .map_err(serde::de::Error::custom)
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct PluginSettings {
@@ -265,7 +245,7 @@ pub struct PluginSettings {
     pub trust: Option<PluginTrustRecord>,
 
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub copy_successful_playground_results: HashMap<String, bool>,
+    pub copy_successful_search_results: HashMap<String, bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -279,59 +259,6 @@ pub struct PluginTrustRecord {
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct LegacyPluginSettings {
-    #[serde(default)]
-    trusted_plugins: HashMap<String, LegacyPluginTrustRecord>,
-
-    #[serde(default)]
-    copy_successful_playground_results: HashMap<String, HashMap<String, bool>>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct LegacyPluginTrustRecord {
-    #[serde(default)]
-    trusted: bool,
-
-    #[serde(default)]
-    trusted_at: Option<String>,
-
-    #[serde(default)]
-    manifest_fingerprint: Option<String>,
-
-    #[serde(default)]
-    version: Option<String>,
-}
-
-fn deserialize_legacy_plugin_settings(
-    value: serde_json::Value,
-) -> Result<PluginSettingsMap, serde_json::Error> {
-    let legacy = serde_json::from_value::<LegacyPluginSettings>(value)?;
-    let mut settings: HashMap<String, PluginSettings> = HashMap::new();
-
-    for (plugin_id, trust) in legacy.trusted_plugins {
-        if trust.trusted {
-            settings.entry(plugin_id).or_default().trust = Some(PluginTrustRecord {
-                trusted_at: trust.trusted_at,
-                manifest_fingerprint: trust.manifest_fingerprint,
-                version: trust.version,
-            });
-        }
-    }
-
-    for (plugin_id, copy_successful_playground_results) in legacy.copy_successful_playground_results
-    {
-        settings
-            .entry(plugin_id)
-            .or_default()
-            .copy_successful_playground_results = copy_successful_playground_results;
-    }
-
-    Ok(PluginSettingsMap(settings))
 }
 
 /// User interface preferences.

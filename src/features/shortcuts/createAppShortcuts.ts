@@ -24,11 +24,13 @@ import { settingsApi } from "@/api/settings";
 import type { TranslationFunctions } from "@/i18n/i18n-types";
 
 import { toast } from "@/utils/toast";
+import { copyText } from "@/utils/clipboard";
 import {
   executePluginAction,
   getInternalPageContribution,
   isPluginInternalPage,
 } from "@/features/plugins/pluginRegistry";
+import { readPluginCopySuccessfulSearchResultEnabled } from "@/features/plugins/pluginSettings";
 
 const nextIndex = (current: number, length: number) =>
   length === 0 ? current : (current + 1) % length;
@@ -194,6 +196,14 @@ export const createAppShortcuts = ({
               ? LL.appMessages.ranItem({ title: item.title })
               : String(result);
 
+          if (result !== undefined) {
+            await copySuccessfulPluginActionResult({
+              pluginId: contribution.pluginId,
+              actionId: pageAction.actionId,
+              value: resultMessage,
+            });
+          }
+
           toast.success(resultMessage, { copy: result !== undefined });
           recordHistory({
             input: rawInput,
@@ -224,6 +234,30 @@ export const createAppShortcuts = ({
     }
 
     return false;
+  };
+
+  const copySuccessfulPluginActionResult = async ({
+    pluginId,
+    actionId,
+    value,
+  }: {
+    pluginId: string;
+    actionId: string;
+    value: string;
+  }) => {
+    try {
+      const shouldCopy =
+        await readPluginCopySuccessfulSearchResultEnabled(
+          pluginId,
+          actionId,
+        );
+
+      if (shouldCopy) {
+        await copyText(value);
+      }
+    } catch (error) {
+      console.warn("Failed to copy plugin action result", error);
+    }
   };
 
   const openActiveItem = async () => {

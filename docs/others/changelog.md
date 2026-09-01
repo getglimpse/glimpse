@@ -2,6 +2,25 @@
 
 This page records the release history of Glimpse.
 
+## v0.2.4
+
+### Added
+
+#### Plugins
+
+* Added per-action plugin settings for copying successful search-run action results to the clipboard.
+* Added click-to-copy support for successful plugin ActionPlayground result bubbles.
+
+### Changed
+
+#### Plugins
+
+* Renamed the plugin search result copy setting to better match where the automatic copy behavior is used.
+
+#### Shortcuts
+
+* Removed the default Ctrl+C shortcut for copying the full active preview content so normal text selection copy works as expected.
+
 ## v0.2.3
 
 ### Added

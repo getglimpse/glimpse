@@ -1,0 +1,81 @@
+{
+  "id": "numeric-calculator-plugin",
+  "name": "Numeric Calculator Plugin",
+  "version": "0.1.0",
+  "apiVersion": "0.1.0",
+  "description": "A contract fixture for the numeric calculator plugin.",
+  "i18n": {
+    "ja": {
+      "name": "数値計算プラグイン",
+      "description": "数値計算プラグインの契約テスト用 fixture です。",
+      "pages.calculate.title": "数値計算プラグイン",
+      "pages.calculate.help.description": "main.js で描画される数値計算 fixture ページです。",
+      "pages.calculate.help.commands.sqrt(x).description": "平方根",
+      "pages.calculate.help.commands.pi.description": "円周率",
+      "actions.calculate.title": "式を計算",
+      "actions.calculate.description": "mathjs で数式を評価します。"
+    }
+  },
+  "enabledByDefault": true,
+  "entrypoints": {
+    "main": "./main.js"
+  },
+  "contributes": {
+    "internalPages": [
+      {
+        "id": "plugin:numeric-calculator-plugin",
+        "title": "Numeric Calculator Plugin",
+        "tags": ["internal", "plugin", "calculator", "numeric", "fixture"],
+        "aliases": ["calculator fixture", "numeric fixture"],
+        "boost": 1,
+        "pageAction": {
+          "actionId": "calculate",
+          "inputPlaceholder": "Expression",
+          "examples": ["1 + 1", "sqrt(144)"]
+        },
+        "help": {
+          "description": "Numeric calculator fixture page rendered by main.js.",
+          "examples": ["> 1 + 1", "> sqrt(144)"],
+          "commands": [
+            {
+              "command": "sqrt(x)",
+              "description": "Square root"
+            },
+            {
+              "command": "pi",
+              "description": "Pi"
+            }
+          ]
+        },
+        "staticPage": {
+          "subtitle": "Fallback content for the numeric calculator fixture.",
+          "sections": [
+            {
+              "title": "Calculator",
+              "rows": [
+                {
+                  "label": "Action",
+                  "value": "calculate"
+                },
+                {
+                  "label": "Runtime",
+                  "value": "frontend"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "actions": [
+      {
+        "id": "calculate",
+        "title": "Calculate expression",
+        "description": "Evaluate a numeric expression with mathjs."
+      }
+    ]
+  },
+  "dependencies": {
+    "npm": ["mathjs"]
+  }
+}

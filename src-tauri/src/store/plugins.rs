@@ -304,10 +304,7 @@ fn remove_plugin_trust(settings: &mut crate::models::settings::PluginSettingsMap
     if let Some(plugin_settings) = settings.get_mut(plugin_id) {
         plugin_settings.trust = None;
 
-        if plugin_settings
-            .copy_successful_playground_results
-            .is_empty()
-        {
+        if plugin_settings.copy_successful_search_results.is_empty() {
             settings.remove(plugin_id);
         }
     }
@@ -1678,7 +1675,7 @@ mod tests {
                     manifest_fingerprint: Some("test".to_string()),
                     version: Some("0.1.0".to_string()),
                 }),
-                copy_successful_playground_results: std::collections::HashMap::from([(
+                copy_successful_search_results: std::collections::HashMap::from([(
                     "calculate".to_string(),
                     true,
                 )]),

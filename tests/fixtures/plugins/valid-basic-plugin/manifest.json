@@ -1,0 +1,75 @@
+{
+  "id": "valid-basic-plugin",
+  "name": "Valid Basic Plugin",
+  "version": "0.1.0",
+  "apiVersion": "0.1.0",
+  "description": "A minimal contract fixture plugin.",
+  "i18n": {
+    "ja": {
+      "name": "有効な基本プラグイン",
+      "description": "最小構成の契約テスト用プラグインです。",
+      "pages.hello.title": "有効な基本プラグイン",
+      "pages.hello.help.description": "main.js で描画される最小構成のプラグイン fixture ページです。",
+      "pages.hello.help.commands.hello.description": "fixture プラグインから挨拶を返します。",
+      "actions.hello.title": "挨拶する",
+      "actions.hello.description": "fixture プラグインから挨拶を返します。",
+      "actions.hello.result": "こんにちは、{name}!"
+    }
+  },
+  "enabledByDefault": true,
+  "entrypoints": {
+    "main": "./main.js"
+  },
+  "contributes": {
+    "internalPages": [
+      {
+        "id": "plugin:valid-basic-plugin",
+        "title": "Valid Basic Plugin",
+        "tags": ["internal", "plugin", "fixture"],
+        "aliases": ["basic fixture"],
+        "boost": 1,
+        "pageAction": {
+          "actionId": "hello",
+          "inputPlaceholder": "Name to greet",
+          "examples": ["Fixture", "Contract"]
+        },
+        "help": {
+          "description": "A minimal plugin fixture page rendered by main.js.",
+          "examples": [": valid basic plugin", ": basic fixture"],
+          "commands": [
+            {
+              "command": "hello",
+              "description": "Return a greeting from the fixture plugin."
+            }
+          ]
+        },
+        "staticPage": {
+          "subtitle": "Fallback content for the basic fixture.",
+          "sections": [
+            {
+              "title": "Fixture",
+              "rows": [
+                {
+                  "label": "Plugin ID",
+                  "value": "valid-basic-plugin"
+                },
+                {
+                  "label": "Action",
+                  "value": "hello"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "actions": [
+      {
+        "id": "hello",
+        "title": "Say hello",
+        "description": "Return a greeting from the fixture plugin.",
+        "aliases": ["fixture hello"]
+      }
+    ]
+  }
+}
