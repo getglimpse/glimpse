@@ -168,7 +168,7 @@ describe("plugin fixture contracts", () => {
       "式を計算",
     ]);
     expect(numericHelpJa).toMatchObject({
-      title: "数値計算プラグイン",
+      title: "数値計算",
       commands: [
         {
           command: "sqrt(x)",

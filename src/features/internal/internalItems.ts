@@ -1,6 +1,5 @@
 import { IndexItem, SearchResult } from "@/types";
 import {
-  getPluginActionItems,
   getPluginInternalItems,
   getPluginPlaygroundInternalItems,
 } from "@/features/plugins/pluginRegistry";
@@ -198,7 +197,6 @@ export const TAG_CLOUD_ITEM = INTERNAL_ITEMS.find(
 const getInternalItems = () => [
   ...INTERNAL_ITEMS,
   ...getPluginInternalItems(),
-  ...getPluginActionItems(),
 ];
 
 type InternalSearchScope = "all" | "pluginPlaygrounds";

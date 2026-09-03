@@ -18,6 +18,7 @@ export type PluginTrustRecord = {
 export type PluginSettings = {
   trust?: PluginTrustRecord | null;
   copySuccessfulSearchResults?: Record<string, boolean>;
+  preferences?: Record<string, string>;
 };
 
 export type PluginSettingsMap = Record<string, PluginSettings>;
@@ -43,9 +44,7 @@ export type ExperimentalSettings = {
 
 export type KeybindingValue = string | string[];
 
-export type KeybindingMap = Partial<
-  Record<ShortcutAction, KeybindingValue>
->;
+export type KeybindingMap = Partial<Record<ShortcutAction, KeybindingValue>>;
 
 export type AppSettings = {
   theme: string;

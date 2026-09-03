@@ -85,7 +85,7 @@ Glimpse はローカルのフロントエンド専用プラグインに対応し
 - CSV viewer
 - Office documents viewer
 
-詳細は [プラグインドキュメント](docs/ja/dev/plugins.md) を参照してください。
+詳細は [プラグイン仕様ドラフト](docs/ja/dev/plugin-spec.md) と [プラグイン Custom UI 予約仕様ドラフト](docs/ja/dev/plugin-custom.md) を参照してください。
 
 ## ドキュメント
 

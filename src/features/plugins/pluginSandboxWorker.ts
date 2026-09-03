@@ -88,6 +88,8 @@ const COMPONENT_NAMES = [
   "Markdown",
   "DeferredFrame",
   "FileOpenButton",
+  "FileDropConverter",
+  "OutputDirectorySettings",
   "ActionPlayground",
   "ActionSettings",
   "CalculationPanel",

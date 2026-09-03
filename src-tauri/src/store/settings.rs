@@ -437,6 +437,7 @@ fn normalize_plugins(settings: &mut AppSettings) {
             normalize_plugin_search_result_copy_settings(
                 &mut plugin_settings.copy_successful_search_results,
             );
+            normalize_plugin_preferences(&mut plugin_settings.preferences);
         } else {
             warn!(
                 plugin_id = %plugin_id,
@@ -445,7 +446,8 @@ fn normalize_plugins(settings: &mut AppSettings) {
         }
 
         keep && (plugin_settings.trust.is_some()
-            || !plugin_settings.copy_successful_search_results.is_empty())
+            || !plugin_settings.copy_successful_search_results.is_empty()
+            || !plugin_settings.preferences.is_empty())
     });
 }
 
@@ -481,6 +483,21 @@ fn normalize_plugin_search_result_copy_settings(action_settings: &mut HashMap<St
             warn!(
                 action_id = %action_id,
                 "removed invalid plugin search result copy setting"
+            );
+        }
+
+        keep
+    });
+}
+
+fn normalize_plugin_preferences(preferences: &mut HashMap<String, String>) {
+    preferences.retain(|key, value| {
+        let keep = is_valid_plugin_action_id(key) && !value.trim().is_empty();
+
+        if !keep {
+            warn!(
+                preference = %key,
+                "removed invalid plugin preference"
             );
         }
 

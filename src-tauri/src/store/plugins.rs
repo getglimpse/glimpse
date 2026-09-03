@@ -14,13 +14,13 @@ use sha2::{Digest, Sha256};
 
 use crate::models::plugins::{
     PluginAssetSource, PluginContributions, PluginDiscoveryError, PluginDiscoveryReport,
-    PluginEntrypointSource, PluginInstallResult, PluginManifest, PluginTrustStatus,
-    PluginUninstallResult, RawPluginManifest,
+    PluginEntrypointSource, PluginInstallResult, PluginInternalPageManifest, PluginManifest,
+    PluginPageActionManifest, PluginTrustStatus, PluginUninstallResult, RawPluginManifest,
 };
 use crate::models::settings::PluginTrustRecord;
 use crate::store::settings::{load_settings, save_settings};
 
-const SUPPORTED_PLUGIN_API_VERSION: &str = "0.1.0";
+const SUPPORTED_PLUGIN_API_VERSION: &str = "0.2.0";
 const DEFAULT_PLUGIN_API_VERSION: &str = SUPPORTED_PLUGIN_API_VERSION;
 
 pub fn ensure_plugins_dir(app_data_dir: &Path) -> Result<PathBuf, String> {
@@ -304,7 +304,9 @@ fn remove_plugin_trust(settings: &mut crate::models::settings::PluginSettingsMap
     if let Some(plugin_settings) = settings.get_mut(plugin_id) {
         plugin_settings.trust = None;
 
-        if plugin_settings.copy_successful_search_results.is_empty() {
+        if plugin_settings.copy_successful_search_results.is_empty()
+            && plugin_settings.preferences.is_empty()
+        {
             settings.remove(plugin_id);
         }
     }
@@ -505,6 +507,19 @@ fn plugin_manifest_fingerprint(
         hash_optional_child_file_contents(&mut hasher, plugin_root, "page", page_entry)?;
     }
 
+    if let Some(page_definition) = manifest.page.as_deref() {
+        hash_optional_child_file_contents(
+            &mut hasher,
+            plugin_root,
+            "pageDefinition",
+            page_definition,
+        )?;
+    }
+
+    if let Some(i18n_path) = manifest.i18n_path.as_deref() {
+        hash_optional_child_file_contents(&mut hasher, plugin_root, "i18n", i18n_path)?;
+    }
+
     hash_optional_child_file_contents(&mut hasher, plugin_root, "styles", "styles.css")?;
 
     Ok(format!("{:x}", hasher.finalize()))
@@ -677,18 +692,47 @@ fn normalize_plugin_manifest(
 
     validate_entrypoints(raw.entrypoints.as_ref())?;
 
+    if let Some(page) = raw.page.as_ref() {
+        validate_relative_child_path("page", page)?;
+    }
+
     if raw.backend.is_some() {
         return Err("plugin backend is not supported; plugins are frontend-only".to_string());
     }
 
-    let contributes_internal_pages = raw
+    if let Some(default_locale) = raw.default_locale.as_ref() {
+        validate_non_empty("defaultLocale", default_locale)?;
+    }
+
+    let (i18n, i18n_path) = load_plugin_i18n(path, raw.i18n, raw.default_locale.as_deref())?;
+    let page_definition = load_plugin_page_definition(path, &raw.id, raw.page.as_deref())?;
+
+    let contributes_internal_page = raw
+        .contributes
+        .as_ref()
+        .and_then(|contributes| contributes.internal_page.clone());
+    let contributes_internal_pages_plural = raw
         .contributes
         .as_ref()
         .and_then(|contributes| contributes.internal_pages.clone());
-    let internal_pages = match (contributes_internal_pages, raw.internal_pages.clone()) {
+    let contributes_internal_pages = match (
+        contributes_internal_page,
+        contributes_internal_pages_plural,
+    ) {
+        (Some(page), Some(_)) => {
+            warnings.push(
+                    "both contributes.internalPage and contributes.internalPages are defined; using contributes.internalPage".to_string(),
+                );
+            Some(vec![page])
+        }
+        (Some(page), None) => Some(vec![page]),
+        (None, Some(pages)) => Some(pages),
+        (None, None) => None,
+    };
+    let mut internal_pages = match (contributes_internal_pages, raw.internal_pages.clone()) {
         (Some(pages), Some(_)) => {
             warnings.push(
-                "both contributes.internalPages and top-level internalPages are defined; using contributes.internalPages".to_string(),
+                "both contributes internal pages and top-level internalPages are defined; using contributes internal pages".to_string(),
             );
             Some(pages)
         }
@@ -702,14 +746,34 @@ fn normalize_plugin_manifest(
         (None, None) => None,
     };
 
-    validate_contributions(&raw.id, internal_pages.as_ref(), raw.contributes.as_ref())?;
+    if let Some(pages) = internal_pages.as_mut() {
+        for page in pages {
+            normalize_internal_page_manifest(&raw.id, page, page_definition.as_ref());
+        }
+    }
 
-    let contributes = match (raw.contributes, internal_pages.clone()) {
+    let mut contributes = raw.contributes;
+
+    if let Some(contributes) = contributes.as_mut() {
+        normalize_contributions(contributes);
+        contributes.internal_pages = internal_pages.clone();
+        contributes.internal_page = internal_pages
+            .as_ref()
+            .and_then(|pages| (pages.len() == 1).then(|| pages[0].clone()));
+    }
+
+    validate_contributions(&raw.id, internal_pages.as_ref(), contributes.as_ref())?;
+
+    let contributes = match (contributes, internal_pages.clone()) {
         (Some(mut contributes), pages) => {
             contributes.internal_pages = pages;
+            contributes.internal_page = internal_pages
+                .as_ref()
+                .and_then(|pages| (pages.len() == 1).then(|| pages[0].clone()));
             Some(contributes)
         }
         (None, Some(pages)) => Some(PluginContributions {
+            internal_page: (pages.len() == 1).then(|| pages[0].clone()),
             internal_pages: Some(pages),
             actions: None,
             viewers: None,
@@ -723,14 +787,142 @@ fn normalize_plugin_manifest(
         version: raw.version,
         api_version: Some(api_version),
         description: raw.description,
-        i18n: raw.i18n,
+        default_locale: raw.default_locale,
+        i18n,
+        i18n_path,
+        page: raw.page,
+        page_definition,
         enabled_by_default: raw.enabled_by_default,
         entrypoints: raw.entrypoints,
         contributes,
         dependencies: raw.dependencies,
         capabilities: raw.capabilities,
+        settings: raw.settings,
         internal_pages,
         warnings,
+    })
+}
+
+fn normalize_contributions(contributes: &mut PluginContributions) {
+    if let Some(actions) = contributes.actions.as_mut() {
+        for action in actions {
+            action.title = normalized_localized_string(
+                &action.title,
+                action.title_key.as_deref(),
+                action.title_fallback.as_deref(),
+                &action.id,
+            );
+
+            if action.description.is_none() {
+                action.description = action
+                    .description_fallback
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|description| !description.is_empty())
+                    .map(str::to_string);
+            }
+        }
+    }
+
+    if let Some(viewers) = contributes.viewers.as_mut() {
+        for viewer in viewers {
+            viewer.title = normalized_localized_string(
+                &viewer.title,
+                viewer.title_key.as_deref(),
+                viewer.title_fallback.as_deref(),
+                &viewer.id,
+            );
+
+            if viewer.description.is_none() {
+                viewer.description = viewer
+                    .description_fallback
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|description| !description.is_empty())
+                    .map(str::to_string);
+            }
+        }
+    }
+}
+
+fn normalize_internal_page_manifest(
+    plugin_id: &str,
+    page: &mut PluginInternalPageManifest,
+    page_definition: Option<&serde_json::Value>,
+) {
+    page.title = normalized_localized_string(
+        &page.title,
+        page.title_key.as_deref(),
+        page.title_fallback.as_deref(),
+        plugin_id,
+    );
+
+    if let Some(page_definition) = page_definition {
+        let page_definition_id = page_definition
+            .get("id")
+            .and_then(serde_json::Value::as_str);
+
+        if page_definition_id == Some(page.id.as_str()) {
+            page.page_definition = Some(page_definition.clone());
+
+            if page.page_action.is_none() {
+                page.page_action = read_page_action_from_page_definition(page_definition);
+            }
+        }
+    }
+}
+
+fn normalized_localized_string(
+    value: &str,
+    key: Option<&str>,
+    fallback: Option<&str>,
+    default: &str,
+) -> String {
+    if !value.trim().is_empty() {
+        return value.to_string();
+    }
+
+    fallback
+        .or(key)
+        .map(str::trim)
+        .filter(|candidate| !candidate.is_empty())
+        .unwrap_or(default)
+        .to_string()
+}
+
+fn read_page_action_from_page_definition(
+    page_definition: &serde_json::Value,
+) -> Option<PluginPageActionManifest> {
+    let tabs = page_definition.get("tabs")?.as_array()?;
+    let playground = tabs
+        .iter()
+        .find(|tab| tab.get("type").and_then(serde_json::Value::as_str) == Some("playground"))?;
+    let action_id = playground
+        .get("action")
+        .or_else(|| playground.get("actionId"))
+        .and_then(serde_json::Value::as_str)?
+        .to_string();
+    let input_placeholder = playground
+        .get("inputPlaceholder")
+        .or_else(|| playground.get("inputPlaceholderFallback"))
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_string);
+    let examples = playground
+        .get("examples")
+        .and_then(serde_json::Value::as_array)
+        .map(|examples| {
+            examples
+                .iter()
+                .filter_map(serde_json::Value::as_str)
+                .map(str::to_string)
+                .collect::<Vec<_>>()
+        })
+        .filter(|examples| !examples.is_empty());
+
+    Some(PluginPageActionManifest {
+        action_id,
+        input_placeholder,
+        examples,
     })
 }
 
@@ -858,6 +1050,242 @@ fn validate_entrypoints(
     Ok(())
 }
 
+fn load_plugin_page_definition(
+    manifest_path: &Path,
+    plugin_id: &str,
+    relative_path: Option<&str>,
+) -> Result<Option<serde_json::Value>, String> {
+    let Some(relative_path) = relative_path else {
+        return Ok(None);
+    };
+
+    validate_relative_child_path("page", relative_path)?;
+
+    let plugin_root = manifest_path.parent().ok_or_else(|| {
+        format!(
+            "plugin manifest has no parent directory: {}",
+            manifest_path.display()
+        )
+    })?;
+    let page_path = plugin_root.join(relative_path);
+    let canonical_page = resolve_plugin_child_file(plugin_root, &page_path, "plugin page")?;
+    let content = fs::read_to_string(&canonical_page).map_err(|error| {
+        format!(
+            "failed to read plugin page file: {}: {error}",
+            canonical_page.display()
+        )
+    })?;
+    let page = serde_json::from_str::<serde_json::Value>(&content).map_err(|error| {
+        format!(
+            "failed to parse plugin page file: {}: {error}",
+            canonical_page.display()
+        )
+    })?;
+
+    validate_page_definition(&page, plugin_id)?;
+
+    Ok(Some(page))
+}
+
+fn validate_page_definition(page: &serde_json::Value, plugin_id: &str) -> Result<(), String> {
+    let object = page
+        .as_object()
+        .ok_or_else(|| "page must be an object".to_string())?;
+    let id = object
+        .get("id")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| "page.id is required".to_string())?;
+
+    validate_non_empty("page.id", id)?;
+
+    if !id.starts_with("plugin:") {
+        return Err(format!("page.id must start with plugin:: {id}"));
+    }
+
+    let expected_prefix = format!("plugin:{plugin_id}");
+    if !id.starts_with(&expected_prefix) {
+        return Err(format!("page.id must start with {expected_prefix}: {id}"));
+    }
+
+    let tabs = object
+        .get("tabs")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| "page.tabs must be an array".to_string())?;
+    let mut seen_tab_ids = std::collections::HashSet::new();
+
+    for tab in tabs {
+        let tab_object = tab
+            .as_object()
+            .ok_or_else(|| "page.tabs[] must be an object".to_string())?;
+        let tab_id = tab_object
+            .get("id")
+            .and_then(serde_json::Value::as_str)
+            .ok_or_else(|| "page.tabs[].id is required".to_string())?;
+        let tab_type = tab_object
+            .get("type")
+            .and_then(serde_json::Value::as_str)
+            .ok_or_else(|| "page.tabs[].type is required".to_string())?;
+
+        validate_non_empty("page.tabs[].id", tab_id)?;
+        validate_non_empty("page.tabs[].type", tab_type)?;
+
+        if !seen_tab_ids.insert(tab_id.to_string()) {
+            return Err(format!("duplicate page tab id: {tab_id}"));
+        }
+
+        match tab_type {
+            "playground" | "converter" | "form" => {}
+            _ => return Err(format!("unsupported page tab type: {tab_type}")),
+        }
+
+        if matches!(tab_type, "playground" | "converter" | "form") {
+            let action = tab_object
+                .get("action")
+                .or_else(|| tab_object.get("actionId"))
+                .and_then(serde_json::Value::as_str)
+                .ok_or_else(|| format!("page tab {tab_id} action is required"))?;
+
+            validate_non_empty("page.tabs[].action", action)?;
+
+            if !is_valid_contribution_id(action) {
+                return Err(format!("invalid page tab action id: {action}"));
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn load_plugin_i18n(
+    manifest_path: &Path,
+    raw_i18n: Option<serde_json::Value>,
+    default_locale: Option<&str>,
+) -> Result<(Option<serde_json::Value>, Option<String>), String> {
+    let Some(raw_i18n) = raw_i18n else {
+        return Ok((None, None));
+    };
+
+    match raw_i18n {
+        serde_json::Value::String(relative_path) => {
+            validate_relative_child_path("i18n", &relative_path)?;
+
+            let plugin_root = manifest_path.parent().ok_or_else(|| {
+                format!(
+                    "plugin manifest has no parent directory: {}",
+                    manifest_path.display()
+                )
+            })?;
+            let i18n_path = plugin_root.join(&relative_path);
+            let canonical_i18n = resolve_plugin_child_file(plugin_root, &i18n_path, "plugin i18n")?;
+            let content = fs::read_to_string(&canonical_i18n).map_err(|error| {
+                format!(
+                    "failed to read plugin i18n file: {}: {error}",
+                    canonical_i18n.display()
+                )
+            })?;
+            let value = serde_json::from_str::<serde_json::Value>(&content).map_err(|error| {
+                format!(
+                    "failed to parse plugin i18n file: {}: {error}",
+                    canonical_i18n.display()
+                )
+            })?;
+
+            validate_i18n_value("i18n", &value, default_locale)?;
+
+            Ok((
+                Some(normalize_i18n_value(value, default_locale)),
+                Some(relative_path),
+            ))
+        }
+        value => {
+            validate_i18n_value("i18n", &value, default_locale)?;
+
+            Ok((Some(normalize_i18n_value(value, default_locale)), None))
+        }
+    }
+}
+
+fn normalize_i18n_value(
+    value: serde_json::Value,
+    default_locale: Option<&str>,
+) -> serde_json::Value {
+    let Some(default_locale) = default_locale else {
+        return value;
+    };
+
+    if value
+        .as_object()
+        .and_then(|object| object.get("translations"))
+        .is_some()
+    {
+        let mut object = value.as_object().cloned().unwrap_or_default();
+        object
+            .entry("defaultLocale".to_string())
+            .or_insert_with(|| serde_json::Value::String(default_locale.to_string()));
+
+        return serde_json::Value::Object(object);
+    }
+
+    serde_json::json!({
+        "defaultLocale": default_locale,
+        "translations": value,
+    })
+}
+
+fn validate_i18n_value(
+    label: &str,
+    value: &serde_json::Value,
+    default_locale: Option<&str>,
+) -> Result<(), String> {
+    let Some(source) = i18n_locale_map(value) else {
+        return Err(format!("{label} must be a locale dictionary object"));
+    };
+
+    if let Some(default_locale) = default_locale {
+        match source.get(default_locale) {
+            Some(serde_json::Value::Object(_)) => {}
+            Some(_) => {
+                return Err(format!(
+                    "{label}.{default_locale} must be a dictionary object"
+                ));
+            }
+            None => {}
+        }
+    }
+
+    for (locale, dictionary) in source {
+        validate_non_empty("i18n locale", locale)?;
+
+        if !is_valid_locale_code(locale) {
+            return Err(format!("invalid i18n locale: {locale}"));
+        }
+
+        if !dictionary.is_object() {
+            return Err(format!("{label}.{locale} must be a dictionary object"));
+        }
+    }
+
+    Ok(())
+}
+
+fn i18n_locale_map(
+    value: &serde_json::Value,
+) -> Option<&serde_json::Map<String, serde_json::Value>> {
+    let object = value.as_object()?;
+
+    object
+        .get("translations")
+        .and_then(serde_json::Value::as_object)
+        .or(Some(object))
+}
+
+fn is_valid_locale_code(locale: &str) -> bool {
+    !locale.is_empty()
+        && locale
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || matches!(character, '-' | '_'))
+}
+
 fn validate_non_empty(label: &str, value: &str) -> Result<(), String> {
     if value.trim().is_empty() {
         return Err(format!("{label} is required"));
@@ -888,12 +1316,6 @@ fn validate_supported_api_version(api_version: &str) -> Result<(), String> {
     if requested.0 != supported.0 {
         return Err(format!(
             "unsupported plugin apiVersion {api_version}; supported version is {SUPPORTED_PLUGIN_API_VERSION}"
-        ));
-    }
-
-    if requested.0 == 0 && requested.1 != supported.1 {
-        return Err(format!(
-            "unsupported plugin apiVersion {api_version}; supported pre-1.0 line is {SUPPORTED_PLUGIN_API_VERSION}"
         ));
     }
 
@@ -1108,6 +1530,170 @@ mod tests {
     }
 
     #[test]
+    fn manifest_loads_v02_standard_page_manifest() {
+        let app_data_dir = unique_test_dir("app");
+        let plugins_dir = app_plugins_dir(&app_data_dir);
+        let plugin_id = "v02-plugin";
+        let plugin_root = write_plugin_manifest(
+            &plugins_dir,
+            plugin_id,
+            &format!(
+                r#"{{
+  "id": "{plugin_id}",
+  "name": "v0.2 Plugin",
+  "version": "0.2.0",
+  "apiVersion": "0.2.0",
+  "defaultLocale": "en",
+  "i18n": "./i18n.json",
+  "page": "./page.json",
+  "entrypoints": {{ "main": "./main.js" }},
+  "capabilities": {{
+    "files": {{
+      "read": "none",
+      "write": "declared-output-directory"
+    }}
+  }},
+  "settings": {{
+    "outputDirectory": {{
+      "type": "directory",
+      "labelKey": "settings.outputDirectory.label",
+      "labelFallback": "Output directory"
+    }}
+  }},
+  "contributes": {{
+    "internalPage": {{
+      "id": "plugin:{plugin_id}",
+      "titleKey": "plugin.name",
+      "titleFallback": "v0.2 Plugin"
+    }},
+    "actions": [
+      {{
+        "id": "calculate",
+        "titleKey": "actions.calculate.title",
+        "titleFallback": "Calculate",
+        "descriptionKey": "actions.calculate.description",
+        "descriptionFallback": "Run a calculation.",
+        "input": {{ "type": "text" }},
+        "output": {{ "type": "text" }}
+      }}
+    ],
+    "viewers": [
+      {{
+        "id": "csv",
+        "titleKey": "viewers.csv.title",
+        "titleFallback": "CSV Viewer",
+        "extensions": ["csv"]
+      }}
+    ]
+  }}
+}}"#
+            ),
+        );
+        fs::write(
+            plugin_root.join("page.json"),
+            r#"{
+  "id": "plugin:v02-plugin",
+  "tabs": [
+    {
+      "id": "playground",
+      "type": "playground",
+      "titleKey": "tabs.playground.title",
+      "titleFallback": "Playground",
+      "action": "calculate",
+      "inputPlaceholderFallback": "Expression",
+      "examples": ["1 + 1"]
+    }
+  ]
+}"#,
+        )
+        .unwrap();
+        fs::write(plugin_root.join("i18n.json"), r#"{ "en": {} }"#).unwrap();
+        fs::write(
+            plugin_root.join("main.js"),
+            "export default function activate() {}",
+        )
+        .unwrap();
+
+        let manifest = load_plugin_manifest(&plugin_root.join("manifest.json")).unwrap();
+        let contributes = manifest.contributes.as_ref().unwrap();
+        let page = manifest.internal_pages.as_ref().unwrap().first().unwrap();
+
+        assert_eq!(manifest.api_version.as_deref(), Some("0.2.0"));
+        assert_eq!(manifest.page.as_deref(), Some("./page.json"));
+        assert!(manifest.page_definition.is_some());
+        assert!(manifest.settings.is_some());
+        assert_eq!(page.title, "v0.2 Plugin");
+        assert_eq!(page.page_action.as_ref().unwrap().action_id, "calculate");
+        assert!(page.page_definition.is_some());
+        assert_eq!(contributes.actions.as_ref().unwrap()[0].title, "Calculate");
+        assert_eq!(
+            contributes.actions.as_ref().unwrap()[0]
+                .description
+                .as_deref(),
+            Some("Run a calculation.")
+        );
+        assert_eq!(contributes.viewers.as_ref().unwrap()[0].title, "CSV Viewer");
+
+        fs::remove_dir_all(app_data_dir).ok();
+    }
+
+    #[test]
+    fn v02_page_definition_participates_in_plugin_fingerprint() {
+        let app_data_dir = unique_test_dir("app");
+        let settings_path = app_data_dir.join("settings.json");
+        let plugins_dir = app_plugins_dir(&app_data_dir);
+        let plugin_id = "v02-trust-plugin";
+        let plugin_root = write_plugin_manifest(
+            &plugins_dir,
+            plugin_id,
+            &format!(
+                r#"{{
+  "id": "{plugin_id}",
+  "name": "v0.2 Trust Plugin",
+  "version": "0.2.0",
+  "apiVersion": "0.2.0",
+  "page": "./page.json",
+  "entrypoints": {{ "main": "./main.js" }},
+  "contributes": {{
+    "internalPage": {{
+      "id": "plugin:{plugin_id}",
+      "titleFallback": "v0.2 Trust Plugin"
+    }}
+  }}
+}}"#
+            ),
+        );
+        fs::write(
+            plugin_root.join("page.json"),
+            r#"{ "id": "plugin:v02-trust-plugin", "tabs": [] }"#,
+        )
+        .unwrap();
+        fs::write(
+            plugin_root.join("main.js"),
+            "export default function activate() {}",
+        )
+        .unwrap();
+
+        let trusted = set_plugin_trust(&app_data_dir, &settings_path, plugin_id, true).unwrap();
+        fs::write(
+            plugin_root.join("page.json"),
+            r#"{ "id": "plugin:v02-trust-plugin", "tabs": [{ "id": "playground", "type": "playground", "action": "calculate" }] }"#,
+        )
+        .unwrap();
+
+        let changed = get_plugin_trust_status(&app_data_dir, &settings_path, plugin_id).unwrap();
+
+        assert!(!changed.trusted);
+        assert_eq!(
+            changed.reason.as_deref(),
+            Some("plugin files changed since it was trusted")
+        );
+        assert_ne!(changed.manifest_fingerprint, trusted.manifest_fingerprint);
+
+        fs::remove_dir_all(app_data_dir).ok();
+    }
+
+    #[test]
     fn installs_plugin_from_local_directory() {
         let app_data_dir = unique_test_dir("app");
         let source_parent = unique_test_dir("source");
@@ -1221,6 +1807,152 @@ mod tests {
                 .unwrap()[0]
                 .id,
             "pdf"
+        );
+
+        fs::remove_dir_all(app_data_dir).ok();
+    }
+
+    #[test]
+    fn manifest_loads_linked_i18n_file_when_declared() {
+        let app_data_dir = unique_test_dir("app");
+        let plugins_dir = app_plugins_dir(&app_data_dir);
+        let plugin_id = "linked-i18n-plugin";
+        let plugin_root = write_plugin_manifest(
+            &plugins_dir,
+            plugin_id,
+            &format!(
+                r#"{{
+  "id": "{plugin_id}",
+  "name": "Linked i18n Plugin",
+  "version": "0.1.0",
+  "apiVersion": "0.1.0",
+  "defaultLocale": "en",
+  "i18n": "./i18n.json",
+  "entrypoints": {{ "main": "./main.js" }}
+}}"#
+            ),
+        );
+        fs::write(
+            plugin_root.join("i18n.json"),
+            r#"{
+  "en": {
+    "plugin.name": "Linked i18n Plugin",
+    "actions.hello.title": "Say hello"
+  },
+  "ja": {
+    "plugin.name": "リンク i18n プラグイン"
+  }
+}"#,
+        )
+        .unwrap();
+        fs::write(
+            plugin_root.join("main.js"),
+            "export default function activate() {}",
+        )
+        .unwrap();
+
+        let manifest = load_plugin_manifest(&plugin_root.join("manifest.json")).unwrap();
+        let i18n = manifest.i18n.as_ref().unwrap();
+
+        assert_eq!(manifest.default_locale.as_deref(), Some("en"));
+        assert_eq!(manifest.i18n_path.as_deref(), Some("./i18n.json"));
+        assert_eq!(i18n["defaultLocale"], serde_json::json!("en"));
+        assert_eq!(
+            i18n["translations"]["ja"]["plugin.name"],
+            serde_json::json!("リンク i18n プラグイン")
+        );
+
+        fs::remove_dir_all(app_data_dir).ok();
+    }
+
+    #[test]
+    fn linked_i18n_file_participates_in_plugin_fingerprint() {
+        let app_data_dir = unique_test_dir("app");
+        let settings_path = app_data_dir.join("settings.json");
+        let plugins_dir = app_plugins_dir(&app_data_dir);
+        let plugin_id = "i18n-trust-plugin";
+        let plugin_root = write_plugin_manifest(
+            &plugins_dir,
+            plugin_id,
+            &format!(
+                r#"{{
+  "id": "{plugin_id}",
+  "name": "i18n Trust Plugin",
+  "version": "0.1.0",
+  "apiVersion": "0.1.0",
+  "defaultLocale": "en",
+  "i18n": "./i18n.json",
+  "entrypoints": {{ "main": "./main.js" }}
+}}"#
+            ),
+        );
+        fs::write(
+            plugin_root.join("i18n.json"),
+            r#"{ "en": { "name": "Before" } }"#,
+        )
+        .unwrap();
+        fs::write(
+            plugin_root.join("main.js"),
+            "export default function activate() {}",
+        )
+        .unwrap();
+
+        let trusted = set_plugin_trust(&app_data_dir, &settings_path, plugin_id, true).unwrap();
+        fs::write(
+            plugin_root.join("i18n.json"),
+            r#"{ "en": { "name": "After" } }"#,
+        )
+        .unwrap();
+
+        let changed = get_plugin_trust_status(&app_data_dir, &settings_path, plugin_id).unwrap();
+
+        assert!(!changed.trusted);
+        assert_eq!(
+            changed.reason.as_deref(),
+            Some("plugin files changed since it was trusted")
+        );
+        assert_ne!(changed.manifest_fingerprint, trusted.manifest_fingerprint);
+
+        fs::remove_dir_all(app_data_dir).ok();
+    }
+
+    #[test]
+    fn linked_i18n_allows_missing_default_locale_dictionary() {
+        let app_data_dir = unique_test_dir("app");
+        let plugins_dir = app_plugins_dir(&app_data_dir);
+        let plugin_id = "partial-i18n-plugin";
+        let plugin_root = write_plugin_manifest(
+            &plugins_dir,
+            plugin_id,
+            &format!(
+                r#"{{
+  "id": "{plugin_id}",
+  "name": "Partial i18n Plugin",
+  "version": "0.1.0",
+  "apiVersion": "0.1.0",
+  "defaultLocale": "en",
+  "i18n": "./i18n.json",
+  "entrypoints": {{ "main": "./main.js" }}
+}}"#
+            ),
+        );
+        fs::write(
+            plugin_root.join("i18n.json"),
+            r#"{ "ja": { "plugin.name": "部分 i18n プラグイン" } }"#,
+        )
+        .unwrap();
+        fs::write(
+            plugin_root.join("main.js"),
+            "export default function activate() {}",
+        )
+        .unwrap();
+
+        let manifest = load_plugin_manifest(&plugin_root.join("manifest.json")).unwrap();
+
+        assert_eq!(manifest.default_locale.as_deref(), Some("en"));
+        assert_eq!(
+            manifest.i18n.as_ref().unwrap()["translations"]["ja"]["plugin.name"],
+            serde_json::json!("部分 i18n プラグイン")
         );
 
         fs::remove_dir_all(app_data_dir).ok();

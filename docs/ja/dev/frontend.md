@@ -98,6 +98,6 @@ preview type は `src/types/item.ts` で表現されます。
 4. Activate plugin modules: frontend runtime で plugin activation を実行します。
 5. Inject trusted styles: trusted plugin CSS を追加します。
 6. Register pages, actions, and viewers: plugin contribution を registry に登録します。
-7. Render plugin components: component API 経由で plugin UI を描画します。
+7. Render plugin pages: 標準 tab template、または Custom tab の React component を描画します。
 
-プラグインは React を直接 import せず、Glimpse が提供する component を通じて描画します。
+標準 tab は Glimpse が UI を生成します。Custom tab は React component として実装できますが、file access や外部起動など Glimpse の外側に影響する操作は plugin capability と action を通します。

@@ -23,6 +23,12 @@ export type CreateTextFilePayload = {
   extension: "md" | "gjson";
 };
 
+export type WritePluginTextOutputPayload = {
+  directory: string;
+  fileName: string;
+  body: string;
+};
+
 export type FileMetadata = {
   sizeBytes: number;
 };
@@ -57,6 +63,9 @@ export const fileApi = {
    */
   readTextFile: (filePath: string) =>
     invoke<string>("read_text_file", { filePath }),
+
+  readPluginTextInput: (filePath: string) =>
+    invoke<string>("read_plugin_text_input", { filePath }),
 
   /**
    * Reads a UTF-8 text file constrained to one configured Target Group.
@@ -133,6 +142,12 @@ export const fileApi = {
    */
   createTextFile: (payload: CreateTextFilePayload) =>
     invoke<string>("create_text_file", { payload }),
+
+  getDefaultDownloadDirectory: () =>
+    invoke<string>("get_default_download_directory"),
+
+  writePluginTextOutput: (payload: WritePluginTextOutputPayload) =>
+    invoke<string>("write_plugin_text_output", { payload }),
 
   /**
    * Creates a new Markdown file.

@@ -87,7 +87,12 @@ export const localizeInternalPage = (
 
   return {
     ...page,
-    title: translateFirst(plugin, keys("title"), page.title),
+    title: translateDeclaredString(
+      plugin,
+      page.titleKey,
+      page.titleFallback,
+      translateFirst(plugin, keys("title"), page.title),
+    ),
     aliases:
       translateFirstArray(plugin, keys("aliases"), page.aliases) ??
       page.aliases,
@@ -130,6 +135,142 @@ export const localizeInternalPage = (
           ),
         }
       : page.help,
+    pageDefinition: page.pageDefinition
+      ? {
+          ...page.pageDefinition,
+          tabs: page.pageDefinition.tabs.map((tab) => ({
+            ...tab,
+            title: translateDeclaredString(
+              plugin,
+              tab.titleKey,
+              tab.titleFallback,
+              tab.title ?? tab.titleFallback ?? tab.id,
+            ),
+            ...(tab.type === "playground"
+              ? {
+                  inputPlaceholder: translateDeclaredString(
+                    plugin,
+                    tab.inputPlaceholderKey,
+                    tab.inputPlaceholderFallback,
+                    tab.inputPlaceholder ?? tab.inputPlaceholderFallback ?? "",
+                  ),
+                }
+              : {}),
+            ...(tab.type === "converter"
+              ? {
+                  description: translateDeclaredString(
+                    plugin,
+                    tab.descriptionKey,
+                    tab.descriptionFallback,
+                    tab.description ?? tab.descriptionFallback ?? "",
+                  ),
+                  chooseFileLabel: translateDeclaredString(
+                    plugin,
+                    tab.chooseFileLabelKey,
+                    tab.chooseFileLabelFallback,
+                    tab.chooseFileLabel ??
+                      tab.chooseFileLabelFallback ??
+                      "Choose File",
+                  ),
+                  emptyLabel: translateDeclaredString(
+                    plugin,
+                    tab.emptyLabelKey,
+                    tab.emptyLabelFallback,
+                    tab.emptyLabel ??
+                      tab.emptyLabelFallback ??
+                      "Drop a text file here",
+                  ),
+                  convertingLabel: translateDeclaredString(
+                    plugin,
+                    tab.convertingLabelKey,
+                    tab.convertingLabelFallback,
+                    tab.convertingLabel ??
+                      tab.convertingLabelFallback ??
+                      "Converting",
+                  ),
+                  resultsLabel: translateDeclaredString(
+                    plugin,
+                    tab.resultsLabelKey,
+                    tab.resultsLabelFallback,
+                    tab.resultsLabel ?? tab.resultsLabelFallback ?? "Results",
+                  ),
+                  revealLabel: translateDeclaredString(
+                    plugin,
+                    tab.revealLabelKey,
+                    tab.revealLabelFallback,
+                    tab.revealLabel ?? tab.revealLabelFallback ?? "Reveal",
+                  ),
+                  clearLabel: translateDeclaredString(
+                    plugin,
+                    tab.clearLabelKey,
+                    tab.clearLabelFallback,
+                    tab.clearLabel ?? tab.clearLabelFallback ?? "Clear",
+                  ),
+                  fileColumnLabel: translateDeclaredString(
+                    plugin,
+                    tab.fileColumnLabelKey,
+                    tab.fileColumnLabelFallback,
+                    tab.fileColumnLabel ?? tab.fileColumnLabelFallback ?? "File",
+                  ),
+                  sizeColumnLabel: translateDeclaredString(
+                    plugin,
+                    tab.sizeColumnLabelKey,
+                    tab.sizeColumnLabelFallback,
+                    tab.sizeColumnLabel ?? tab.sizeColumnLabelFallback ?? "Size",
+                  ),
+                  pathColumnLabel: translateDeclaredString(
+                    plugin,
+                    tab.pathColumnLabelKey,
+                    tab.pathColumnLabelFallback,
+                    tab.pathColumnLabel ?? tab.pathColumnLabelFallback ?? "Path",
+                  ),
+                  emptyResultsLabel: translateDeclaredString(
+                    plugin,
+                    tab.emptyResultsLabelKey,
+                    tab.emptyResultsLabelFallback,
+                    tab.emptyResultsLabel ??
+                      tab.emptyResultsLabelFallback ??
+                      "No output yet",
+                  ),
+                }
+              : {}),
+            ...(tab.type === "form"
+              ? {
+                  submitLabel: translateDeclaredString(
+                    plugin,
+                    tab.submitLabelKey,
+                    tab.submitLabelFallback,
+                    tab.submitLabel ?? tab.submitLabelFallback ?? "Run",
+                  ),
+                  fields: tab.fields?.map((field) => ({
+                    ...field,
+                    label: translateDeclaredString(
+                      plugin,
+                      field.labelKey,
+                      field.labelFallback,
+                      field.label ?? field.labelFallback ?? field.id,
+                    ),
+                    description: translateDeclaredString(
+                      plugin,
+                      field.descriptionKey,
+                      field.descriptionFallback,
+                      field.description ?? field.descriptionFallback ?? "",
+                    ),
+                    options: field.options?.map((option) => ({
+                      ...option,
+                      label: translateDeclaredString(
+                        plugin,
+                        option.labelKey,
+                        option.labelFallback,
+                        option.label ?? option.labelFallback ?? String(option.value),
+                      ),
+                    })),
+                  })),
+                }
+              : {}),
+          })),
+        }
+      : page.pageDefinition,
     staticPage: page.staticPage
       ? {
           ...page.staticPage,
@@ -153,16 +294,22 @@ export const localizeAction = (
   action: PluginActionManifest,
 ): PluginActionManifest => ({
   ...action,
-  title: translatePluginString(
+  title: translateDeclaredString(
     plugin,
-    `actions.${action.id}.title`,
-    action.title,
+    action.titleKey,
+    action.titleFallback,
+    translatePluginString(plugin, `actions.${action.id}.title`, action.title),
   ),
   description: action.description
-    ? translatePluginString(
+    ? translateDeclaredString(
         plugin,
-        `actions.${action.id}.description`,
-        action.description,
+        action.descriptionKey,
+        action.descriptionFallback,
+        translatePluginString(
+          plugin,
+          `actions.${action.id}.description`,
+          action.description,
+        ),
       )
     : action.description,
   aliases:
@@ -176,19 +323,38 @@ export const localizeViewer = (
   viewer: PluginViewerManifest,
 ): PluginViewerManifest => ({
   ...viewer,
-  title: translatePluginString(
+  title: translateDeclaredString(
     plugin,
-    `viewers.${viewer.id}.title`,
-    viewer.title,
+    viewer.titleKey,
+    viewer.titleFallback,
+    translatePluginString(plugin, `viewers.${viewer.id}.title`, viewer.title),
   ),
   description: viewer.description
-    ? translatePluginString(
+    ? translateDeclaredString(
         plugin,
-        `viewers.${viewer.id}.description`,
-        viewer.description,
+        viewer.descriptionKey,
+        viewer.descriptionFallback,
+        translatePluginString(
+          plugin,
+          `viewers.${viewer.id}.description`,
+          viewer.description,
+        ),
       )
     : viewer.description,
 });
+
+const translateDeclaredString = (
+  plugin: GlimpsePlugin,
+  key: string | undefined,
+  fallback: string | undefined,
+  current: string,
+): string => {
+  if (!key) {
+    return current;
+  }
+
+  return translatePluginString(plugin, key, fallback ?? current);
+};
 
 const localizeHelpCommand = (
   plugin: GlimpsePlugin,

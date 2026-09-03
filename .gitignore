@@ -30,6 +30,7 @@ generated/
 */.vitepress/cache
 
 # other repo
+.ops/
 .plugins/
 .private-docs/
 demo/

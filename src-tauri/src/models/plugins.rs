@@ -19,12 +19,17 @@ pub struct PluginManifest {
     pub version: String,
     pub api_version: Option<String>,
     pub description: Option<String>,
+    pub default_locale: Option<String>,
     pub i18n: Option<serde_json::Value>,
+    pub i18n_path: Option<String>,
+    pub page: Option<String>,
+    pub page_definition: Option<serde_json::Value>,
     pub enabled_by_default: Option<bool>,
     pub entrypoints: Option<PluginEntrypoints>,
     pub contributes: Option<PluginContributions>,
     pub dependencies: Option<PluginDependencies>,
     pub capabilities: Option<PluginCapabilities>,
+    pub settings: Option<serde_json::Value>,
     pub internal_pages: Option<Vec<PluginInternalPageManifest>>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub warnings: Vec<String>,
@@ -59,19 +64,23 @@ pub struct RawPluginManifest {
     pub version: String,
     pub api_version: Option<String>,
     pub description: Option<String>,
+    pub default_locale: Option<String>,
     pub i18n: Option<serde_json::Value>,
+    pub page: Option<String>,
     pub enabled_by_default: Option<bool>,
     pub entrypoints: Option<PluginEntrypoints>,
     pub backend: Option<serde_json::Value>,
     pub contributes: Option<PluginContributions>,
     pub dependencies: Option<PluginDependencies>,
     pub capabilities: Option<PluginCapabilities>,
+    pub settings: Option<serde_json::Value>,
     pub internal_pages: Option<Vec<PluginInternalPageManifest>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PluginContributions {
+    pub internal_page: Option<PluginInternalPageManifest>,
     pub internal_pages: Option<Vec<PluginInternalPageManifest>>,
     pub actions: Option<Vec<PluginActionManifest>>,
     pub viewers: Option<Vec<PluginViewerManifest>>,
@@ -81,8 +90,15 @@ pub struct PluginContributions {
 #[serde(rename_all = "camelCase")]
 pub struct PluginActionManifest {
     pub id: String,
+    #[serde(default)]
     pub title: String,
+    pub title_key: Option<String>,
+    pub title_fallback: Option<String>,
     pub description: Option<String>,
+    pub description_key: Option<String>,
+    pub description_fallback: Option<String>,
+    pub input: Option<serde_json::Value>,
+    pub output: Option<serde_json::Value>,
     pub aliases: Option<Vec<String>>,
 }
 
@@ -90,8 +106,13 @@ pub struct PluginActionManifest {
 #[serde(rename_all = "camelCase")]
 pub struct PluginViewerManifest {
     pub id: String,
+    #[serde(default)]
     pub title: String,
+    pub title_key: Option<String>,
+    pub title_fallback: Option<String>,
     pub description: Option<String>,
+    pub description_key: Option<String>,
+    pub description_fallback: Option<String>,
     pub extensions: Option<Vec<String>>,
 }
 
@@ -112,6 +133,7 @@ pub struct PluginCapabilities {
 #[serde(rename_all = "camelCase")]
 pub struct PluginFileCapabilities {
     pub read: Option<PluginFileReadScope>,
+    pub write: Option<PluginFileWriteScope>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -119,6 +141,14 @@ pub struct PluginFileCapabilities {
 pub enum PluginFileReadScope {
     None,
     ActiveTab,
+    TargetGroup,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum PluginFileWriteScope {
+    None,
+    DeclaredOutputDirectory,
     TargetGroup,
 }
 
@@ -183,13 +213,17 @@ pub struct PluginUninstallResult {
 #[serde(rename_all = "camelCase")]
 pub struct PluginInternalPageManifest {
     pub id: String,
+    #[serde(default)]
     pub title: String,
+    pub title_key: Option<String>,
+    pub title_fallback: Option<String>,
     pub tags: Option<Vec<String>>,
     pub aliases: Option<Vec<String>>,
     pub boost: Option<f64>,
     pub page_action: Option<PluginPageActionManifest>,
     pub help: Option<PluginPageHelpContent>,
     pub static_page: Option<PluginStaticPageContent>,
+    pub page_definition: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

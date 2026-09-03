@@ -255,6 +255,7 @@ const toInternalPageContribution = (
   plugin: GlimpsePlugin,
   page: PluginInternalPageManifest,
 ): InternalPageContribution => {
+  const localizedPlugin = localizePlugin(plugin);
   const localizedPage = localizeInternalPage(plugin, page);
 
   return {
@@ -262,6 +263,7 @@ const toInternalPageContribution = (
     pluginId: plugin.id,
     render: () => createElement(PluginInternalPageView, {
       page: localizedPage,
+      plugin: localizedPlugin,
       pluginId: plugin.id,
     }),
   };

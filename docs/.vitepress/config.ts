@@ -67,7 +67,13 @@ const jaDevelopment = [
   { text: "インデックス作成", link: "/ja/dev/indexing" },
   { text: "パーサー", link: "/ja/dev/parser" },
   { text: "設定アーキテクチャ", link: "/ja/dev/settings" },
-  { text: "プラグインアーキテクチャ", link: "/ja/dev/plugins" },
+  { text: "プラグイン仕様", link: "/ja/dev/plugin-spec" },
+  { text: "プラグイン Manifest", link: "/ja/dev/plugin-manifest" },
+  { text: "プラグイン Runtime", link: "/ja/dev/plugin-runtime" },
+  { text: "プラグイン Page", link: "/ja/dev/plugin-page" },
+  { text: "プラグイン i18n", link: "/ja/dev/plugin-i18n" },
+  { text: "プラグイン Security", link: "/ja/dev/plugin-security" },
+  { text: "プラグイン Custom UI 予約仕様", link: "/ja/dev/plugin-custom" },
   { text: "ログ", link: "/ja/dev/logging" },
 ];
 

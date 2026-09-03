@@ -40,6 +40,7 @@ use crate::store::settings::load_settings;
 
 const MAX_BINARY_READ_BYTES: u64 = 32 * 1024 * 1024;
 const MAX_TEXT_READ_BYTES: u64 = 32 * 1024 * 1024;
+const MAX_PLUGIN_TEXT_OUTPUT_BYTES: usize = 32 * 1024 * 1024;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -67,6 +68,15 @@ pub fn read_text_file(settings_path: &Path, file_path: String) -> Result<String,
     let path = canonicalize_existing_file(file_path)?;
 
     ensure_path_is_in_configured_target_group(&path, &settings)?;
+    ensure_text_file_size_within_limit(&path)?;
+
+    fs::read_to_string(&path)
+        .map_err(|error| format!("failed to read file: {}: {error}", path.display()))
+}
+
+pub fn read_text_file_from_path(file_path: String) -> Result<String, String> {
+    let path = canonicalize_existing_file(file_path)?;
+
     ensure_text_file_size_within_limit(&path)?;
 
     fs::read_to_string(&path)
@@ -258,6 +268,45 @@ pub fn create_markdown_file_in_current_target(
     body: String,
 ) -> Result<String, String> {
     create_text_file_in_current_target(settings_path, title, body, "md".to_string())
+}
+
+pub fn default_download_directory() -> Result<String, String> {
+    let home = std::env::var_os("USERPROFILE")
+        .or_else(|| std::env::var_os("HOME"))
+        .ok_or_else(|| "home directory is not available".to_string())?;
+    let downloads = PathBuf::from(home).join("Downloads");
+
+    if downloads.is_dir() {
+        return Ok(downloads.to_string_lossy().to_string());
+    }
+
+    Err(format!(
+        "default download directory does not exist: {}",
+        downloads.display()
+    ))
+}
+
+pub fn write_text_file_in_directory(
+    directory: String,
+    file_name: String,
+    body: String,
+) -> Result<String, String> {
+    if body.len() > MAX_PLUGIN_TEXT_OUTPUT_BYTES {
+        return Err(format!(
+            "plugin output is too large: {} bytes exceeds {} bytes",
+            body.len(),
+            MAX_PLUGIN_TEXT_OUTPUT_BYTES
+        ));
+    }
+
+    let output_dir = canonicalize_existing_dir(directory)?;
+    let file_name = safe_file_name_from_input(&file_name)?;
+    let file_path = unique_file_path(&output_dir, &file_name);
+
+    fs::write(&file_path, body)
+        .map_err(|error| format!("failed to write file: {}: {error}", file_path.display()))?;
+
+    Ok(file_path.to_string_lossy().to_string())
 }
 
 /// Updates only the title / filename of an existing Markdown file.
@@ -571,6 +620,33 @@ fn sanitize_file_extension(extension: &str) -> Result<String, String> {
     }
 
     Ok(extension)
+}
+
+fn safe_file_name_from_input(file_name: &str) -> Result<String, String> {
+    let name = file_name.trim();
+
+    if name.is_empty() {
+        return file_name_from_title("", Some("txt"));
+    }
+
+    let normalized = name.replace(['/', '\\'], "_");
+    let extension = Path::new(&normalized)
+        .extension()
+        .and_then(|extension| extension.to_str());
+    let stem = Path::new(&normalized)
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .unwrap_or(&normalized);
+    let stem = sanitize_file_stem(stem);
+
+    if stem.is_empty() {
+        return Err("file name does not contain usable characters".to_string());
+    }
+
+    match extension {
+        Some(extension) => Ok(format!("{stem}.{}", sanitize_file_extension(extension)?)),
+        None => Ok(stem),
+    }
 }
 
 /// Sanitizes a filename stem for filesystem safety.

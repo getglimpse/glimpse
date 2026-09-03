@@ -41,12 +41,25 @@ pub struct CreateTextFilePayload {
     pub extension: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WritePluginTextOutputPayload {
+    pub directory: String,
+    pub file_name: String,
+    pub body: String,
+}
+
 #[tauri::command]
 pub fn read_text_file(
     settings_path: State<SharedSettingsPath>,
     file_path: String,
 ) -> Result<String, String> {
     crate::store::file::read_text_file(&resolve_settings_path(&settings_path)?, file_path)
+}
+
+#[tauri::command]
+pub fn read_plugin_text_input(file_path: String) -> Result<String, String> {
+    crate::store::file::read_text_file_from_path(file_path)
 }
 
 #[tauri::command]
@@ -137,6 +150,20 @@ pub async fn create_text_file(
     runtime.index_file(PathBuf::from(&file_path)).await?;
 
     Ok(file_path)
+}
+
+#[tauri::command]
+pub fn get_default_download_directory() -> Result<String, String> {
+    crate::store::file::default_download_directory()
+}
+
+#[tauri::command]
+pub fn write_plugin_text_output(payload: WritePluginTextOutputPayload) -> Result<String, String> {
+    crate::store::file::write_text_file_in_directory(
+        payload.directory,
+        payload.file_name,
+        payload.body,
+    )
 }
 
 #[tauri::command]

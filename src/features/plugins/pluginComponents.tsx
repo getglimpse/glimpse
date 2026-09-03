@@ -3,20 +3,27 @@ import {
   useId,
   useRef,
   useState,
+  type ChangeEvent,
   type ComponentType,
+  type DragEvent,
   type ReactNode,
 } from "react";
 
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
+import { fileApi } from "@/api/file";
 import { openerApi } from "@/api/opener";
+import { settingsApi } from "@/api/settings";
 import { Switch } from "@/components/ui/switch";
 import { copyText } from "@/utils/clipboard";
 
 import {
   readPluginCopySuccessfulSearchResultEnabled,
+  readPluginPreference,
   writePluginCopySuccessfulSearchResultEnabled,
+  writePluginPreference,
 } from "./pluginSettings";
 
 export type PluginActionHandler = (
@@ -88,6 +95,8 @@ export type PluginComponents = {
   Markdown: ComponentType<MarkdownProps>;
   DeferredFrame: ComponentType<DeferredFrameProps>;
   FileOpenButton: ComponentType<FileOpenButtonProps>;
+  FileDropConverter: ComponentType<FileDropConverterProps>;
+  OutputDirectorySettings: ComponentType<OutputDirectorySettingsProps>;
   ActionPlayground: ComponentType<ActionPlaygroundPublicProps>;
   ActionSettings: ComponentType<ActionSettingsPublicProps>;
   CalculationPanel: ComponentType<CalculationPanelPublicProps>;
@@ -186,6 +195,36 @@ type FileOpenButtonProps = {
   variant?: ButtonProps["variant"];
 };
 
+type FileDropConverterProps = {
+  action: string;
+  accept?: string;
+  multiple?: boolean;
+  maxBytes?: number;
+  maxFiles?: number;
+  outputDirectoryPreference?: string;
+  title?: ReactNode;
+  description?: ReactNode;
+  chooseFileLabel?: ReactNode;
+  emptyLabel?: ReactNode;
+  successLabel?: ReactNode;
+  convertingLabel?: ReactNode;
+  resultsLabel?: ReactNode;
+  revealLabel?: ReactNode;
+  clearLabel?: ReactNode;
+  fileColumnLabel?: ReactNode;
+  sizeColumnLabel?: ReactNode;
+  pathColumnLabel?: ReactNode;
+  emptyResultsLabel?: ReactNode;
+};
+
+type OutputDirectorySettingsProps = {
+  preference?: string;
+  label?: ReactNode;
+  placeholder?: string;
+  chooseDirectoryLabel?: ReactNode;
+  description?: ReactNode;
+};
+
 type ActionPlaygroundPublicProps = {
   action: string;
   placeholder?: string;
@@ -252,7 +291,15 @@ export const createPluginComponents = (
   Markdown,
   DeferredFrame,
   FileOpenButton,
-  ActionPlayground: (props) => <ActionPlayground {...props} actions={actions} />,
+  FileDropConverter: (props) => (
+    <FileDropConverter {...props} actions={actions} pluginId={pluginId} />
+  ),
+  OutputDirectorySettings: (props) => (
+    <OutputDirectorySettings {...props} pluginId={pluginId} />
+  ),
+  ActionPlayground: (props) => (
+    <ActionPlayground {...props} actions={actions} />
+  ),
   ActionSettings: (props) => <ActionSettings {...props} pluginId={pluginId} />,
   CalculationPanel: (props) => (
     <CalculationPanel {...props} actions={actions} />
@@ -661,9 +708,7 @@ const DeferredFrame = ({
   const [loaded, setLoaded] = useState(false);
 
   if (loaded && src) {
-    return (
-      <iframe key={src} src={src} title={title} className={className} />
-    );
+    return <iframe key={src} src={src} title={title} className={className} />;
   }
 
   return (
@@ -722,6 +767,591 @@ const FileOpenButton = ({
       {message && <span className="text-xs text-text-muted">{message}</span>}
     </div>
   );
+};
+
+type FileDropConverterResult = {
+  fileName: string;
+  body: string;
+};
+
+type FileDropConverterSavedResult = {
+  fileName: string;
+  path: string;
+  size: number;
+};
+
+const DEFAULT_FILE_DROP_MAX_BYTES = 10 * 1024 * 1024;
+const DEFAULT_OUTPUT_DIRECTORY_PREFERENCE = "downloadDirectory";
+
+const FileDropConverter = ({
+  action,
+  accept = ".txt,.md,.markdown,text/plain,text/markdown",
+  multiple = false,
+  maxBytes = DEFAULT_FILE_DROP_MAX_BYTES,
+  maxFiles = 1,
+  outputDirectoryPreference = DEFAULT_OUTPUT_DIRECTORY_PREFERENCE,
+  description = "Converted files are written to the configured output directory.",
+  chooseFileLabel = "Choose File",
+  emptyLabel = "Drop a text file here",
+  convertingLabel = "Converting",
+  resultsLabel = "Results",
+  revealLabel = "Reveal",
+  clearLabel = "Clear",
+  fileColumnLabel = "File",
+  sizeColumnLabel = "Size",
+  pathColumnLabel = "Path",
+  emptyResultsLabel = "No output yet",
+  actions,
+  pluginId,
+}: FileDropConverterProps & {
+  actions: PluginActions;
+  pluginId: string;
+}) => {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [dragActive, setDragActive] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [directory, setDirectory] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [results, setResults] = useState<FileDropConverterSavedResult[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadDirectory = async () => {
+      try {
+        const saved = await readPluginPreference(
+          pluginId,
+          outputDirectoryPreference,
+        );
+        const fallback = saved ?? (await fileApi.getDefaultDownloadDirectory());
+
+        if (!cancelled) {
+          setDirectory(fallback);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setMessage(error instanceof Error ? error.message : String(error));
+        }
+      }
+    };
+
+    void loadDirectory();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [outputDirectoryPreference, pluginId]);
+
+  const saveConverterOutputs = async (
+    sourceName: string,
+    result: unknown,
+  ): Promise<FileDropConverterSavedResult[]> => {
+    if (!directory) {
+      throw new Error("Output directory is not available");
+    }
+
+    const outputs = normalizeFileDropConverterResults(sourceName, result);
+    const savedPaths = await Promise.all(
+      outputs.map((output) =>
+        fileApi.writePluginTextOutput({
+          directory,
+          fileName: output.fileName,
+          body: output.body,
+        }),
+      ),
+    );
+    const savedResults = outputs.map((output, index) => ({
+      fileName: output.fileName,
+      path: savedPaths[index],
+      size: output.body.length,
+    }));
+
+    setResults(savedResults);
+    setMessage(null);
+
+    return savedResults;
+  };
+
+  const convertFiles = async (files: File[]) => {
+    if (!directory) {
+      throw new Error("Output directory is not available");
+    }
+
+    if (files.length === 0) {
+      throw new Error("File is required");
+    }
+
+    if (files.length > maxFiles) {
+      throw new Error(`Too many files: ${files.length} exceeds ${maxFiles}`);
+    }
+
+    const payloadFiles = await Promise.all(
+      files.map(async (file) => {
+        ensureSupportedTextFile(file.name, file.type);
+
+        if (file.size > maxBytes) {
+          throw new Error(
+            `File is too large: ${formatBytes(file.size)} exceeds ${formatBytes(maxBytes)}`,
+          );
+        }
+
+        return {
+          name: file.name,
+          type: file.type,
+          contentType: file.type,
+          size: file.size,
+          text: await file.text(),
+        };
+      }),
+    );
+    const result = await invokePluginAction(actions, action, {
+      ...(multiple ? { files: payloadFiles } : payloadFiles[0]),
+    });
+
+    await saveConverterOutputs(payloadFiles[0]?.name ?? "converted.txt", result);
+  };
+
+  const convertSourcePaths = async (sourcePaths: string[]) => {
+    if (sourcePaths.length === 0) {
+      throw new Error("File is required");
+    }
+
+    if (sourcePaths.length > maxFiles) {
+      throw new Error(`Too many files: ${sourcePaths.length} exceeds ${maxFiles}`);
+    }
+
+    const payloadFiles = await Promise.all(
+      sourcePaths.map(async (sourcePath) => {
+        const name = sourcePath.split(/[\\/]/).pop() || "dropped-file.txt";
+
+        ensureSupportedTextFile(name, "");
+
+        const text = await fileApi.readPluginTextInput(sourcePath);
+
+        return {
+          name,
+          type: "",
+          contentType: "",
+          size: text.length,
+          text,
+          sourcePath,
+        };
+      }),
+    );
+    const result = await invokePluginAction(actions, action, {
+      ...(multiple ? { files: payloadFiles } : payloadFiles[0]),
+    });
+
+    await saveConverterOutputs(payloadFiles[0]?.name ?? "converted.txt", result);
+  };
+
+  const runFiles = async (files: File[]) => {
+    if (files.length === 0 || running) {
+      return;
+    }
+
+    setRunning(true);
+    setMessage(null);
+    setResults([]);
+
+    try {
+      await convertFiles(files);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  const runSourcePaths = async (sourcePaths: string[]) => {
+    if (sourcePaths.length === 0 || running) {
+      return;
+    }
+
+    setRunning(true);
+    setMessage(null);
+    setResults([]);
+
+    try {
+      await convertSourcePaths(sourcePaths);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  useEffect(() => {
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+
+    void getCurrentWindow()
+      .onDragDropEvent((event) => {
+        if (event.payload.type === "enter" || event.payload.type === "over") {
+          setDragActive(true);
+          return;
+        }
+
+        if (event.payload.type === "leave") {
+          setDragActive(false);
+          return;
+        }
+
+        setDragActive(false);
+        void runSourcePaths(
+          multiple ? event.payload.paths : event.payload.paths.slice(0, 1),
+        );
+      })
+      .then((dispose) => {
+        if (disposed) {
+          dispose();
+          return;
+        }
+
+        unlisten = dispose;
+      })
+      .catch((error) => {
+        setMessage(error instanceof Error ? error.message : String(error));
+      });
+
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, [action, actions, directory, maxFiles, maxBytes, multiple, running]);
+
+  const handleDrop = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setDragActive(false);
+    void runFiles(
+      Array.from(event.dataTransfer.files).slice(
+        0,
+        multiple ? undefined : 1,
+      ),
+    );
+  };
+
+  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    void runFiles(
+      Array.from(event.target.files ?? []).slice(
+        0,
+        multiple ? undefined : 1,
+      ),
+    );
+    event.target.value = "";
+  };
+  const clearResults = () => {
+    setResults([]);
+    setMessage(null);
+  };
+
+  return (
+    <div className="space-y-4 py-3">
+      {description && (
+        <p className="text-sm leading-6 text-text-muted">{description}</p>
+      )}
+      <div
+        data-glimpse-plugin-file-drop-converter
+        onDragEnter={(event) => {
+          event.preventDefault();
+          setDragActive(true);
+        }}
+        onDragOver={(event) => {
+          event.preventDefault();
+          setDragActive(true);
+        }}
+        onDragLeave={(event) => {
+          event.preventDefault();
+          setDragActive(false);
+        }}
+        onDrop={handleDrop}
+        className={[
+          "flex min-h-40 flex-col items-center justify-center gap-3 rounded-sm border border-dashed px-4 py-8 text-center transition-colors",
+          dragActive
+            ? "border-accent bg-accent/10"
+            : "border-border-main bg-main-bg hover:border-accent/70",
+        ].join(" ")}
+      >
+        <input
+          ref={inputRef}
+          type="file"
+          accept={accept}
+          multiple={multiple}
+          className="hidden"
+          onChange={handleFileChange}
+        />
+        <div className="text-sm font-medium text-text-main">
+          {running ? convertingLabel : emptyLabel}
+        </div>
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            inputRef.current?.click();
+          }}
+          disabled={running}
+          className={getButtonClassName("secondary")}
+        >
+          {chooseFileLabel}
+        </button>
+      </div>
+      <section>
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-text-muted">
+            {resultsLabel}
+          </h2>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void openerApi.revealInExplorer(results[0].path)}
+              disabled={!results[0]}
+              className={getButtonClassName("secondary")}
+            >
+              {revealLabel}
+            </button>
+            <button
+              type="button"
+              onClick={clearResults}
+              disabled={results.length === 0 && !message}
+              className={getButtonClassName("secondary")}
+            >
+              {clearLabel}
+            </button>
+          </div>
+        </div>
+
+        <div className="overflow-hidden border-y border-border-main/60">
+          <table className="w-full table-fixed text-left text-xs">
+            <thead className="text-text-muted">
+              <tr className="border-b border-border-main/60">
+                <th className="w-[35%] px-2 py-2 font-medium">
+                  {fileColumnLabel}
+                </th>
+                <th className="w-20 px-2 py-2 font-medium">
+                  {sizeColumnLabel}
+                </th>
+                <th className="px-2 py-2 font-medium">{pathColumnLabel}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {results.length === 0 ? (
+                <tr>
+                  <td colSpan={3} className="px-2 py-3 text-text-muted">
+                    {message ?? emptyResultsLabel}
+                  </td>
+                </tr>
+              ) : (
+                results.map((result) => (
+                  <tr key={result.path} className="border-b border-border-main/40 last:border-b-0">
+                    <td className="truncate px-2 py-2 text-text-main">
+                      {result.fileName}
+                    </td>
+                    <td className="px-2 py-2 font-mono text-text-muted">
+                      {formatBytes(result.size)}
+                    </td>
+                    <td className="truncate px-2 py-2 font-mono text-text-muted">
+                      {result.path}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  );
+};
+
+const OutputDirectorySettings = ({
+  preference = DEFAULT_OUTPUT_DIRECTORY_PREFERENCE,
+  label = "Output directory",
+  placeholder = "Output directory",
+  chooseDirectoryLabel = "Open",
+  description,
+  pluginId,
+}: OutputDirectorySettingsProps & { pluginId: string }) => {
+  const inputId = useId();
+  const [value, setValue] = useState("");
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadValue = async () => {
+      try {
+        const saved = await readPluginPreference(pluginId, preference);
+        const fallback = saved ?? (await fileApi.getDefaultDownloadDirectory());
+
+        if (!cancelled) {
+          setValue(fallback);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setMessage(error instanceof Error ? error.message : String(error));
+        }
+      }
+    };
+
+    void loadValue();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pluginId, preference]);
+
+  const saveValue = async (nextValue = value) => {
+    try {
+      await writePluginPreference(pluginId, preference, nextValue);
+      setMessage("Saved");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    }
+  };
+
+  const chooseDirectory = async () => {
+    const selected = await settingsApi.selectTargetDirectory();
+
+    if (typeof selected !== "string") {
+      return;
+    }
+
+    setValue(selected);
+    await saveValue(selected);
+  };
+
+  return (
+    <div className="space-y-2 py-3">
+      <label
+        htmlFor={inputId}
+        className="block text-sm font-medium text-text-main"
+      >
+        {label}
+      </label>
+      {description && (
+        <div className="text-sm text-text-muted">{description}</div>
+      )}
+      <div className="flex gap-2">
+        <input
+          id={inputId}
+          value={value}
+          onChange={(event) => setValue(event.target.value)}
+          onBlur={() => void saveValue()}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              event.currentTarget.blur();
+            }
+          }}
+          placeholder={placeholder}
+          className="min-w-0 flex-1 rounded border border-border-main bg-main-bg px-3 py-2 text-sm text-text-main outline-none focus:border-accent"
+        />
+        <button
+          type="button"
+          onClick={() => void chooseDirectory()}
+          className={getButtonClassName("secondary")}
+        >
+          {chooseDirectoryLabel}
+        </button>
+      </div>
+      {message && <div className="text-xs text-text-muted">{message}</div>}
+    </div>
+  );
+};
+
+const normalizeFileDropConverterResult = (
+  sourceName: string,
+  result: unknown,
+): FileDropConverterResult => {
+  if (typeof result === "string") {
+    return {
+      fileName: convertedFileName(sourceName, "txt"),
+      body: result,
+    };
+  }
+
+  if (result && typeof result === "object") {
+    const record = result as Record<string, unknown>;
+    const body = record.body ?? record.text ?? record.content;
+
+    if (typeof body !== "string") {
+      throw new Error("Converter action must return text output");
+    }
+
+    return {
+      fileName:
+        typeof record.fileName === "string" && record.fileName.trim()
+          ? record.fileName
+          : convertedFileName(
+              sourceName,
+              typeof record.extension === "string" ? record.extension : "txt",
+            ),
+      body,
+    };
+  }
+
+  throw new Error("Converter action must return text output");
+};
+
+const normalizeFileDropConverterResults = (
+  sourceName: string,
+  result: unknown,
+): FileDropConverterResult[] => {
+  if (Array.isArray(result)) {
+    if (result.length === 0) {
+      throw new Error("Converter action must return at least one output");
+    }
+
+    return result.map((entry, index) =>
+      normalizeFileDropConverterResult(
+        addFileNameIndex(sourceName, index),
+        entry,
+      ),
+    );
+  }
+
+  return [normalizeFileDropConverterResult(sourceName, result)];
+};
+
+const addFileNameIndex = (sourceName: string, index: number): string => {
+  if (index === 0) {
+    return sourceName;
+  }
+
+  const extension = sourceName.match(/(\.[^.\\/]+)$/)?.[1] ?? "";
+  const stem = extension ? sourceName.slice(0, -extension.length) : sourceName;
+
+  return `${stem}-${index + 1}${extension}`;
+};
+
+const ensureSupportedTextFile = (fileName: string, type: string) => {
+  const isTextExtension = /\.(txt|md|markdown)$/i.test(fileName);
+  const isTextMime = ["text/plain", "text/markdown"].includes(type);
+
+  if (!isTextExtension && !isTextMime) {
+    throw new Error("Only text and Markdown files are supported");
+  }
+};
+
+const convertedFileName = (sourceName: string, extension: string): string => {
+  const cleanExtension = extension.trim().replace(/^\./, "") || "txt";
+  const stem = sourceName.replace(/\.[^.\\/]+$/, "") || "converted";
+
+  return `${stem}.converted.${cleanExtension}`;
+};
+
+const formatBytes = (bytes: number): string => {
+  const units = ["B", "KiB", "MiB", "GiB"];
+  let value = bytes;
+  let unitIndex = 0;
+
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+
+  return `${value.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
 };
 
 const ActionPlayground = ({

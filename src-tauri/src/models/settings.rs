@@ -246,6 +246,9 @@ pub struct PluginSettings {
 
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub copy_successful_search_results: HashMap<String, bool>,
+
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub preferences: HashMap<String, String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
