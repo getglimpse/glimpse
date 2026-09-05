@@ -24,7 +24,9 @@
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs",
     "typesafe-i18n": "typesafe-i18n",
-    "i18n": "typesafe-i18n"
+    "i18n": "typesafe-i18n",
+    "plugins:validate-templates": "node .plugin-template/scripts/validate-template-plugins.mjs",
+    "plugins:package": "node scripts/package-plugin.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

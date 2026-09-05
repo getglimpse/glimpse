@@ -271,6 +271,27 @@ export type PluginCapabilities = {
   };
 };
 
+export type PluginRegistry = {
+  schemaVersion: 1;
+  plugins: PluginRegistryEntry[];
+};
+
+export type PluginRegistryEntry = {
+  id: string;
+  name: string;
+  version: string;
+  apiVersion: string;
+  downloadUrl: string;
+  sha256: string;
+  description?: string;
+  releaseDate?: string;
+  fileName?: string;
+  sourceUrl?: string;
+  repositoryUrl?: string;
+  homepageUrl?: string;
+  supportUrl?: string;
+};
+
 export type InternalPageContribution = PluginInternalPageManifest & {
   pluginId: string;
   render: () => ReactNode;
@@ -281,6 +302,11 @@ export type GlimpsePlugin = {
   name: string;
   version: string;
   apiVersion?: string;
+  author?: string;
+  releaseDate?: string;
+  repositoryUrl?: string;
+  homepageUrl?: string;
+  supportUrl?: string;
   description?: string;
   defaultLocale?: string;
   i18n?: PluginI18nManifest;

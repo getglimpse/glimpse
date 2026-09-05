@@ -26,6 +26,8 @@ Internal Pages は、Glimpse の検索結果に表示されるアプリ内ペー
 
 信頼済みプラグインも Internal Pages を追加できます。
 
+プラグインのインストールと信頼の基本は [プラグイン](../plugins.md) を参照してください。
+
 ## 引数
 
 プラグイン提供の Internal Page は、page action を定義している場合に `>` で引数を受け取れます。

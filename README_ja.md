@@ -76,16 +76,21 @@ Glimpse はローカルのフロントエンド専用プラグインに対応し
 
 プラグインは Internal Page、Action、Viewer を追加できます。プラグインは自動では読み込まれません。インストール後、Glimpse がコードを実行する前にユーザーが信頼する必要があります。
 
-サンプルプラグインは [plugins](plugins) ディレクトリにあります。
+[プラグインの使い方](docs/ja/plugins.md) はユーザーガイドで確認できます。
+
+v0.2.0 仕様に更新済みの自作 / サンプルプラグインは [.plugins](.plugins) ディレクトリにあります。具体的なプラグイン仕様と author 向けメモは [.plugins/docs](.plugins/docs) にあります。
 
 - Numeric calculator
 - Date calculator
 - Unit converter
 - PDF viewer
 - CSV viewer
+- File converter
 - Office documents viewer
 
-詳細は [プラグイン仕様ドラフト](docs/ja/dev/plugin-spec.md) と [プラグイン Custom UI 予約仕様ドラフト](docs/ja/dev/plugin-custom.md) を参照してください。
+新しいプラグインを作るときの雛形は [.plugin-template/templates](.plugin-template/templates) にあります。
+
+Glimpse 本体の `docs/` はユーザー向けドキュメントとして扱い、プラグインの具体仕様は `.plugins/docs/` 側で管理します。
 
 ## ドキュメント
 
@@ -93,6 +98,7 @@ Glimpse はローカルのフロントエンド専用プラグインに対応し
 - [Quick Start](docs/ja/intro/quick-start.md)
 - [Search](docs/ja/intro/search.md)
 - [Preview](docs/ja/preview/overview.md)
+- [プラグイン](docs/ja/plugins.md)
 - [Settings](docs/ja/internal/settings.md)
 - [Roadmap](docs/ja/others/roadmap.md)
 - [FAQ](docs/ja/others/faq.md)

@@ -24,6 +24,9 @@ dist-ssr
 *.sln
 *.sw?
 
+**/todo.md
+**/TODO.md
+
 # tools
 ctx.py
 generated/
@@ -32,5 +35,6 @@ generated/
 # other repo
 .ops/
 .plugins/
+.plugin-template/
 .private-docs/
 demo/

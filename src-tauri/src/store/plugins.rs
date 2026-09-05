@@ -704,6 +704,10 @@ fn normalize_plugin_manifest(
         validate_non_empty("defaultLocale", default_locale)?;
     }
 
+    validate_optional_manifest_url("repositoryUrl", raw.repository_url.as_deref())?;
+    validate_optional_manifest_url("homepageUrl", raw.homepage_url.as_deref())?;
+    validate_optional_manifest_url("supportUrl", raw.support_url.as_deref())?;
+
     let (i18n, i18n_path) = load_plugin_i18n(path, raw.i18n, raw.default_locale.as_deref())?;
     let page_definition = load_plugin_page_definition(path, &raw.id, raw.page.as_deref())?;
 
@@ -786,6 +790,11 @@ fn normalize_plugin_manifest(
         name: raw.name,
         version: raw.version,
         api_version: Some(api_version),
+        author: raw.author,
+        release_date: raw.release_date,
+        repository_url: raw.repository_url,
+        homepage_url: raw.homepage_url,
+        support_url: raw.support_url,
         description: raw.description,
         default_locale: raw.default_locale,
         i18n,
@@ -1289,6 +1298,23 @@ fn is_valid_locale_code(locale: &str) -> bool {
 fn validate_non_empty(label: &str, value: &str) -> Result<(), String> {
     if value.trim().is_empty() {
         return Err(format!("{label} is required"));
+    }
+
+    Ok(())
+}
+
+fn validate_optional_manifest_url(label: &str, value: Option<&str>) -> Result<(), String> {
+    let Some(value) = value else {
+        return Ok(());
+    };
+    let value = value.trim();
+
+    if value.is_empty() {
+        return Err(format!("{label} must not be empty"));
+    }
+
+    if !(value.starts_with("https://") || value.starts_with("http://")) {
+        return Err(format!("{label} must be an http or https URL"));
     }
 
     Ok(())

@@ -17,7 +17,6 @@ const development = [
   { text: "Indexing", link: "/dev/indexing" },
   { text: "Parser", link: "/dev/parser" },
   { text: "Settings Architecture", link: "/dev/settings" },
-  { text: "Plugin Architecture", link: "/dev/plugins" },
   { text: "Logging", link: "/dev/logging" },
 ];
 
@@ -44,6 +43,10 @@ const internalPages = [
   { text: "Settings", link: "/internal/settings" },
 ];
 
+const plugins = [
+  { text: "Plugins", link: "/plugins" },
+];
+
 const others = [
   { text: "FAQ", link: "/others/faq" },
   { text: "Changelog", link: "/others/changelog" },
@@ -67,13 +70,6 @@ const jaDevelopment = [
   { text: "インデックス作成", link: "/ja/dev/indexing" },
   { text: "パーサー", link: "/ja/dev/parser" },
   { text: "設定アーキテクチャ", link: "/ja/dev/settings" },
-  { text: "プラグイン仕様", link: "/ja/dev/plugin-spec" },
-  { text: "プラグイン Manifest", link: "/ja/dev/plugin-manifest" },
-  { text: "プラグイン Runtime", link: "/ja/dev/plugin-runtime" },
-  { text: "プラグイン Page", link: "/ja/dev/plugin-page" },
-  { text: "プラグイン i18n", link: "/ja/dev/plugin-i18n" },
-  { text: "プラグイン Security", link: "/ja/dev/plugin-security" },
-  { text: "プラグイン Custom UI 予約仕様", link: "/ja/dev/plugin-custom" },
   { text: "ログ", link: "/ja/dev/logging" },
 ];
 
@@ -98,6 +94,10 @@ const jaDocuments = [
 const jaInternalPages = [
   { text: "Internal Pages", link: "/ja/internal/overview" },
   { text: "設定", link: "/ja/internal/settings" },
+];
+
+const jaPlugins = [
+  { text: "プラグイン", link: "/ja/plugins" },
 ];
 
 const jaOthers = [
@@ -145,6 +145,7 @@ export default defineConfig({
         { text: "プレビュー", items: jaPreview },
         { text: "ドキュメント", items: jaDocuments },
         { text: "内部ページ", items: jaInternalPages },
+        { text: "プラグイン", items: jaPlugins },
         { text: "開発者ガイド", items: jaDevelopment },
         { text: "その他", items: jaOthers },
       ],
@@ -154,6 +155,7 @@ export default defineConfig({
         { text: "Preview", items: preview },
         { text: "Documents", items: documents },
         { text: "Internal Pages", items: internalPages },
+        { text: "Plugins", items: plugins },
         { text: "Developer Guide", items: development },
         { text: "Others", items: others },
       ],

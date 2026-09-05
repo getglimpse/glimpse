@@ -29,7 +29,6 @@ For user-facing behavior, installation steps, search syntax, and FAQ, see the re
 | Scanning, watching, and target group switching | [indexing.md](./indexing.md) |
 | Markdown, `.gjson`, and metadata parsers | [parser.md](./parser.md) |
 | Settings model, defaults, watcher, and trust records | [settings.md](./settings.md) |
-| Plugin manifest, runtime API, viewers, and trust | [plugins.md](./plugins.md) |
 | Backend logs, command logs, and diagnostics | [logging.md](./logging.md) |
 
 ## When To Update These Docs
@@ -39,6 +38,7 @@ For user-facing behavior, installation steps, search syntax, and FAQ, see the re
 - Internal manual verification needs a new check.
 - User-facing docs and implementation docs disagree.
 - Content is not appropriate for public docs and should be removed from this repo.
+- Plugin API specifications and author-facing plans belong in `.plugins/docs/`.
 
 ## Source Layout
 

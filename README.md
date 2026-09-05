@@ -76,16 +76,21 @@ Glimpse supports local frontend-only plugins.
 
 Plugins can add internal pages, actions, and viewers. They are not loaded automatically; installed plugins must be trusted before Glimpse runs their code.
 
-Sample plugins are available in the [plugins](plugins) directory:
+See the user guide for [using plugins](docs/plugins.md).
+
+Author-created and sample plugins updated for v0.2.0 are available in the [.plugins](.plugins) directory. Plugin specifications and author-facing notes live in [.plugins/docs](.plugins/docs).
 
 - Numeric calculator
 - Date calculator
 - Unit converter
 - PDF viewer
 - CSV viewer
+- File converter
 - Office documents viewer
 
-See the [plugin documentation](docs/dev/plugins.md) for details.
+New plugin templates live in [.plugin-template/templates](.plugin-template/templates).
+
+The main `docs/` directory is user documentation. Detailed plugin specifications are maintained under `.plugins/docs/`.
 
 ## Documentation
 
@@ -93,6 +98,7 @@ See the [plugin documentation](docs/dev/plugins.md) for details.
 - [Quick Start](docs/intro/quick-start.md)
 - [Search](docs/intro/search.md)
 - [Preview](docs/preview/overview.md)
+- [Plugins](docs/plugins.md)
 - [Settings](docs/internal/settings.md)
 - [Roadmap](docs/others/roadmap.md)
 - [FAQ](docs/others/faq.md)

@@ -30,13 +30,6 @@
 | scan / watch / target group 切り替え | [indexing.md](./indexing.md) |
 | Markdown / `.gjson` / metadata parser | [parser.md](./parser.md) |
 | 設定モデル、default、watcher、trust | [settings.md](./settings.md) |
-| plugin API の仕様ドラフト全体 | [plugin-spec.md](./plugin-spec.md) |
-| plugin manifest、capabilities、settings、contributions、配布形式 | [plugin-manifest.md](./plugin-manifest.md) |
-| plugin runtime、action、file input / output、viewer、error | [plugin-runtime.md](./plugin-runtime.md) |
-| plugin page、Info page、自動 Settings tab、標準タブ | [plugin-page.md](./plugin-page.md) |
-| plugin i18n、fallback、validation | [plugin-i18n.md](./plugin-i18n.md) |
-| plugin trust、fingerprint、安全境界、styles.css review | [plugin-security.md](./plugin-security.md) |
-| plugin Custom UI の予約仕様ドラフト | [plugin-custom.md](./plugin-custom.md) |
 | backend log、command log、diagnostics | [logging.md](./logging.md) |
 
 ## 更新するタイミング

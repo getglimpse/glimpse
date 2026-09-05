@@ -26,6 +26,8 @@ Like documents and `.gjson` entries, Internal Pages can be viewed in the Preview
 
 Trusted plugins can also contribute Internal Pages.
 
+For plugin installation and trust basics, see [Plugins](../plugins.md).
+
 ## Arguments
 
 Plugin-provided Internal Pages can receive arguments with `>` when they define a page action.
