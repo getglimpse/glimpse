@@ -93,6 +93,8 @@ pub fn run() {
             commands::plugins::get_plugin_manifests,
             commands::plugins::get_plugin_discovery_report,
             commands::plugins::install_plugin_from_path,
+            commands::plugins::install_plugin_from_archive,
+            commands::plugins::install_plugin_from_url,
             commands::plugins::uninstall_plugin,
             commands::plugins::get_plugin_trust_status,
             commands::plugins::set_plugin_trust,

@@ -6,6 +6,7 @@ import type {
   PluginDiscoveryReport,
   PluginEntrypointSource,
   PluginInstallResult,
+  RemotePluginInstallResult,
   PluginTrustStatus,
   PluginUninstallResult,
 } from "@/types";
@@ -20,6 +21,22 @@ export const pluginsApi = {
       sourcePath,
       replace,
     }),
+  installFromArchive: (archivePath: string, replace = false) =>
+    invoke<PluginInstallResult>("install_plugin_from_archive", {
+      archivePath,
+      replace,
+    }),
+  installFromUrl: (downloadUrl: string, sha256: string, replace = false) =>
+    invoke<PluginInstallResult>("install_plugin_from_url", {
+      downloadUrl,
+      sha256,
+      replace,
+    }).then(
+      (result): RemotePluginInstallResult => ({
+        ...result,
+        source: "remote",
+      }),
+    ),
   uninstall: (pluginId: string) =>
     invoke<PluginUninstallResult>("uninstall_plugin", {
       pluginId,

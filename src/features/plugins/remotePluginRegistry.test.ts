@@ -5,6 +5,7 @@ import type { GlimpsePlugin, PluginRegistry } from "@/types";
 import {
   OFFICIAL_PLUGIN_REGISTRY_URL,
   checkRegistryEntryMatchesManifest,
+  getRemotePluginInstallErrorMessage,
   isRegistryEntryApiSupported,
   validatePluginRegistry,
 } from "./remotePluginRegistry";
@@ -119,5 +120,23 @@ describe("remotePluginRegistry", () => {
         apiVersion: "0.3.0",
       }),
     ).toBe(false);
+  });
+
+  it("maps backend install failures to plugin page messages", () => {
+    expect(
+      getRemotePluginInstallErrorMessage(
+        "plugin archive checksum mismatch: expected a, got b",
+      ),
+    ).toBe("The plugin download did not match the registry checksum.");
+    expect(
+      getRemotePluginInstallErrorMessage(
+        "plugin archive contains executable file: plugin.dll",
+      ),
+    ).toBe("The plugin archive contains files that are not allowed.");
+    expect(
+      getRemotePluginInstallErrorMessage(
+        new Error("failed to download plugin archive: timeout"),
+      ),
+    ).toBe("The plugin archive could not be downloaded.");
   });
 });

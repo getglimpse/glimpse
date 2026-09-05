@@ -775,9 +775,12 @@ type RootTranslation = {
 			 * T​o​g​g​l​e​ ​h​i​d​d​e​n​ ​f​i​l​t​e​r
 			 */
 			toggleHiddenFilter: string
+			/**
+			 * T​o​g​g​l​e​ ​u​n​s​t​a​r​ ​f​i​l​t​e​r
+			 */
 			toggleUnstarFilter: string
 			/**
-			 * T​o​g​g​l​e​ ​r​e​v​e​r​s​e​ ​s​e​a​r​c​h
+			 * T​o​g​g​l​e​ ​r​e​v​e​r​s​e​ ​o​r​d​e​r
 			 */
 			toggleReverseSearch: string
 			/**
@@ -936,6 +939,10 @@ type RootTranslation = {
 		subtitle: string
 		sections: {
 			/**
+			 * R​e​m​o​t​e​ ​P​l​u​g​i​n​s
+			 */
+			remotePlugins: string
+			/**
 			 * I​n​s​t​a​l​l​e​d​ ​P​l​u​g​i​n​s
 			 */
 			installedPlugins: string
@@ -951,6 +958,116 @@ type RootTranslation = {
 			 * F​e​a​t​u​r​e​ ​P​a​g​e​s
 			 */
 			featurePages: string
+		}
+		/**
+		 * S​e​a​r​c​h​ ​p​l​u​g​i​n​s
+		 */
+		searchPlaceholder: string
+		remote: {
+			/**
+			 * O​f​f​i​c​i​a​l​ ​p​l​u​g​i​n​ ​r​e​g​i​s​t​r​y
+			 */
+			registry: string
+			/**
+			 * R​e​f​r​e​s​h​ ​r​e​g​i​s​t​r​y
+			 */
+			refresh: string
+			/**
+			 * F​a​i​l​e​d​ ​t​o​ ​l​o​a​d​ ​r​e​m​o​t​e​ ​p​l​u​g​i​n​s​:​ ​{​e​r​r​o​r​}
+			 * @param {unknown} error
+			 */
+			loadError: RequiredParams<'error'>
+			/**
+			 * N​o​ ​r​e​m​o​t​e​ ​p​l​u​g​i​n​s​ ​f​o​u​n​d​.
+			 */
+			empty: string
+			/**
+			 * N​o​ ​m​a​t​c​h​i​n​g​ ​r​e​m​o​t​e​ ​p​l​u​g​i​n​s​ ​f​o​u​n​d​.
+			 */
+			noSearchResults: string
+			/**
+			 * I​n​s​t​a​l​l
+			 */
+			install: string
+			/**
+			 * U​p​d​a​t​e
+			 */
+			update: string
+			/**
+			 * I​n​s​t​a​l​l​e​d
+			 */
+			installed: string
+			/**
+			 * U​n​s​u​p​p​o​r​t​e​d
+			 */
+			unsupported: string
+			/**
+			 * D​o​w​n​l​o​a​d​i​n​g
+			 */
+			downloading: string
+			/**
+			 * I​n​s​t​a​l​l​i​n​g
+			 */
+			installing: string
+			/**
+			 * S​o​u​r​c​e
+			 */
+			source: string
+			/**
+			 * A​P​I​ ​{​v​e​r​s​i​o​n​}
+			 * @param {unknown} version
+			 */
+			apiVersion: RequiredParams<'version'>
+			/**
+			 * R​e​l​e​a​s​e​d​ ​{​d​a​t​e​}
+			 * @param {unknown} date
+			 */
+			releaseDate: RequiredParams<'date'>
+			/**
+			 * I​n​s​t​a​l​l​e​d​ ​v​{​v​e​r​s​i​o​n​}
+			 * @param {unknown} version
+			 */
+			installedVersion: RequiredParams<'version'>
+			/**
+			 * I​n​s​t​a​l​l​e​d​ ​{​p​l​u​g​i​n​I​d​}​.​ ​T​r​u​s​t​ ​i​t​ ​b​e​f​o​r​e​ ​e​n​a​b​l​i​n​g​.
+			 * @param {unknown} pluginId
+			 */
+			installSuccess: RequiredParams<'pluginId'>
+			/**
+			 * I​n​s​t​a​l​l​ ​f​a​i​l​e​d​:​ ​{​e​r​r​o​r​}
+			 * @param {unknown} error
+			 */
+			installFailed: RequiredParams<'error'>
+			states: {
+				/**
+				 * N​o​t​ ​i​n​s​t​a​l​l​e​d
+				 */
+				notInstalled: string
+				/**
+				 * I​n​s​t​a​l​l​e​d
+				 */
+				installed: string
+				/**
+				 * U​p​d​a​t​e​ ​a​v​a​i​l​a​b​l​e
+				 */
+				updateAvailable: string
+				/**
+				 * U​n​s​u​p​p​o​r​t​e​d​ ​A​P​I
+				 */
+				unsupportedApiVersion: string
+				/**
+				 * D​o​w​n​l​o​a​d​i​n​g
+				 */
+				downloading: string
+				/**
+				 * I​n​s​t​a​l​l​i​n​g
+				 */
+				installing: string
+				/**
+				 * F​a​i​l​e​d
+				 */
+				failed: string
+			}
 		}
 		installed: {
 			/**
@@ -2804,6 +2921,9 @@ export type TranslationFunctions = {
 			 * Toggle hidden filter
 			 */
 			toggleHiddenFilter: () => LocalizedString
+			/**
+			 * Toggle unstar filter
+			 */
 			toggleUnstarFilter: () => LocalizedString
 			/**
 			 * Toggle reverse order
@@ -2964,6 +3084,10 @@ export type TranslationFunctions = {
 		subtitle: () => LocalizedString
 		sections: {
 			/**
+			 * Remote Plugins
+			 */
+			remotePlugins: () => LocalizedString
+			/**
 			 * Installed Plugins
 			 */
 			installedPlugins: () => LocalizedString
@@ -2979,6 +3103,110 @@ export type TranslationFunctions = {
 			 * Feature Pages
 			 */
 			featurePages: () => LocalizedString
+		}
+		/**
+		 * Search plugins
+		 */
+		searchPlaceholder: () => LocalizedString
+		remote: {
+			/**
+			 * Official plugin registry
+			 */
+			registry: () => LocalizedString
+			/**
+			 * Refresh registry
+			 */
+			refresh: () => LocalizedString
+			/**
+			 * Failed to load remote plugins: {error}
+			 */
+			loadError: (arg: { error: unknown }) => LocalizedString
+			/**
+			 * No remote plugins found.
+			 */
+			empty: () => LocalizedString
+			/**
+			 * No matching remote plugins found.
+			 */
+			noSearchResults: () => LocalizedString
+			/**
+			 * Install
+			 */
+			install: () => LocalizedString
+			/**
+			 * Update
+			 */
+			update: () => LocalizedString
+			/**
+			 * Installed
+			 */
+			installed: () => LocalizedString
+			/**
+			 * Unsupported
+			 */
+			unsupported: () => LocalizedString
+			/**
+			 * Downloading
+			 */
+			downloading: () => LocalizedString
+			/**
+			 * Installing
+			 */
+			installing: () => LocalizedString
+			/**
+			 * Source
+			 */
+			source: () => LocalizedString
+			/**
+			 * API {version}
+			 */
+			apiVersion: (arg: { version: unknown }) => LocalizedString
+			/**
+			 * Released {date}
+			 */
+			releaseDate: (arg: { date: unknown }) => LocalizedString
+			/**
+			 * Installed v{version}
+			 */
+			installedVersion: (arg: { version: unknown }) => LocalizedString
+			/**
+			 * Installed {pluginId}. Trust it before enabling.
+			 */
+			installSuccess: (arg: { pluginId: unknown }) => LocalizedString
+			/**
+			 * Install failed: {error}
+			 */
+			installFailed: (arg: { error: unknown }) => LocalizedString
+			states: {
+				/**
+				 * Not installed
+				 */
+				notInstalled: () => LocalizedString
+				/**
+				 * Installed
+				 */
+				installed: () => LocalizedString
+				/**
+				 * Update available
+				 */
+				updateAvailable: () => LocalizedString
+				/**
+				 * Unsupported API
+				 */
+				unsupportedApiVersion: () => LocalizedString
+				/**
+				 * Downloading
+				 */
+				downloading: () => LocalizedString
+				/**
+				 * Installing
+				 */
+				installing: () => LocalizedString
+				/**
+				 * Failed
+				 */
+				failed: () => LocalizedString
+			}
 		}
 		installed: {
 			/**

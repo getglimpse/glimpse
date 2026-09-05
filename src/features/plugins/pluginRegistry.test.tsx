@@ -306,4 +306,78 @@ export default function activate(ctx) {
       registry.getPluginPlaygroundInternalItems().map((item) => item.id),
     ).toEqual(["internal://plugin:playground-plugin"]);
   });
+
+  it("reloads plugins after archive and remote installs", async () => {
+    const plugin = registryPlugin("remote-plugin");
+
+    mockedInvoke.mockImplementation((command, args) => {
+      if (
+        command === "install_plugin_from_archive" ||
+        command === "install_plugin_from_url"
+      ) {
+        return Promise.resolve({
+          pluginId: plugin.id,
+          installedPath: `plugins/${plugin.id}`,
+          replaced: Boolean((args as { replace?: boolean }).replace),
+          manifest: plugin,
+        });
+      }
+
+      if (command === "get_plugin_discovery_report") {
+        return Promise.resolve({
+          manifests: [plugin],
+          errors: [],
+        });
+      }
+
+      if (command === "get_plugin_trust_status") {
+        return Promise.resolve(
+          trustedStatus((args as { pluginId: string }).pluginId, false),
+        );
+      }
+
+      return Promise.reject(new Error(`unexpected command: ${command}`));
+    });
+
+    const registry = await loadRegistryModule();
+
+    await expect(
+      registry.installPluginFromArchive(
+        "C:/plugins/remote-plugin.glimpse-plugin.zip",
+      ),
+    ).resolves.toMatchObject({
+      pluginId: plugin.id,
+      replaced: false,
+    });
+    await expect(
+      registry.installPluginFromUrl(
+        "https://example.com/remote-plugin.glimpse-plugin.zip",
+        "f8e403e2374041ab56e8c44469fb639c45643237c7c543fd9efedab9b69c41b7",
+        true,
+      ),
+    ).resolves.toMatchObject({
+      pluginId: plugin.id,
+      replaced: true,
+      source: "remote",
+    });
+
+    expect(mockedInvoke).toHaveBeenCalledWith("install_plugin_from_archive", {
+      archivePath: "C:/plugins/remote-plugin.glimpse-plugin.zip",
+      replace: false,
+    });
+    expect(mockedInvoke).toHaveBeenCalledWith("install_plugin_from_url", {
+      downloadUrl: "https://example.com/remote-plugin.glimpse-plugin.zip",
+      sha256: "f8e403e2374041ab56e8c44469fb639c45643237c7c543fd9efedab9b69c41b7",
+      replace: true,
+    });
+    expect(registry.getPlugins()).toHaveLength(1);
+    expect(registry.getPlugins()[0]).toMatchObject({
+      enabled: false,
+      trusted: false,
+    });
+    expect(mockedInvoke).not.toHaveBeenCalledWith(
+      "set_plugin_trust",
+      expect.anything(),
+    );
+  });
 });

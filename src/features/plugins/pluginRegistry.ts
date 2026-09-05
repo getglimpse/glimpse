@@ -157,6 +157,27 @@ export const installPluginFromPath = async (
   return result;
 };
 
+export const installPluginFromArchive = async (
+  archivePath: string,
+  replace = false,
+) => {
+  const result = await pluginsApi.installFromArchive(archivePath, replace);
+  await reloadPlugins();
+
+  return result;
+};
+
+export const installPluginFromUrl = async (
+  downloadUrl: string,
+  sha256: string,
+  replace = false,
+) => {
+  const result = await pluginsApi.installFromUrl(downloadUrl, sha256, replace);
+  await reloadPlugins();
+
+  return result;
+};
+
 export const uninstallPlugin = async (pluginId: string) => {
   await deactivatePluginRuntime(pluginId);
 

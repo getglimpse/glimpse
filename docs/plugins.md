@@ -1,6 +1,6 @@
 # Plugins
 
-Glimpse can be extended with local plugins.
+Glimpse can be extended with local and remote plugins.
 
 Plugins can add searchable pages, actions, and file viewers. For example, a plugin can provide a calculator page, a converter page, or a previewer for a file type that Glimpse does not handle by default.
 
@@ -12,13 +12,17 @@ Open Plugin Page from the search bar:
 :plugin
 ```
 
-Use Plugin Page to install, trust, enable, disable, or remove local plugins.
+Use Plugin Page to install, trust, enable, disable, or remove plugins.
+
+Remote plugins are listed from the official Glimpse plugin registry. Glimpse downloads the `.glimpse-plugin.zip` archive referenced by the registry and verifies its SHA-256 checksum before installing it.
 
 ## Trust
 
 Plugins are not loaded automatically. After installing a plugin, Glimpse asks you to trust it before running its code.
 
 Only trust plugins from a source you understand. Replacing a plugin or changing its files clears the trust record, so you can review it again before Glimpse loads it.
+
+The registry tells Glimpse where to download a plugin and which checksum to expect. It does not replace your trust decision. A checksum detects a changed download, but it does not prove that the plugin is safe or that you want to run it.
 
 ## Using Plugins
 

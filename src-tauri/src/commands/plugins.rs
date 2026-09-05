@@ -10,7 +10,9 @@ use crate::models::plugins::{
 use crate::store::plugins::{
     ensure_plugin_trusted, ensure_plugins_dir,
     get_plugin_trust_status as get_plugin_trust_status_store,
-    install_plugin_from_path as install_plugin_from_path_store, load_plugin_discovery_report,
+    install_plugin_from_archive as install_plugin_from_archive_store,
+    install_plugin_from_path as install_plugin_from_path_store,
+    install_plugin_from_url as install_plugin_from_url_store, load_plugin_discovery_report,
     load_plugin_manifests, read_plugin_asset_source, read_plugin_entrypoint_source,
     set_plugin_trust as set_plugin_trust_store, uninstall_plugin as uninstall_plugin_store,
 };
@@ -52,6 +54,40 @@ pub fn install_plugin_from_path(
     let settings_path = settings_path.0.lock().map_err(|e| e.to_string())?;
 
     install_plugin_from_path_store(&app_data_dir, &settings_path, &source_path, replace)
+}
+
+#[tauri::command]
+pub fn install_plugin_from_archive(
+    app_data_dir: State<SharedAppDataDir>,
+    settings_path: State<SharedSettingsPath>,
+    archive_path: String,
+    replace: bool,
+) -> Result<PluginInstallResult, String> {
+    let app_data_dir = app_data_dir.0.lock().map_err(|e| e.to_string())?;
+    let settings_path = settings_path.0.lock().map_err(|e| e.to_string())?;
+
+    install_plugin_from_archive_store(&app_data_dir, &settings_path, &archive_path, replace)
+}
+
+#[tauri::command]
+pub async fn install_plugin_from_url(
+    app_data_dir: State<'_, SharedAppDataDir>,
+    settings_path: State<'_, SharedSettingsPath>,
+    download_url: String,
+    sha256: String,
+    replace: bool,
+) -> Result<PluginInstallResult, String> {
+    let app_data_dir = app_data_dir.0.lock().map_err(|e| e.to_string())?.clone();
+    let settings_path = settings_path.0.lock().map_err(|e| e.to_string())?.clone();
+
+    install_plugin_from_url_store(
+        &app_data_dir,
+        &settings_path,
+        &download_url,
+        &sha256,
+        replace,
+    )
+    .await
 }
 
 #[tauri::command]

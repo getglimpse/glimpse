@@ -292,6 +292,10 @@ export type PluginRegistryEntry = {
   supportUrl?: string;
 };
 
+export type RemotePluginInstallResult = PluginInstallResult & {
+  source: "remote";
+};
+
 export type InternalPageContribution = PluginInternalPageManifest & {
   pluginId: string;
   render: () => ReactNode;

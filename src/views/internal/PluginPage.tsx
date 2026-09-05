@@ -1,14 +1,31 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { FolderOpen, RefreshCw, Search, Trash2 } from "lucide-react";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import {
+  AlertCircle,
+  Download,
+  ExternalLink,
+  FolderOpen,
+  RefreshCw,
+  Search,
+  Trash2,
+} from "lucide-react";
 
 import { pluginsApi } from "@/api/plugins";
 import { Switch } from "@/components/ui/switch";
 import {
+  getRemotePluginInstallErrorMessage,
+  isRegistryEntryApiSupported,
+  OFFICIAL_PLUGIN_REGISTRY_URL,
+  validatePluginRegistry,
+} from "@/features/plugins/remotePluginRegistry";
+import {
   getPluginDiscoveryErrors,
   getPlugins,
+  installPluginFromArchive,
   installPluginFromPath,
+  installPluginFromUrl,
   loadPlugins,
   reloadPlugins,
   setPluginEnabled,
@@ -18,7 +35,7 @@ import {
 } from "@/features/plugins/pluginRegistry";
 import { useI18nContext } from "@/i18n/I18nProvider";
 import type { TranslationFunctions } from "@/i18n/i18n-types";
-import type { PluginRegistryItem } from "@/types";
+import type { PluginRegistryEntry, PluginRegistryItem } from "@/types";
 
 const getPluginCapabilities = (LL: TranslationFunctions) => [
   {
@@ -63,6 +80,62 @@ const pluginMatchesSearch = (
     .toLowerCase()
     .includes(normalizedQuery);
 
+const remotePluginMatchesSearch = (
+  plugin: PluginRegistryEntry,
+  normalizedQuery: string,
+) =>
+  [
+    plugin.name,
+    plugin.id,
+    plugin.version,
+    `v${plugin.version}`,
+    plugin.description ?? "",
+    plugin.releaseDate ?? "",
+    plugin.sourceUrl ?? "",
+    plugin.repositoryUrl ?? "",
+    plugin.homepageUrl ?? "",
+  ]
+    .join(" ")
+    .toLowerCase()
+    .includes(normalizedQuery);
+
+type RemotePluginInstallState = "downloading" | "installing" | "failed";
+
+const compareVersionTriplets = (left: string, right: string): number => {
+  const leftParts = left.split(".").map((part) => Number(part));
+  const rightParts = right.split(".").map((part) => Number(part));
+
+  for (let index = 0; index < 3; index += 1) {
+    const leftPart = leftParts[index] ?? 0;
+    const rightPart = rightParts[index] ?? 0;
+
+    if (leftPart !== rightPart) {
+      return leftPart > rightPart ? 1 : -1;
+    }
+  }
+
+  return 0;
+};
+
+const getRemotePluginInstallKind = (
+  entry: PluginRegistryEntry,
+  installedPlugin: PluginRegistryItem | undefined,
+) => {
+  if (!isRegistryEntryApiSupported(entry)) {
+    return "unsupported" as const;
+  }
+
+  if (!installedPlugin) {
+    return "not-installed" as const;
+  }
+
+  if (compareVersionTriplets(entry.version, installedPlugin.version) > 0) {
+    return "update-available" as const;
+  }
+
+  return "installed" as const;
+};
+
 export const PluginPage = () => {
   const { LL } = useI18nContext();
   const [plugins, setPlugins] = useState<PluginRegistryItem[]>(() =>
@@ -85,6 +158,48 @@ export const PluginPage = () => {
   );
   const [reloadingAll, setReloadingAll] = useState(false);
   const [pluginSearchQuery, setPluginSearchQuery] = useState("");
+  const [remotePlugins, setRemotePlugins] = useState<PluginRegistryEntry[]>([]);
+  const [remoteRegistryLoading, setRemoteRegistryLoading] = useState(false);
+  const [remoteRegistryError, setRemoteRegistryError] = useState<string | null>(
+    null,
+  );
+  const [remoteInstallStates, setRemoteInstallStates] = useState<
+    Partial<Record<string, RemotePluginInstallState>>
+  >({});
+  const [remoteInstallErrors, setRemoteInstallErrors] = useState<
+    Partial<Record<string, string>>
+  >({});
+  const [remoteManagementMessage, setRemoteManagementMessage] = useState<
+    string | null
+  >(null);
+
+  const loadRemoteRegistry = useCallback(async () => {
+    setRemoteRegistryLoading(true);
+    setRemoteRegistryError(null);
+
+    try {
+      const response = await fetch(OFFICIAL_PLUGIN_REGISTRY_URL, {
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const result = validatePluginRegistry(await response.json());
+
+      if (!result.ok) {
+        throw new Error(result.errors.join("\n"));
+      }
+
+      setRemotePlugins(result.registry.plugins);
+    } catch (error) {
+      setRemotePlugins([]);
+      setRemoteRegistryError(String(error));
+    } finally {
+      setRemoteRegistryLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     void loadPlugins()
@@ -102,6 +217,10 @@ export const PluginPage = () => {
       setDiscoveryErrors(getPluginDiscoveryErrors());
     });
   }, []);
+
+  useEffect(() => {
+    void loadRemoteRegistry();
+  }, [loadRemoteRegistry]);
 
   useEffect(() => {
     let disposed = false;
@@ -164,7 +283,9 @@ export const PluginPage = () => {
     try {
       for (const sourcePath of trimmedSourcePaths) {
         try {
-          const result = await installPluginFromPath(sourcePath, true);
+          const result = sourcePath.endsWith(".glimpse-plugin.zip")
+            ? await installPluginFromArchive(sourcePath, true)
+            : await installPluginFromPath(sourcePath, true);
 
           results.push(
             LL.pluginPage.installed.installSuccess({
@@ -208,6 +329,71 @@ export const PluginPage = () => {
     setInstallSourcePath(nextInstallSourcePath);
   };
 
+  const handleRemoteInstall = (entry: PluginRegistryEntry) => {
+    const installedPlugin = plugins.find((plugin) => plugin.id === entry.id);
+    const installKind = getRemotePluginInstallKind(entry, installedPlugin);
+
+    if (installKind === "installed" || installKind === "unsupported") {
+      return;
+    }
+
+    setRemoteInstallStates((states) => ({
+      ...states,
+      [entry.id]: "downloading",
+    }));
+    setRemoteInstallErrors((errors) => {
+      const nextErrors = { ...errors };
+
+      delete nextErrors[entry.id];
+
+      return nextErrors;
+    });
+    setRemoteManagementMessage(null);
+
+    window.setTimeout(() => {
+      setRemoteInstallStates((states) =>
+        states[entry.id] === "downloading"
+          ? { ...states, [entry.id]: "installing" }
+          : states,
+      );
+    }, 400);
+
+    void installPluginFromUrl(
+      entry.downloadUrl,
+      entry.sha256,
+      installKind === "update-available",
+    )
+      .then((result) => {
+        setPlugins(getPlugins());
+        setDiscoveryErrors(getPluginDiscoveryErrors());
+        setRemoteManagementMessage(
+          LL.pluginPage.remote.installSuccess({
+            pluginId: result.pluginId,
+          }),
+        );
+      })
+      .catch((error) => {
+        const message = getRemotePluginInstallErrorMessage(error);
+
+        setRemoteInstallErrors((errors) => ({
+          ...errors,
+          [entry.id]: message,
+        }));
+        setRemoteManagementMessage(
+          LL.pluginPage.remote.installFailed({ error: message }),
+        );
+      })
+      .finally(() => {
+        setRemoteInstallStates((states) => {
+          const nextStates = { ...states };
+
+          delete nextStates[entry.id];
+
+          return nextStates;
+        });
+      });
+  };
+
   const renderSelectedInstallPaths = () => {
     if (installSourcePaths.length === 0) {
       return null;
@@ -234,8 +420,14 @@ export const PluginPage = () => {
           pluginMatchesSearch(plugin, normalizedPluginSearchQuery),
         )
       : plugins;
+  const filteredRemotePlugins =
+    normalizedPluginSearchQuery.length > 0
+      ? remotePlugins.filter((plugin) =>
+          remotePluginMatchesSearch(plugin, normalizedPluginSearchQuery),
+        )
+      : remotePlugins;
   const pluginCapabilities = getPluginCapabilities(LL);
-  const pluginSearchPlaceholder = LL.pluginPage.installed.searchPlaceholder();
+  const pluginSearchPlaceholder = LL.pluginPage.searchPlaceholder();
 
   return (
     <div className="h-full w-full overflow-y-auto p-6 text-sm text-text-main">
@@ -246,6 +438,102 @@ export const PluginPage = () => {
             {LL.pluginPage.subtitle()}
           </p>
         </header>
+
+        <div className="mb-4 rounded-md border border-border-main bg-main-bg p-3">
+          <div className="relative">
+            <Search
+              size={15}
+              aria-hidden="true"
+              className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted"
+            />
+            <input
+              type="search"
+              value={pluginSearchQuery}
+              onChange={(event) => {
+                setPluginSearchQuery(event.target.value);
+              }}
+              aria-label={pluginSearchPlaceholder}
+              placeholder={pluginSearchPlaceholder}
+              className="h-9 w-full rounded border border-border-main bg-transparent pl-8 pr-3 text-sm text-text-main outline-none placeholder:text-text-muted focus:border-accent"
+            />
+          </div>
+        </div>
+
+        <Section title={LL.pluginPage.sections.remotePlugins()}>
+          <div className="space-y-4 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border-main bg-main-bg p-3 text-xs text-text-muted">
+              <div className="min-w-0">
+                <div className="font-medium text-text-main">
+                  {LL.pluginPage.remote.registry()}
+                </div>
+                <code className="mt-1 block break-all text-[11px] text-text-muted">
+                  {OFFICIAL_PLUGIN_REGISTRY_URL}
+                </code>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  void loadRemoteRegistry();
+                }}
+                disabled={remoteRegistryLoading}
+                aria-label={LL.pluginPage.remote.refresh()}
+                title={LL.pluginPage.remote.refresh()}
+                className="inline-flex size-8 items-center justify-center rounded border border-border-main text-text-muted hover:text-text-main disabled:opacity-50"
+              >
+                <RefreshCw
+                  size={16}
+                  aria-hidden="true"
+                  className={remoteRegistryLoading ? "animate-spin" : undefined}
+                />
+              </button>
+            </div>
+
+            {remoteRegistryError && (
+              <div className="rounded-md border border-red-500/40 bg-main-bg p-3 text-red-400">
+                {LL.pluginPage.remote.loadError({
+                  error: remoteRegistryError,
+                })}
+              </div>
+            )}
+
+            {remoteManagementMessage && (
+              <div className="rounded-md border border-border-main bg-main-bg p-3 text-xs text-text-muted">
+                {remoteManagementMessage}
+              </div>
+            )}
+
+            {!remoteRegistryLoading &&
+              !remoteRegistryError &&
+              remotePlugins.length === 0 && (
+                <div className="rounded-md border border-border-main bg-main-bg p-3 text-text-muted">
+                  {LL.pluginPage.remote.empty()}
+                </div>
+              )}
+
+            {!remoteRegistryLoading &&
+              !remoteRegistryError &&
+              remotePlugins.length > 0 &&
+              filteredRemotePlugins.length === 0 && (
+                <div className="rounded-md border border-border-main bg-main-bg p-3 text-text-muted">
+                  {LL.pluginPage.remote.noSearchResults()}
+                </div>
+              )}
+
+            {filteredRemotePlugins.map((entry) => (
+              <RemotePluginCard
+                key={entry.id}
+                entry={entry}
+                installedPlugin={plugins.find((plugin) => plugin.id === entry.id)}
+                installState={remoteInstallStates[entry.id]}
+                error={remoteInstallErrors[entry.id]}
+                LL={LL}
+                onInstall={() => {
+                  handleRemoteInstall(entry);
+                }}
+              />
+            ))}
+          </div>
+        </Section>
 
         <Section title={LL.pluginPage.sections.installedPlugins()}>
           <div className="space-y-4 py-3">
@@ -306,26 +594,7 @@ export const PluginPage = () => {
             </div>
 
             <div className="flex items-center gap-2 rounded-md border border-border-main bg-main-bg p-3 text-xs text-text-muted">
-              {plugins.length > 0 && (
-                <div className="relative min-w-0 flex-1">
-                  <Search
-                    size={15}
-                    aria-hidden="true"
-                    className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted"
-                  />
-                  <input
-                    type="search"
-                    value={pluginSearchQuery}
-                    onChange={(event) => {
-                      setPluginSearchQuery(event.target.value);
-                    }}
-                    aria-label={pluginSearchPlaceholder}
-                    placeholder={pluginSearchPlaceholder}
-                    className="h-9 w-full rounded border border-border-main bg-transparent pl-8 pr-3 text-sm text-text-main outline-none placeholder:text-text-muted focus:border-accent"
-                  />
-                </div>
-              )}
-              <div className="flex shrink-0 items-center gap-2">
+              <div className="flex w-full items-center justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => {
@@ -513,6 +782,182 @@ export const PluginPage = () => {
       </div>
     </div>
   );
+};
+
+const RemotePluginCard = ({
+  entry,
+  installedPlugin,
+  installState,
+  error,
+  LL,
+  onInstall,
+}: {
+  entry: PluginRegistryEntry;
+  installedPlugin?: PluginRegistryItem;
+  installState?: RemotePluginInstallState;
+  error?: string;
+  LL: TranslationFunctions;
+  onInstall: () => void;
+}) => {
+  const installKind = getRemotePluginInstallKind(entry, installedPlugin);
+  const sourceUrl = entry.sourceUrl ?? entry.homepageUrl ?? entry.repositoryUrl;
+  const disabled =
+    Boolean(installState) ||
+    installKind === "installed" ||
+    installKind === "unsupported";
+  const statusLabel = getRemotePluginStatusLabel(
+    LL,
+    installKind,
+    installState,
+    Boolean(error),
+  );
+  const actionLabel = getRemotePluginActionLabel(LL, installKind, installState);
+
+  return (
+    <article className="rounded-md border border-border-main bg-main-bg p-4">
+      <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-start gap-x-2 gap-y-1">
+            <span className="min-w-0 text-base font-medium text-text-main">
+              {entry.name}
+            </span>
+            <code className="break-all rounded border border-border-main px-1.5 py-0.5 text-xs text-text-muted">
+              {entry.id}
+            </code>
+            <span className="text-xs text-text-muted">v{entry.version}</span>
+            <span
+              className={`rounded border px-1.5 py-0.5 text-xs ${
+                error || installKind === "unsupported"
+                  ? "border-red-500/40 text-red-300"
+                  : installKind === "update-available"
+                    ? "border-accent/50 text-accent"
+                    : "border-border-main text-text-muted"
+              }`}
+            >
+              {statusLabel}
+            </span>
+          </div>
+
+          {entry.description && (
+            <p className="mt-1 text-text-muted">{entry.description}</p>
+          )}
+
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-muted">
+            <span>
+              {LL.pluginPage.remote.apiVersion({ version: entry.apiVersion })}
+            </span>
+            {entry.releaseDate && (
+              <span>
+                {LL.pluginPage.remote.releaseDate({
+                  date: entry.releaseDate,
+                })}
+              </span>
+            )}
+            {installedPlugin && (
+              <span>
+                {LL.pluginPage.remote.installedVersion({
+                  version: installedPlugin.version,
+                })}
+              </span>
+            )}
+          </div>
+
+          {sourceUrl && (
+            <button
+              type="button"
+              onClick={() => {
+                void openUrl(sourceUrl).catch((openError) => {
+                  console.warn("Failed to open plugin source URL:", openError);
+                });
+              }}
+              className="mt-3 inline-flex items-center gap-1 rounded border border-border-main px-2 py-1 text-xs text-text-muted hover:text-text-main"
+            >
+              <ExternalLink size={13} aria-hidden="true" />
+              {LL.pluginPage.remote.source()}
+            </button>
+          )}
+
+          {error && (
+            <div className="mt-3 flex items-start gap-2 text-xs text-red-300">
+              <AlertCircle size={14} aria-hidden="true" className="mt-0.5" />
+              <span>{error}</span>
+            </div>
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={onInstall}
+          disabled={disabled}
+          className="inline-flex min-h-9 items-center justify-center gap-2 rounded border border-border-main px-3 py-1.5 text-xs text-text-main hover:border-accent disabled:text-text-muted disabled:opacity-70"
+        >
+          <Download size={14} aria-hidden="true" />
+          {actionLabel}
+        </button>
+      </div>
+    </article>
+  );
+};
+
+const getRemotePluginStatusLabel = (
+  LL: TranslationFunctions,
+  installKind: ReturnType<typeof getRemotePluginInstallKind>,
+  installState: RemotePluginInstallState | undefined,
+  failed: boolean,
+) => {
+  if (failed) {
+    return LL.pluginPage.remote.states.failed();
+  }
+
+  if (installState === "downloading") {
+    return LL.pluginPage.remote.states.downloading();
+  }
+
+  if (installState === "installing") {
+    return LL.pluginPage.remote.states.installing();
+  }
+
+  if (installKind === "not-installed") {
+    return LL.pluginPage.remote.states.notInstalled();
+  }
+
+  if (installKind === "update-available") {
+    return LL.pluginPage.remote.states.updateAvailable();
+  }
+
+  if (installKind === "unsupported") {
+    return LL.pluginPage.remote.states.unsupportedApiVersion();
+  }
+
+  return LL.pluginPage.remote.states.installed();
+};
+
+const getRemotePluginActionLabel = (
+  LL: TranslationFunctions,
+  installKind: ReturnType<typeof getRemotePluginInstallKind>,
+  installState: RemotePluginInstallState | undefined,
+) => {
+  if (installState === "downloading") {
+    return LL.pluginPage.remote.downloading();
+  }
+
+  if (installState === "installing") {
+    return LL.pluginPage.remote.installing();
+  }
+
+  if (installKind === "update-available") {
+    return LL.pluginPage.remote.update();
+  }
+
+  if (installKind === "installed") {
+    return LL.pluginPage.remote.installed();
+  }
+
+  if (installKind === "unsupported") {
+    return LL.pluginPage.remote.unsupported();
+  }
+
+  return LL.pluginPage.remote.install();
 };
 
 const PluginCard = ({

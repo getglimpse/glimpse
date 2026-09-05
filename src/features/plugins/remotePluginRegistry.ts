@@ -127,6 +127,53 @@ export const checkRegistryEntryMatchesManifest = (
 export const isRegistryEntryApiSupported = (entry: PluginRegistryEntry) =>
   entry.apiVersion === supportedPluginApiVersion;
 
+export const getRemotePluginInstallErrorMessage = (error: unknown): string => {
+  const message = stringifyError(error);
+  const normalized = message.toLowerCase();
+
+  if (normalized.includes("checksum mismatch")) {
+    return "The plugin download did not match the registry checksum.";
+  }
+
+  if (normalized.includes("must use https")) {
+    return "The plugin download URL must use HTTPS.";
+  }
+
+  if (
+    normalized.includes("too large") ||
+    normalized.includes("compression ratio")
+  ) {
+    return "The plugin archive is too large or compressed unusually.";
+  }
+
+  if (
+    normalized.includes("failed to download") ||
+    normalized.includes("download failed") ||
+    normalized.includes("http status") ||
+    normalized.includes("timeout")
+  ) {
+    return "The plugin archive could not be downloaded.";
+  }
+
+  if (
+    normalized.includes("unsupported plugin api version") ||
+    normalized.includes("api version")
+  ) {
+    return "This plugin targets an unsupported Glimpse plugin API version.";
+  }
+
+  if (
+    normalized.includes("unsupported file") ||
+    normalized.includes("executable") ||
+    normalized.includes("symlink") ||
+    normalized.includes("escapes")
+  ) {
+    return "The plugin archive contains files that are not allowed.";
+  }
+
+  return message || "The plugin could not be installed.";
+};
+
 const validateRegistryEntry = (value: unknown, label: string): string[] => {
   const errors: string[] = [];
 
@@ -270,6 +317,18 @@ const normalizeOptionalString = (value: string | undefined) => {
   const normalized = value?.trim();
 
   return normalized ? normalized : undefined;
+};
+
+const stringifyError = (error: unknown): string => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (typeof error === "string") {
+    return error;
+  }
+
+  return String(error ?? "");
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>

@@ -6,11 +6,19 @@
 //! <app_data_dir>/plugins/<plugin-id>/manifest.json
 //! ```
 
-use std::fs;
-use std::path::{Path, PathBuf};
+use std::collections::HashSet;
+use std::fs::{self, File};
+use std::io::{self, Read, Write};
+use std::path::{Component, Path, PathBuf};
+use std::time::Duration;
 
 use chrono::Utc;
+use reqwest::{redirect::Policy, Client};
 use sha2::{Digest, Sha256};
+use url::Url;
+use uuid::Uuid;
+use walkdir::WalkDir;
+use zip::ZipArchive;
 
 use crate::models::plugins::{
     PluginAssetSource, PluginContributions, PluginDiscoveryError, PluginDiscoveryReport,
@@ -22,6 +30,16 @@ use crate::store::settings::{load_settings, save_settings};
 
 const SUPPORTED_PLUGIN_API_VERSION: &str = "0.2.0";
 const DEFAULT_PLUGIN_API_VERSION: &str = SUPPORTED_PLUGIN_API_VERSION;
+const PLUGIN_ARCHIVE_EXTENSION: &str = ".glimpse-plugin.zip";
+const PLUGIN_ARCHIVE_MAX_BYTES: u64 = 20 * 1024 * 1024;
+const PLUGIN_ARCHIVE_MAX_UNCOMPRESSED_BYTES: u64 = 64 * 1024 * 1024;
+const PLUGIN_ARCHIVE_MAX_FILE_BYTES: u64 = 16 * 1024 * 1024;
+const PLUGIN_ARCHIVE_MAX_ENTRIES: usize = 256;
+const PLUGIN_ARCHIVE_MAX_PATH_CHARS: usize = 240;
+const PLUGIN_ARCHIVE_MAX_DEPTH: usize = 8;
+const PLUGIN_ARCHIVE_MAX_COMPRESSION_RATIO: u64 = 100;
+const PLUGIN_ARCHIVE_DOWNLOAD_TIMEOUT_SECS: u64 = 30;
+const PLUGIN_ARCHIVE_DOWNLOAD_REDIRECT_LIMIT: usize = 5;
 
 pub fn ensure_plugins_dir(app_data_dir: &Path) -> Result<PathBuf, String> {
     let plugins_dir = app_data_dir.join("plugins");
@@ -60,7 +78,7 @@ pub fn load_plugin_discovery_report(app_data_dir: &Path) -> Result<PluginDiscove
         let entry = entry.map_err(|error| error.to_string())?;
         let path = entry.path();
 
-        if path.is_dir() {
+        if path.is_dir() && !is_hidden_plugin_work_dir(&path) {
             let manifest_path = path.join("manifest.json");
 
             if manifest_path.is_file() {
@@ -85,6 +103,12 @@ pub fn load_plugin_discovery_report(app_data_dir: &Path) -> Result<PluginDiscove
     }
 
     Ok(PluginDiscoveryReport { manifests, errors })
+}
+
+fn is_hidden_plugin_work_dir(path: &Path) -> bool {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.starts_with('.'))
 }
 
 pub fn install_plugin_from_path(
@@ -133,20 +157,23 @@ pub fn install_plugin_from_path(
         )
     })?;
     let replaced = destination_root.exists();
-
-    if replaced {
-        let canonical_destination = destination_root.canonicalize().map_err(|error| {
+    let canonical_destination = if replaced {
+        Some(destination_root.canonicalize().map_err(|error| {
             format!(
                 "failed to resolve existing plugin directory: {}: {error}",
                 destination_root.display()
             )
-        })?;
+        })?)
+    } else {
+        None
+    };
 
+    if let Some(canonical_destination) = canonical_destination.as_deref() {
         if canonical_source == canonical_destination {
             return Err("plugin source is already installed".to_string());
         }
 
-        if canonical_source.starts_with(&canonical_destination) {
+        if canonical_source.starts_with(canonical_destination) {
             return Err("plugin source is inside the installed plugin directory".to_string());
         }
 
@@ -163,25 +190,48 @@ pub fn install_plugin_from_path(
                 source_manifest.id
             ));
         }
-
-        fs::remove_dir_all(&canonical_destination).map_err(|error| {
-            format!(
-                "failed to remove existing plugin directory: {}: {error}",
-                canonical_destination.display()
-            )
-        })?;
     }
 
-    copy_dir_all(&canonical_source, &destination_root).map_err(|error| {
+    let staging_parent = plugins_dir.join(format!(".install_{}", Uuid::new_v4().simple()));
+    let staging_root = staging_parent.join(&source_manifest.id);
+
+    copy_dir_all(&canonical_source, &staging_root).map_err(|error| {
+        let _ = fs::remove_dir_all(&staging_parent);
         format!(
-            "failed to install plugin: {} -> {}: {error}",
+            "failed to stage plugin install: {} -> {}: {error}",
             canonical_source.display(),
-            destination_root.display()
+            staging_root.display()
         )
     })?;
 
-    let installed_manifest_path = destination_root.join("manifest.json");
-    let manifest = load_plugin_manifest(&installed_manifest_path)?;
+    let staged_manifest_path = staging_root.join("manifest.json");
+    let manifest = match load_plugin_manifest(&staged_manifest_path) {
+        Ok(manifest) => manifest,
+        Err(error) => {
+            let _ = fs::remove_dir_all(&staging_parent);
+            return Err(error);
+        }
+    };
+
+    if manifest.id != source_manifest.id {
+        let _ = fs::remove_dir_all(&staging_parent);
+        return Err(format!(
+            "staged plugin manifest id changed during install: expected {}, got {}",
+            source_manifest.id, manifest.id
+        ));
+    }
+
+    if let Err(error) = promote_staged_plugin_install(&staging_root, &destination_root, replaced) {
+        let _ = fs::remove_dir_all(&staging_parent);
+        return Err(error);
+    }
+
+    fs::remove_dir_all(&staging_parent).map_err(|error| {
+        format!(
+            "failed to clean plugin install staging directory: {}: {error}",
+            staging_parent.display()
+        )
+    })?;
 
     revoke_plugin_trust_record(settings_path, &manifest.id)?;
 
@@ -191,6 +241,915 @@ pub fn install_plugin_from_path(
         replaced,
         manifest,
     })
+}
+
+pub fn install_plugin_from_archive(
+    app_data_dir: &Path,
+    settings_path: &Path,
+    archive_path: &str,
+    replace: bool,
+) -> Result<PluginInstallResult, String> {
+    let archive_path = archive_path.trim();
+
+    if archive_path.is_empty() {
+        return Err("plugin archive path is required".to_string());
+    }
+
+    if !archive_path.ends_with(PLUGIN_ARCHIVE_EXTENSION) {
+        return Err(format!(
+            "plugin archive must end with {PLUGIN_ARCHIVE_EXTENSION}: {archive_path}"
+        ));
+    }
+
+    let archive_path = PathBuf::from(archive_path);
+
+    if !archive_path.is_file() {
+        return Err(format!(
+            "plugin archive path is not a file: {}",
+            archive_path.display()
+        ));
+    }
+
+    let archive_size = archive_path
+        .metadata()
+        .map_err(|error| {
+            format!(
+                "failed to read plugin archive metadata: {}: {error}",
+                archive_path.display()
+            )
+        })?
+        .len();
+
+    if archive_size > PLUGIN_ARCHIVE_MAX_BYTES {
+        return Err(format!(
+            "plugin archive is too large: {archive_size} bytes; limit is {PLUGIN_ARCHIVE_MAX_BYTES} bytes"
+        ));
+    }
+
+    let temp_root = std::env::temp_dir().join(format!(
+        "glimpse_plugin_archive_{}",
+        Uuid::new_v4().simple()
+    ));
+
+    fs::create_dir_all(&temp_root).map_err(|error| {
+        format!(
+            "failed to create plugin archive temp directory: {}: {error}",
+            temp_root.display()
+        )
+    })?;
+
+    let result = install_plugin_from_archive_inner(
+        app_data_dir,
+        settings_path,
+        &archive_path,
+        &temp_root,
+        replace,
+    );
+    let cleanup_result = fs::remove_dir_all(&temp_root);
+
+    match (result, cleanup_result) {
+        (Ok(result), Ok(())) => Ok(result),
+        (Ok(_), Err(error)) => Err(format!(
+            "failed to clean plugin archive temp directory: {}: {error}",
+            temp_root.display()
+        )),
+        (Err(error), _) => Err(error),
+    }
+}
+
+pub async fn install_plugin_from_url(
+    app_data_dir: &Path,
+    settings_path: &Path,
+    download_url: &str,
+    expected_sha256: &str,
+    replace: bool,
+) -> Result<PluginInstallResult, String> {
+    let download_url = validate_plugin_archive_download_url(download_url)?;
+    let expected_sha256 = validate_sha256_digest(expected_sha256)?;
+    let temp_root = std::env::temp_dir().join(format!(
+        "glimpse_plugin_download_{}",
+        Uuid::new_v4().simple()
+    ));
+
+    fs::create_dir_all(&temp_root).map_err(|error| {
+        format!(
+            "failed to create plugin download temp directory: {}: {error}",
+            temp_root.display()
+        )
+    })?;
+
+    let result = install_plugin_from_url_inner(
+        app_data_dir,
+        settings_path,
+        &download_url,
+        &expected_sha256,
+        &temp_root,
+        replace,
+    )
+    .await;
+    let cleanup_result = fs::remove_dir_all(&temp_root);
+
+    match (result, cleanup_result) {
+        (Ok(result), Ok(())) => Ok(result),
+        (Ok(_), Err(error)) => Err(format!(
+            "failed to clean plugin download temp directory: {}: {error}",
+            temp_root.display()
+        )),
+        (Err(error), _) => Err(error),
+    }
+}
+
+async fn install_plugin_from_url_inner(
+    app_data_dir: &Path,
+    settings_path: &Path,
+    download_url: &Url,
+    expected_sha256: &str,
+    temp_root: &Path,
+    replace: bool,
+) -> Result<PluginInstallResult, String> {
+    let archive_path = temp_root.join("download.glimpse-plugin.zip");
+
+    download_plugin_archive(download_url, expected_sha256, &archive_path).await?;
+    install_plugin_from_archive(
+        app_data_dir,
+        settings_path,
+        &archive_path.display().to_string(),
+        replace,
+    )
+}
+
+async fn download_plugin_archive(
+    download_url: &Url,
+    expected_sha256: &str,
+    archive_path: &Path,
+) -> Result<(), String> {
+    let client = Client::builder()
+        .timeout(Duration::from_secs(PLUGIN_ARCHIVE_DOWNLOAD_TIMEOUT_SECS))
+        .redirect(Policy::custom(|attempt| {
+            if attempt.previous().len() >= PLUGIN_ARCHIVE_DOWNLOAD_REDIRECT_LIMIT {
+                return attempt.error("plugin archive download redirected too many times");
+            }
+
+            if attempt.url().scheme() != "https" {
+                return attempt.error("plugin archive redirect target must use https");
+            }
+
+            attempt.follow()
+        }))
+        .build()
+        .map_err(|error| format!("failed to create plugin download client: {error}"))?;
+    let mut response = client
+        .get(download_url.clone())
+        .send()
+        .await
+        .map_err(|error| format!("failed to download plugin archive: {error}"))?;
+
+    if !response.status().is_success() {
+        return Err(format!(
+            "plugin archive download failed with HTTP status {}",
+            response.status()
+        ));
+    }
+
+    if response.url().scheme() != "https" {
+        return Err(format!(
+            "plugin archive redirect target must use https: {}",
+            response.url()
+        ));
+    }
+
+    if let Some(content_length) = response.content_length() {
+        if content_length > PLUGIN_ARCHIVE_MAX_BYTES {
+            return Err(format!(
+                "plugin archive download is too large: {content_length} bytes; limit is {PLUGIN_ARCHIVE_MAX_BYTES} bytes"
+            ));
+        }
+    }
+
+    let mut file = File::create(archive_path).map_err(|error| {
+        format!(
+            "failed to create plugin archive download file: {}: {error}",
+            archive_path.display()
+        )
+    })?;
+    let mut hasher = Sha256::new();
+    let mut downloaded_bytes = 0_u64;
+
+    while let Some(chunk) = response
+        .chunk()
+        .await
+        .map_err(|error| format!("failed while reading plugin archive download: {error}"))?
+    {
+        downloaded_bytes = downloaded_bytes
+            .checked_add(chunk.len() as u64)
+            .ok_or_else(|| "plugin archive download size overflowed".to_string())?;
+
+        if downloaded_bytes > PLUGIN_ARCHIVE_MAX_BYTES {
+            return Err(format!(
+                "plugin archive download is too large: {downloaded_bytes} bytes; limit is {PLUGIN_ARCHIVE_MAX_BYTES} bytes"
+            ));
+        }
+
+        hasher.update(&chunk);
+        file.write_all(&chunk).map_err(|error| {
+            format!(
+                "failed to write plugin archive download: {}: {error}",
+                archive_path.display()
+            )
+        })?;
+    }
+
+    file.flush().map_err(|error| {
+        format!(
+            "failed to flush plugin archive download: {}: {error}",
+            archive_path.display()
+        )
+    })?;
+
+    let actual_sha256 = format!("{:x}", hasher.finalize());
+
+    verify_sha256_digest(&actual_sha256, expected_sha256)?;
+
+    Ok(())
+}
+
+fn validate_plugin_archive_download_url(download_url: &str) -> Result<Url, String> {
+    let download_url = download_url.trim();
+
+    if download_url.is_empty() {
+        return Err("plugin archive download URL is required".to_string());
+    }
+
+    let parsed = Url::parse(download_url)
+        .map_err(|error| format!("plugin archive download URL is invalid: {error}"))?;
+
+    if parsed.scheme() != "https" {
+        return Err("plugin archive download URL must use https".to_string());
+    }
+
+    if !parsed.path().ends_with(PLUGIN_ARCHIVE_EXTENSION) {
+        return Err(format!(
+            "plugin archive download URL must end with {PLUGIN_ARCHIVE_EXTENSION}"
+        ));
+    }
+
+    Ok(parsed)
+}
+
+fn validate_sha256_digest(value: &str) -> Result<String, String> {
+    let value = value.trim();
+
+    if value.len() != 64 || !value.chars().all(|character| character.is_ascii_hexdigit()) {
+        return Err("plugin archive sha256 must be a 64 character hex digest".to_string());
+    }
+
+    Ok(value.to_ascii_lowercase())
+}
+
+fn verify_sha256_digest(actual_sha256: &str, expected_sha256: &str) -> Result<(), String> {
+    if actual_sha256 != expected_sha256 {
+        return Err(format!(
+            "plugin archive checksum mismatch: expected {expected_sha256}, got {actual_sha256}"
+        ));
+    }
+
+    Ok(())
+}
+
+fn install_plugin_from_archive_inner(
+    app_data_dir: &Path,
+    settings_path: &Path,
+    archive_path: &Path,
+    temp_root: &Path,
+    replace: bool,
+) -> Result<PluginInstallResult, String> {
+    let unpacked_root = temp_root.join("unpacked");
+    let archive_plugin_root = extract_plugin_archive(archive_path, &unpacked_root)?;
+    let plugin_id = read_archive_manifest_plugin_id(&archive_plugin_root)?;
+    let normalized_parent = temp_root.join("normalized");
+    let normalized_plugin_root = normalized_parent.join(plugin_id);
+
+    copy_dir_all(&archive_plugin_root, &normalized_plugin_root).map_err(|error| {
+        format!(
+            "failed to normalize plugin archive root: {} -> {}: {error}",
+            archive_plugin_root.display(),
+            normalized_plugin_root.display()
+        )
+    })?;
+
+    validate_archive_plugin_package(&normalized_plugin_root)?;
+
+    install_plugin_from_path(
+        app_data_dir,
+        settings_path,
+        &normalized_plugin_root.display().to_string(),
+        replace,
+    )
+}
+
+fn extract_plugin_archive(archive_path: &Path, unpacked_root: &Path) -> Result<PathBuf, String> {
+    fs::create_dir_all(unpacked_root).map_err(|error| {
+        format!(
+            "failed to create plugin archive unpack directory: {}: {error}",
+            unpacked_root.display()
+        )
+    })?;
+
+    let archive_file = File::open(archive_path).map_err(|error| {
+        format!(
+            "failed to open plugin archive: {}: {error}",
+            archive_path.display()
+        )
+    })?;
+    let mut archive = ZipArchive::new(archive_file)
+        .map_err(|error| format!("failed to read plugin archive: {error}"))?;
+    let prefix = validate_plugin_archive_entries(&mut archive)?;
+    let mut written_paths = HashSet::new();
+    let canonical_unpacked_root = unpacked_root.canonicalize().map_err(|error| {
+        format!(
+            "failed to resolve plugin archive unpack directory: {}: {error}",
+            unpacked_root.display()
+        )
+    })?;
+
+    for index in 0..archive.len() {
+        let mut entry = archive
+            .by_index(index)
+            .map_err(|error| format!("failed to read plugin archive entry {index}: {error}"))?;
+
+        if entry.is_dir() {
+            continue;
+        }
+
+        let entry_path = sanitized_zip_entry_path(&entry)?;
+        let relative_path = strip_archive_prefix(&entry_path, prefix.as_deref())?;
+
+        if relative_path.as_os_str().is_empty() {
+            continue;
+        }
+
+        let output_path = unpacked_root.join(&relative_path);
+
+        if !written_paths.insert(relative_path.clone()) {
+            return Err(format!(
+                "plugin archive contains duplicate file path: {}",
+                path_to_archive_string(&relative_path)
+            ));
+        }
+
+        let output_parent = output_path.parent().ok_or_else(|| {
+            format!(
+                "plugin archive entry has no parent directory: {}",
+                output_path.display()
+            )
+        })?;
+
+        fs::create_dir_all(output_parent).map_err(|error| {
+            format!(
+                "failed to create plugin archive output directory: {}: {error}",
+                output_parent.display()
+            )
+        })?;
+
+        let canonical_output_parent = output_parent.canonicalize().map_err(|error| {
+            format!(
+                "failed to resolve plugin archive output directory: {}: {error}",
+                output_parent.display()
+            )
+        })?;
+
+        if !canonical_output_parent.starts_with(&canonical_unpacked_root) {
+            return Err(format!(
+                "plugin archive output path escapes temp directory: {}",
+                output_path.display()
+            ));
+        }
+
+        let mut output_file = File::create(&output_path).map_err(|error| {
+            format!(
+                "failed to create extracted plugin file: {}: {error}",
+                output_path.display()
+            )
+        })?;
+
+        io::copy(&mut entry, &mut output_file).map_err(|error| {
+            format!(
+                "failed to extract plugin archive entry: {}: {error}",
+                entry.name()
+            )
+        })?;
+
+        let canonical_output_path = output_path.canonicalize().map_err(|error| {
+            format!(
+                "failed to resolve extracted plugin file: {}: {error}",
+                output_path.display()
+            )
+        })?;
+
+        if !canonical_output_path.starts_with(&canonical_unpacked_root) {
+            return Err(format!(
+                "extracted plugin file escapes temp directory: {}",
+                output_path.display()
+            ));
+        }
+    }
+
+    Ok(unpacked_root.to_path_buf())
+}
+
+fn validate_plugin_archive_entries<R: Read + io::Seek>(
+    archive: &mut ZipArchive<R>,
+) -> Result<Option<PathBuf>, String> {
+    if archive.len() == 0 {
+        return Err("plugin archive is empty".to_string());
+    }
+
+    if archive.len() > PLUGIN_ARCHIVE_MAX_ENTRIES {
+        return Err(format!(
+            "plugin archive has too many entries: {}; limit is {PLUGIN_ARCHIVE_MAX_ENTRIES}",
+            archive.len()
+        ));
+    }
+
+    let mut total_uncompressed_size = 0_u64;
+    let mut paths = Vec::new();
+    let mut file_paths = Vec::new();
+    let mut case_insensitive_paths = HashSet::new();
+
+    for index in 0..archive.len() {
+        let entry = archive
+            .by_index(index)
+            .map_err(|error| format!("failed to read plugin archive entry {index}: {error}"))?;
+        let path = sanitized_zip_entry_path(&entry)?;
+
+        validate_zip_entry_metadata(&entry, &path)?;
+        paths.push(path.clone());
+
+        if entry.is_dir() {
+            continue;
+        }
+
+        let normalized_path = path_to_archive_string(&path).to_ascii_lowercase();
+
+        if !case_insensitive_paths.insert(normalized_path) {
+            return Err(format!(
+                "plugin archive contains duplicate file path: {}",
+                path_to_archive_string(&path)
+            ));
+        }
+
+        total_uncompressed_size = total_uncompressed_size
+            .checked_add(entry.size())
+            .ok_or_else(|| "plugin archive uncompressed size overflowed".to_string())?;
+
+        if total_uncompressed_size > PLUGIN_ARCHIVE_MAX_UNCOMPRESSED_BYTES {
+            return Err(format!(
+                "plugin archive uncompressed size is too large: {total_uncompressed_size} bytes; limit is {PLUGIN_ARCHIVE_MAX_UNCOMPRESSED_BYTES} bytes"
+            ));
+        }
+
+        file_paths.push(path);
+    }
+
+    resolve_archive_root_prefix(&paths, &file_paths)
+}
+
+fn validate_zip_entry_metadata(entry: &zip::read::ZipFile<'_>, path: &Path) -> Result<(), String> {
+    let path_label = path_to_archive_string(path);
+
+    if entry.name().contains('\\') {
+        return Err(format!(
+            "plugin archive entry must use forward slashes: {}",
+            entry.name()
+        ));
+    }
+
+    if entry.name().contains('\0') {
+        return Err("plugin archive entry contains a null byte".to_string());
+    }
+
+    if is_zip_entry_symlink(entry) {
+        return Err(format!(
+            "plugin archive symlinks are not allowed: {path_label}"
+        ));
+    }
+
+    if path_label.chars().count() > PLUGIN_ARCHIVE_MAX_PATH_CHARS {
+        return Err(format!(
+            "plugin archive path is too long: {path_label}; limit is {PLUGIN_ARCHIVE_MAX_PATH_CHARS} characters"
+        ));
+    }
+
+    let depth = path
+        .components()
+        .filter(|component| matches!(component, Component::Normal(_)))
+        .count();
+
+    if depth > PLUGIN_ARCHIVE_MAX_DEPTH {
+        return Err(format!(
+            "plugin archive path is too deep: {path_label}; limit is {PLUGIN_ARCHIVE_MAX_DEPTH}"
+        ));
+    }
+
+    if !entry.is_dir() && entry.size() > PLUGIN_ARCHIVE_MAX_FILE_BYTES {
+        return Err(format!(
+            "plugin archive file is too large: {path_label}; {} bytes; limit is {PLUGIN_ARCHIVE_MAX_FILE_BYTES} bytes",
+            entry.size()
+        ));
+    }
+
+    let compressed_size = entry.compressed_size();
+
+    if !entry.is_dir() && entry.size() > 0 && compressed_size == 0 {
+        return Err(format!(
+            "plugin archive entry has an invalid compression ratio: {path_label}"
+        ));
+    }
+
+    if compressed_size > 0 && entry.size() / compressed_size > PLUGIN_ARCHIVE_MAX_COMPRESSION_RATIO
+    {
+        return Err(format!(
+            "plugin archive entry compression ratio is too high: {path_label}; limit is {PLUGIN_ARCHIVE_MAX_COMPRESSION_RATIO}:1"
+        ));
+    }
+
+    Ok(())
+}
+
+fn sanitized_zip_entry_path(entry: &zip::read::ZipFile<'_>) -> Result<PathBuf, String> {
+    let Some(path) = entry.enclosed_name() else {
+        return Err(format!(
+            "plugin archive entry escapes archive root: {}",
+            entry.name()
+        ));
+    };
+
+    if path
+        .components()
+        .any(|component| !matches!(component, Component::Normal(_)))
+    {
+        return Err(format!(
+            "plugin archive entry contains unsupported path components: {}",
+            entry.name()
+        ));
+    }
+
+    Ok(path)
+}
+
+fn resolve_archive_root_prefix(
+    paths: &[PathBuf],
+    file_paths: &[PathBuf],
+) -> Result<Option<PathBuf>, String> {
+    let manifest_paths: Vec<&PathBuf> = file_paths
+        .iter()
+        .filter(|path| path.file_name().and_then(|name| name.to_str()) == Some("manifest.json"))
+        .collect();
+
+    if manifest_paths.is_empty() {
+        return Err("plugin archive does not contain manifest.json".to_string());
+    }
+
+    if manifest_paths.len() > 1 {
+        return Err("plugin archive contains multiple manifest.json files".to_string());
+    }
+
+    let manifest_path = manifest_paths[0];
+    let components: Vec<_> = manifest_path.components().collect();
+    let prefix = match components.as_slice() {
+        [Component::Normal(file)] if file.to_string_lossy() == "manifest.json" => None,
+        [Component::Normal(parent), Component::Normal(file)]
+            if file.to_string_lossy() == "manifest.json" =>
+        {
+            Some(PathBuf::from(parent))
+        }
+        _ => {
+            return Err(
+                "plugin archive manifest.json must be at the archive root or one top-level directory"
+                    .to_string(),
+            );
+        }
+    };
+
+    if let Some(prefix) = prefix.as_ref() {
+        for path in paths {
+            if !path.starts_with(prefix) {
+                return Err(format!(
+                    "plugin archive with a top-level plugin directory must not contain sibling entries: {}",
+                    path_to_archive_string(path)
+                ));
+            }
+        }
+    }
+
+    Ok(prefix)
+}
+
+fn strip_archive_prefix(path: &Path, prefix: Option<&Path>) -> Result<PathBuf, String> {
+    if let Some(prefix) = prefix {
+        return path
+            .strip_prefix(prefix)
+            .map(Path::to_path_buf)
+            .map_err(|_| {
+                format!(
+                    "plugin archive entry is outside top-level directory: {}",
+                    path_to_archive_string(path)
+                )
+            });
+    }
+
+    Ok(path.to_path_buf())
+}
+
+fn read_archive_manifest_plugin_id(plugin_root: &Path) -> Result<String, String> {
+    let manifest_path = plugin_root.join("manifest.json");
+    let content = fs::read_to_string(&manifest_path).map_err(|error| {
+        format!(
+            "failed to read plugin archive manifest: {}: {error}",
+            manifest_path.display()
+        )
+    })?;
+    let value = serde_json::from_str::<serde_json::Value>(&content).map_err(|error| {
+        format!(
+            "failed to parse plugin archive manifest: {}: {error}",
+            manifest_path.display()
+        )
+    })?;
+    let plugin_id = value
+        .get("id")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| "plugin archive manifest id is required".to_string())?;
+
+    if !is_valid_plugin_id(plugin_id) {
+        return Err(format!("invalid plugin id: {plugin_id}"));
+    }
+
+    Ok(plugin_id.to_string())
+}
+
+fn validate_archive_plugin_package(plugin_root: &Path) -> Result<(), String> {
+    let manifest_path = plugin_root.join("manifest.json");
+    let manifest = load_plugin_manifest(&manifest_path)?;
+
+    validate_archive_manifest_contract(&manifest)?;
+
+    for entry in WalkDir::new(plugin_root).follow_links(false) {
+        let entry = entry.map_err(|error| {
+            format!(
+                "failed to inspect extracted plugin archive: {}: {error}",
+                plugin_root.display()
+            )
+        })?;
+
+        if entry.path() == plugin_root {
+            continue;
+        }
+
+        if entry.file_type().is_symlink() {
+            return Err(format!(
+                "plugin archive symlinks are not allowed: {}",
+                entry.path().display()
+            ));
+        }
+
+        if entry.file_type().is_dir() {
+            continue;
+        }
+
+        if !entry.file_type().is_file() {
+            return Err(format!(
+                "plugin archive entry is not a regular file: {}",
+                entry.path().display()
+            ));
+        }
+
+        validate_archive_plugin_file(plugin_root, entry.path(), &manifest)?;
+    }
+
+    Ok(())
+}
+
+fn validate_archive_manifest_contract(manifest: &PluginManifest) -> Result<(), String> {
+    if manifest.api_version.as_deref() != Some(SUPPORTED_PLUGIN_API_VERSION) {
+        return Err(format!(
+            "plugin archive apiVersion must be {SUPPORTED_PLUGIN_API_VERSION}"
+        ));
+    }
+
+    if manifest.page.as_deref() != Some("./page.json") {
+        return Err("plugin archive manifest.page must be ./page.json".to_string());
+    }
+
+    if manifest
+        .entrypoints
+        .as_ref()
+        .and_then(|entrypoints| entrypoints.main.as_deref())
+        != Some("./main.js")
+    {
+        return Err("plugin archive entrypoints.main must be ./main.js".to_string());
+    }
+
+    Ok(())
+}
+
+fn validate_archive_plugin_file(
+    plugin_root: &Path,
+    file_path: &Path,
+    manifest: &PluginManifest,
+) -> Result<(), String> {
+    let relative_path = file_path.strip_prefix(plugin_root).map_err(|_| {
+        format!(
+            "plugin archive file escapes plugin root: {}",
+            file_path.display()
+        )
+    })?;
+    let archive_path = path_to_archive_string(relative_path);
+    let extension = file_path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+
+    if !is_allowed_archive_plugin_file(&archive_path, manifest) {
+        return Err(format!(
+            "plugin archive contains unsupported file: {archive_path}"
+        ));
+    }
+
+    if is_javascript_like_extension(&extension) && archive_path != "main.js" {
+        return Err(format!(
+            "plugin archive contains undeclared JavaScript or TypeScript file: {archive_path}"
+        ));
+    }
+
+    if is_executable_extension(&extension) {
+        return Err(format!(
+            "plugin archive contains executable file: {archive_path}"
+        ));
+    }
+
+    let bytes = fs::read(file_path).map_err(|error| {
+        format!(
+            "failed to read extracted plugin archive file: {}: {error}",
+            file_path.display()
+        )
+    })?;
+
+    if let Some(signature) = executable_signature(&bytes) {
+        return Err(format!(
+            "plugin archive contains executable content: {archive_path} ({signature})"
+        ));
+    }
+
+    validate_archive_asset_signature(&archive_path, &extension, &bytes)?;
+    validate_archive_text_file(&archive_path, &extension, &bytes)?;
+
+    Ok(())
+}
+
+fn is_allowed_archive_plugin_file(archive_path: &str, manifest: &PluginManifest) -> bool {
+    if matches!(
+        archive_path,
+        "manifest.json" | "main.js" | "page.json" | "i18n.json" | "styles.css"
+    ) {
+        return true;
+    }
+
+    if matches!(archive_path, "README.md" | "CHANGELOG.md" | "LICENSE") {
+        return true;
+    }
+
+    if archive_path.starts_with("assets/") {
+        return true;
+    }
+
+    if let Some(i18n_path) = manifest.i18n_path.as_deref() {
+        return normalize_archive_manifest_path(i18n_path) == archive_path;
+    }
+
+    false
+}
+
+fn validate_archive_asset_signature(
+    archive_path: &str,
+    extension: &str,
+    bytes: &[u8],
+) -> Result<(), String> {
+    if !archive_path.starts_with("assets/") {
+        return Ok(());
+    }
+
+    if !matches!(
+        extension,
+        "png" | "jpg" | "jpeg" | "webp" | "gif" | "txt" | "json"
+    ) {
+        return Err(format!(
+            "plugin archive asset extension is not allowed: {archive_path}"
+        ));
+    }
+
+    match extension {
+        "png" if !bytes.starts_with(&[0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a]) => Err(
+            format!("plugin archive PNG asset has an invalid signature: {archive_path}"),
+        ),
+        "jpg" | "jpeg"
+            if !(bytes.len() >= 3 && bytes[0] == 0xff && bytes[1] == 0xd8 && bytes[2] == 0xff) =>
+        {
+            Err(format!(
+                "plugin archive JPEG asset has an invalid signature: {archive_path}"
+            ))
+        }
+        "webp" if !(bytes.len() >= 12 && &bytes[0..4] == b"RIFF" && &bytes[8..12] == b"WEBP") => {
+            Err(format!(
+                "plugin archive WebP asset has an invalid signature: {archive_path}"
+            ))
+        }
+        "gif" if !(bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a")) => Err(format!(
+            "plugin archive GIF asset has an invalid signature: {archive_path}"
+        )),
+        _ => Ok(()),
+    }
+}
+
+fn validate_archive_text_file(
+    archive_path: &str,
+    extension: &str,
+    bytes: &[u8],
+) -> Result<(), String> {
+    let is_text = matches!(extension, "js" | "json" | "css" | "md" | "txt")
+        || matches!(archive_path, "LICENSE");
+
+    if !is_text {
+        return Ok(());
+    }
+
+    let text = std::str::from_utf8(bytes)
+        .map_err(|_| format!("plugin archive text file must be valid UTF-8: {archive_path}"))?;
+
+    if extension == "json" {
+        serde_json::from_str::<serde_json::Value>(text).map_err(|error| {
+            format!("plugin archive JSON file is invalid: {archive_path}: {error}")
+        })?;
+    }
+
+    Ok(())
+}
+
+fn normalize_archive_manifest_path(path: &str) -> String {
+    path.replace('\\', "/").trim_start_matches("./").to_string()
+}
+
+fn path_to_archive_string(path: &Path) -> String {
+    path.components()
+        .map(|component| component.as_os_str().to_string_lossy())
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
+fn is_javascript_like_extension(extension: &str) -> bool {
+    matches!(extension, "js" | "mjs" | "cjs" | "ts" | "tsx")
+}
+
+fn is_executable_extension(extension: &str) -> bool {
+    matches!(
+        extension,
+        "dll" | "exe" | "bat" | "cmd" | "ps1" | "sh" | "so" | "dylib"
+    )
+}
+
+fn executable_signature(bytes: &[u8]) -> Option<&'static str> {
+    if bytes.len() >= 4 {
+        if bytes.starts_with(&[0x7f, b'E', b'L', b'F']) {
+            return Some("ELF executable signature");
+        }
+
+        if matches!(
+            &bytes[0..4],
+            [0xfe, 0xed, 0xfa, 0xce]
+                | [0xfe, 0xed, 0xfa, 0xcf]
+                | [0xce, 0xfa, 0xed, 0xfe]
+                | [0xcf, 0xfa, 0xed, 0xfe]
+                | [0xca, 0xfe, 0xba, 0xbe]
+        ) {
+            return Some("Mach-O executable signature");
+        }
+    }
+
+    if bytes.starts_with(b"MZ") {
+        return Some("PE executable signature");
+    }
+
+    if bytes.starts_with(b"#!") {
+        return Some("script shebang");
+    }
+
+    None
+}
+
+fn is_zip_entry_symlink(entry: &zip::read::ZipFile<'_>) -> bool {
+    entry
+        .unix_mode()
+        .is_some_and(|mode| mode & 0o170000 == 0o120000)
 }
 
 pub fn uninstall_plugin(
@@ -521,8 +1480,84 @@ fn plugin_manifest_fingerprint(
     }
 
     hash_optional_child_file_contents(&mut hasher, plugin_root, "styles", "styles.css")?;
+    hash_optional_assets_dir(&mut hasher, plugin_root)?;
 
     Ok(format!("{:x}", hasher.finalize()))
+}
+
+fn hash_optional_assets_dir(hasher: &mut Sha256, plugin_root: &Path) -> Result<(), String> {
+    let assets_root = plugin_root.join("assets");
+
+    write_hash_label(hasher, "assets");
+
+    if !assets_root.exists() {
+        write_hash_label(hasher, "missing");
+        return Ok(());
+    }
+
+    if !assets_root.is_dir() {
+        return Err(format!(
+            "plugin assets path exists but is not a directory: {}",
+            assets_root.display()
+        ));
+    }
+
+    let canonical_plugin_root = plugin_root.canonicalize().map_err(|error| {
+        format!(
+            "failed to resolve plugin root for assets fingerprint: {}: {error}",
+            plugin_root.display()
+        )
+    })?;
+    let canonical_assets_root = assets_root.canonicalize().map_err(|error| {
+        format!(
+            "failed to resolve plugin assets directory: {}: {error}",
+            assets_root.display()
+        )
+    })?;
+
+    if !canonical_assets_root.starts_with(&canonical_plugin_root) {
+        return Err(format!(
+            "plugin assets directory escapes plugin root: {}",
+            assets_root.display()
+        ));
+    }
+
+    let mut asset_paths = Vec::new();
+
+    for entry in WalkDir::new(&canonical_assets_root).follow_links(false) {
+        let entry = entry.map_err(|error| {
+            format!(
+                "failed to inspect plugin assets directory: {}: {error}",
+                canonical_assets_root.display()
+            )
+        })?;
+
+        if entry.file_type().is_file() {
+            asset_paths.push(entry.path().to_path_buf());
+        } else if entry.file_type().is_symlink() {
+            return Err(format!(
+                "plugin assets symlink is not allowed: {}",
+                entry.path().display()
+            ));
+        }
+    }
+
+    asset_paths.sort();
+
+    for path in asset_paths {
+        let relative_path = path.strip_prefix(&canonical_plugin_root).map_err(|_| {
+            format!(
+                "plugin asset escapes plugin root during fingerprint: {}",
+                path.display()
+            )
+        })?;
+        let relative_path = path_to_archive_string(relative_path);
+
+        write_hash_label(hasher, &relative_path);
+        hash_file_contents(hasher, "asset", &path)?;
+    }
+
+    Ok(())
 }
 
 fn hash_optional_child_file_contents(
@@ -621,6 +1656,78 @@ fn copy_dir_all(source: &Path, destination: &Path) -> std::io::Result<()> {
             fs::copy(&source_path, &destination_path)?;
         }
     }
+
+    Ok(())
+}
+
+fn promote_staged_plugin_install(
+    staging_root: &Path,
+    destination_root: &Path,
+    replaced: bool,
+) -> Result<(), String> {
+    if !replaced {
+        fs::rename(staging_root, destination_root).map_err(|error| {
+            format!(
+                "failed to promote staged plugin install: {} -> {}: {error}",
+                staging_root.display(),
+                destination_root.display()
+            )
+        })?;
+
+        return Ok(());
+    }
+
+    let destination_parent = destination_root.parent().ok_or_else(|| {
+        format!(
+            "installed plugin destination has no parent directory: {}",
+            destination_root.display()
+        )
+    })?;
+    let plugin_dir_name = destination_root
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| {
+            format!(
+                "installed plugin destination has invalid directory name: {}",
+                destination_root.display()
+            )
+        })?;
+    let backup_root = destination_parent.join(format!(
+        ".replace_{}_{}",
+        plugin_dir_name,
+        Uuid::new_v4().simple()
+    ));
+
+    fs::rename(destination_root, &backup_root).map_err(|error| {
+        format!(
+            "failed to backup installed plugin before replacement: {} -> {}: {error}",
+            destination_root.display(),
+            backup_root.display()
+        )
+    })?;
+
+    if let Err(promote_error) = fs::rename(staging_root, destination_root) {
+        let restore_result = fs::rename(&backup_root, destination_root);
+
+        return match restore_result {
+            Ok(()) => Err(format!(
+                "failed to replace installed plugin; existing plugin was restored: {}: {promote_error}",
+                destination_root.display()
+            )),
+            Err(restore_error) => Err(format!(
+                "failed to replace installed plugin: {}; also failed to restore backup {}: {restore_error}",
+                promote_error,
+                backup_root.display()
+            )),
+        };
+    }
+
+    fs::remove_dir_all(&backup_root).map_err(|error| {
+        format!(
+            "failed to remove replaced plugin backup: {}: {error}",
+            backup_root.display()
+        )
+    })?;
 
     Ok(())
 }
@@ -1423,6 +2530,7 @@ fn is_valid_contribution_id(id: &str) -> bool {
 mod tests {
     use super::*;
 
+    use std::io::Write;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use crate::models::settings::{AppSettings, PluginSettings, PluginTrustRecord};
@@ -1553,6 +2661,72 @@ mod tests {
         let destination = app_plugins_dir(app_data_dir).join(plugin_id);
 
         copy_dir_all(&source, &destination).unwrap();
+    }
+
+    fn valid_archive_manifest(plugin_id: &str) -> String {
+        format!(
+            r#"{{
+  "id": "{plugin_id}",
+  "name": "Archive Plugin",
+  "version": "0.2.0",
+  "apiVersion": "0.2.0",
+  "page": "./page.json",
+  "entrypoints": {{ "main": "./main.js" }},
+  "contributes": {{
+    "internalPage": {{
+      "id": "plugin:{plugin_id}",
+      "titleFallback": "Archive Plugin"
+    }}
+  }}
+}}"#
+        )
+    }
+
+    fn valid_archive_entries(plugin_id: &str) -> Vec<(String, Vec<u8>)> {
+        vec![
+            (
+                "manifest.json".to_string(),
+                valid_archive_manifest(plugin_id).into_bytes(),
+            ),
+            (
+                "page.json".to_string(),
+                format!(r#"{{ "id": "plugin:{plugin_id}", "tabs": [] }}"#).into_bytes(),
+            ),
+            (
+                "main.js".to_string(),
+                b"export default function activate() {}".to_vec(),
+            ),
+        ]
+    }
+
+    fn write_zip_archive(path: &Path, entries: Vec<(String, Vec<u8>)>) {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).unwrap();
+        }
+
+        let file = File::create(path).unwrap();
+        let mut zip = zip::ZipWriter::new(file);
+        let options = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Stored);
+
+        for (name, bytes) in entries {
+            zip.start_file(name, options).unwrap();
+            zip.write_all(&bytes).unwrap();
+        }
+
+        zip.finish().unwrap();
+    }
+
+    fn write_plugin_archive(
+        root: &Path,
+        plugin_id: &str,
+        entries: Vec<(String, Vec<u8>)>,
+    ) -> PathBuf {
+        let archive_path = root.join(format!("{plugin_id}-0.2.0.glimpse-plugin.zip"));
+
+        write_zip_archive(&archive_path, entries);
+
+        archive_path
     }
 
     #[test]
@@ -1750,6 +2924,26 @@ mod tests {
 
         fs::remove_dir_all(app_data_dir).ok();
         fs::remove_dir_all(source_parent).ok();
+    }
+
+    #[test]
+    fn discovery_ignores_hidden_plugin_work_directories() {
+        let app_data_dir = unique_test_dir("app");
+        let plugins_dir = app_plugins_dir(&app_data_dir);
+
+        write_plugin_source(&plugins_dir, "visible-plugin");
+        write_plugin_source(&plugins_dir, ".install_hidden-plugin");
+
+        let report = load_plugin_discovery_report(&app_data_dir).unwrap();
+        let ids = report
+            .manifests
+            .iter()
+            .map(|manifest| manifest.id.as_str())
+            .collect::<Vec<_>>();
+
+        assert_eq!(ids, vec!["visible-plugin"]);
+
+        fs::remove_dir_all(app_data_dir).ok();
     }
 
     #[test]
@@ -2406,6 +3600,303 @@ mod tests {
 
         fs::remove_dir_all(app_data_dir).ok();
         fs::remove_dir_all(source_parent).ok();
+    }
+
+    #[test]
+    fn installs_plugin_from_archive_root() {
+        let app_data_dir = unique_test_dir("app");
+        let archive_root = unique_test_dir("archive");
+        let settings_path = app_data_dir.join("settings.json");
+        let plugin_id = "archive-install-plugin";
+        let archive_path =
+            write_plugin_archive(&archive_root, plugin_id, valid_archive_entries(plugin_id));
+
+        let result = install_plugin_from_archive(
+            &app_data_dir,
+            &settings_path,
+            &archive_path.display().to_string(),
+            false,
+        )
+        .unwrap();
+
+        assert_eq!(result.plugin_id, plugin_id);
+        assert!(!result.replaced);
+        assert!(app_data_dir
+            .join("plugins")
+            .join(plugin_id)
+            .join("manifest.json")
+            .is_file());
+        assert!(app_data_dir
+            .join("plugins")
+            .join(plugin_id)
+            .join("main.js")
+            .is_file());
+
+        fs::remove_dir_all(app_data_dir).ok();
+        fs::remove_dir_all(archive_root).ok();
+    }
+
+    #[test]
+    fn installs_plugin_from_archive_with_single_parent_directory() {
+        let app_data_dir = unique_test_dir("app");
+        let archive_root = unique_test_dir("archive");
+        let settings_path = app_data_dir.join("settings.json");
+        let plugin_id = "archive-parent-plugin";
+        let entries = valid_archive_entries(plugin_id)
+            .into_iter()
+            .map(|(path, bytes)| (format!("{plugin_id}-0.2.0/{path}"), bytes))
+            .collect();
+        let archive_path = write_plugin_archive(&archive_root, plugin_id, entries);
+
+        let result = install_plugin_from_archive(
+            &app_data_dir,
+            &settings_path,
+            &archive_path.display().to_string(),
+            false,
+        )
+        .unwrap();
+
+        assert_eq!(result.plugin_id, plugin_id);
+        assert!(app_data_dir
+            .join("plugins")
+            .join(plugin_id)
+            .join("page.json")
+            .is_file());
+
+        fs::remove_dir_all(app_data_dir).ok();
+        fs::remove_dir_all(archive_root).ok();
+    }
+
+    #[test]
+    fn archive_install_rejects_path_traversal() {
+        let app_data_dir = unique_test_dir("app");
+        let archive_root = unique_test_dir("archive");
+        let settings_path = app_data_dir.join("settings.json");
+        let plugin_id = "archive-slip-plugin";
+        let mut entries = valid_archive_entries(plugin_id);
+        entries.push(("../escape.txt".to_string(), b"nope".to_vec()));
+        let archive_path = write_plugin_archive(&archive_root, plugin_id, entries);
+
+        assert_error_contains(
+            install_plugin_from_archive(
+                &app_data_dir,
+                &settings_path,
+                &archive_path.display().to_string(),
+                false,
+            ),
+            "escapes archive root",
+        );
+        assert!(!app_data_dir.join("plugins").join(plugin_id).exists());
+
+        fs::remove_dir_all(app_data_dir).ok();
+        fs::remove_dir_all(archive_root).ok();
+    }
+
+    #[test]
+    fn archive_install_rejects_unsupported_files() {
+        let app_data_dir = unique_test_dir("app");
+        let archive_root = unique_test_dir("archive");
+        let settings_path = app_data_dir.join("settings.json");
+        let plugin_id = "archive-docs-plugin";
+        let mut entries = valid_archive_entries(plugin_id);
+        entries.push(("docs/readme.md".to_string(), b"not packaged".to_vec()));
+        let archive_path = write_plugin_archive(&archive_root, plugin_id, entries);
+
+        assert_error_contains(
+            install_plugin_from_archive(
+                &app_data_dir,
+                &settings_path,
+                &archive_path.display().to_string(),
+                false,
+            ),
+            "unsupported file",
+        );
+        assert!(!app_data_dir.join("plugins").join(plugin_id).exists());
+
+        fs::remove_dir_all(app_data_dir).ok();
+        fs::remove_dir_all(archive_root).ok();
+    }
+
+    #[test]
+    fn archive_install_failure_keeps_existing_plugin() {
+        let app_data_dir = unique_test_dir("app");
+        let archive_root = unique_test_dir("archive");
+        let source_parent = unique_test_dir("source");
+        let settings_path = app_data_dir.join("settings.json");
+        let plugin_id = "archive-keep-existing-plugin";
+
+        write_plugin_source(&source_parent, plugin_id);
+        install_plugin_from_path(
+            &app_data_dir,
+            &settings_path,
+            &source_parent.join(plugin_id).display().to_string(),
+            false,
+        )
+        .unwrap();
+        set_plugin_trust(&app_data_dir, &settings_path, plugin_id, true).unwrap();
+        let original_main =
+            fs::read_to_string(app_data_dir.join("plugins").join(plugin_id).join("main.js"))
+                .unwrap();
+
+        let mut entries = valid_archive_entries(plugin_id);
+        entries.push(("extra.js".to_string(), b"export default null;".to_vec()));
+        let archive_path = write_plugin_archive(&archive_root, plugin_id, entries);
+
+        assert_error_contains(
+            install_plugin_from_archive(
+                &app_data_dir,
+                &settings_path,
+                &archive_path.display().to_string(),
+                true,
+            ),
+            "unsupported file",
+        );
+
+        let installed_main =
+            fs::read_to_string(app_data_dir.join("plugins").join(plugin_id).join("main.js"))
+                .unwrap();
+        let trust = get_plugin_trust_status(&app_data_dir, &settings_path, plugin_id).unwrap();
+
+        assert_eq!(installed_main, original_main);
+        assert!(trust.trusted);
+
+        fs::remove_dir_all(app_data_dir).ok();
+        fs::remove_dir_all(archive_root).ok();
+        fs::remove_dir_all(source_parent).ok();
+    }
+
+    #[test]
+    fn archive_replace_revokes_existing_plugin_trust() {
+        let app_data_dir = unique_test_dir("app");
+        let archive_root = unique_test_dir("archive");
+        let source_parent = unique_test_dir("source");
+        let settings_path = app_data_dir.join("settings.json");
+        let plugin_id = "archive-revoke-trust-plugin";
+
+        write_plugin_source(&source_parent, plugin_id);
+        install_plugin_from_path(
+            &app_data_dir,
+            &settings_path,
+            &source_parent.join(plugin_id).display().to_string(),
+            false,
+        )
+        .unwrap();
+        set_plugin_trust(&app_data_dir, &settings_path, plugin_id, true).unwrap();
+
+        let mut entries = valid_archive_entries(plugin_id);
+        entries[2] = (
+            "main.js".to_string(),
+            b"export default function activate() { return 'remote replacement'; }".to_vec(),
+        );
+        let archive_path = write_plugin_archive(&archive_root, plugin_id, entries);
+        let result = install_plugin_from_archive(
+            &app_data_dir,
+            &settings_path,
+            &archive_path.display().to_string(),
+            true,
+        )
+        .unwrap();
+        let trust = get_plugin_trust_status(&app_data_dir, &settings_path, plugin_id).unwrap();
+
+        assert!(result.replaced);
+        assert!(!trust.trusted);
+        assert_eq!(
+            trust.reason.as_deref(),
+            Some("plugin has not been trusted yet")
+        );
+        assert_error_contains(
+            ensure_plugin_trusted(&app_data_dir, &settings_path, plugin_id),
+            "plugin is not trusted",
+        );
+
+        fs::remove_dir_all(app_data_dir).ok();
+        fs::remove_dir_all(archive_root).ok();
+        fs::remove_dir_all(source_parent).ok();
+    }
+
+    #[test]
+    fn plugin_archive_download_url_requires_https_zip_url() {
+        assert_error_contains(
+            validate_plugin_archive_download_url(
+                "http://github.com/getglimpse/plugins/releases/download/plugin.zip",
+            ),
+            "must use https",
+        );
+        assert_error_contains(
+            validate_plugin_archive_download_url("https://example.com/plugin.zip"),
+            "must end with .glimpse-plugin.zip",
+        );
+
+        let parsed = validate_plugin_archive_download_url(
+            "https://github.com/getglimpse/plugins/releases/download/v0.2.0/example-plugin-0.2.0.glimpse-plugin.zip",
+        )
+        .unwrap();
+
+        assert_eq!(parsed.scheme(), "https");
+    }
+
+    #[test]
+    fn plugin_archive_sha256_is_normalized_and_validated() {
+        assert_error_contains(validate_sha256_digest("abc"), "64 character hex digest");
+        assert_error_contains(
+            validate_sha256_digest(
+                "zzzz03237c7c543fd9efedab9b69c41b7f8e403e2374041ab56e8c44469fb639c",
+            ),
+            "64 character hex digest",
+        );
+
+        let digest = validate_sha256_digest(
+            "F8E403E2374041AB56E8C44469FB639C45643237C7C543FD9EFEDAB9B69C41B7",
+        )
+        .unwrap();
+
+        assert_eq!(
+            digest,
+            "f8e403e2374041ab56e8c44469fb639c45643237c7c543fd9efedab9b69c41b7"
+        );
+    }
+
+    #[test]
+    fn plugin_archive_sha256_mismatch_is_install_failure() {
+        assert_error_contains(
+            verify_sha256_digest(
+                "1111111111111111111111111111111111111111111111111111111111111111",
+                "2222222222222222222222222222222222222222222222222222222222222222",
+            ),
+            "checksum mismatch",
+        );
+    }
+
+    #[tokio::test]
+    async fn install_plugin_from_url_rejects_invalid_inputs_before_download() {
+        let app_data_dir = unique_test_dir("app");
+        let settings_path = app_data_dir.join("settings.json");
+        let digest = "f8e403e2374041ab56e8c44469fb639c45643237c7c543fd9efedab9b69c41b7";
+
+        assert_error_contains(
+            install_plugin_from_url(
+                &app_data_dir,
+                &settings_path,
+                "http://example.com/plugin.glimpse-plugin.zip",
+                digest,
+                false,
+            )
+            .await,
+            "must use https",
+        );
+        assert_error_contains(
+            install_plugin_from_url(
+                &app_data_dir,
+                &settings_path,
+                "https://example.com/plugin.glimpse-plugin.zip",
+                "not-a-digest",
+                false,
+            )
+            .await,
+            "64 character hex digest",
+        );
+
+        fs::remove_dir_all(app_data_dir).ok();
     }
 
     #[test]
