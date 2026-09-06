@@ -2,10 +2,10 @@
 
 [English](README.md)
 
-[![Release](https://img.shields.io/github/v/release/cromon-code/glimpse?display_name=tag)](https://github.com/cromon-code/glimpse/releases)
+[![Release](https://img.shields.io/github/v/release/getglimpse/glimpse?display_name=tag)](https://github.com/getglimpse/glimpse/releases)
 [![License](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-4CAF50)](#対応プラットフォーム)
-[![Status](https://img.shields.io/badge/Status-Beta-orange)](https://github.com/cromon-code/glimpse)
+[![Status](https://img.shields.io/badge/Status-Beta-orange)](https://github.com/getglimpse/glimpse)
 
 > ローカルの情報へ、すばやくアクセスするための検索ランチャー。
 
@@ -30,7 +30,7 @@ Glimpse は現在 beta 版です。
 - 複数フォルダを検索対象にできる Target Group
 - Settings、Help、Shortcuts、診断、プラグイン管理などの組み込み Internal Page
 - カスタム CSS テーマ
-- 明示的な信頼確認を備えたローカルプラグイン機構
+- 明示的な信頼確認を備えたローカル / リモートプラグイン機構
 
 ## 向いている用途
 
@@ -40,13 +40,13 @@ Glimpse は次のような用途に向いています。
 - エディタを開かずに作業ドキュメントを確認する
 - よく使うファイル、リンク、コマンド集をすぐ開く
 - プロジェクトメモ、スニペット、軽量なナレッジベースを検索可能にする
-- ローカルプラグインでランチャーを拡張する
+- ローカル / リモートプラグインでランチャーを拡張する
 
 Glimpse は大規模なナレッジマネジメントスイートを目指していません。目的はシンプルです。必要な情報へできるだけ速く到達できるようにすることです。
 
 ## インストール
 
-最新ビルドは [Releases](https://github.com/cromon-code/glimpse/releases) からダウンロードできます。
+最新ビルドは [Releases](https://github.com/getglimpse/glimpse/releases) からダウンロードできます。
 
 ### 対応プラットフォーム
 
@@ -72,13 +72,15 @@ Glimpse は Windows、macOS、Linux で動作するように設計していま�
 
 ## プラグイン
 
-Glimpse はローカルのフロントエンド専用プラグインに対応しています。
+Glimpse は、ローカル folder、ローカル `.glimpse-plugin.zip`、公式 remote plugin registry からインストールするフロントエンド専用プラグインに対応しています。
 
 プラグインは Internal Page、Action、Viewer を追加できます。プラグインは自動では読み込まれません。インストール後、Glimpse がコードを実行する前にユーザーが信頼する必要があります。
 
+リモートプラグインは Plugin Page に一覧表示されます。Glimpse は Release archive をダウンロードし、SHA-256 checksum を検証してインストールします。その後、ユーザーが Trust して ON にするまでプラグインは実行されません。Install / Update すると、以前の trust record は解除されます。
+
 [プラグインの使い方](docs/ja/plugins.md) はユーザーガイドで確認できます。
 
-v0.2.0 仕様に更新済みの自作 / サンプルプラグインは [.plugins](.plugins) ディレクトリにあります。具体的なプラグイン仕様と author 向けメモは [.plugins/docs](.plugins/docs) にあります。
+無料公開プラグインと公式 registry は [getglimpse/plugins](https://github.com/getglimpse/plugins) リポジトリで管理します。具体的なプラグイン仕様と author 向け実装メモは [getglimpse/plugin-template](https://github.com/getglimpse/plugin-template) で管理します。
 
 - Numeric calculator
 - Date calculator
@@ -88,9 +90,9 @@ v0.2.0 仕様に更新済みの自作 / サンプルプラグインは [.plugins
 - File converter
 - Office documents viewer
 
-新しいプラグインを作るときの雛形は [.plugin-template/templates](.plugin-template/templates) にあります。
+新しいプラグインを作るときの雛形は [getglimpse/plugin-template](https://github.com/getglimpse/plugin-template) にあります。Release archive は `pnpm plugins:package` で作成できます。
 
-Glimpse 本体の `docs/` はユーザー向けドキュメントとして扱い、プラグインの具体仕様は `.plugins/docs/` 側で管理します。
+Glimpse 本体の `docs/` はユーザー向けドキュメントとして扱い、プラグイン author 向けの詳細は `getglimpse/plugin-template` 側で管理します。
 
 ## ドキュメント
 
@@ -147,7 +149,7 @@ cargo check --manifest-path src-tauri/Cargo.toml
 - Trash / Restore ワークフロー
 - 検索ランキングとメタデータ処理の改善
 - Audio、Video、PDF、Office documents などのプレビュー改善
-- プラグイン配布と更新フロー
+- プラグイン配布と更新フローの改善
 - カスタム Viewer、Parser、Indexing 向けの拡張ポイント
 
 詳しくは [roadmap](docs/ja/others/roadmap.md) を参照してください。

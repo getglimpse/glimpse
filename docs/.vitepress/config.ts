@@ -8,18 +8,6 @@ const introduction = [
   { text: "Search Basics", link: "/intro/search" },
 ];
 
-const development = [
-  { text: "Developer Overview", link: "/dev/README" },
-  { text: "Architecture", link: "/dev/architecture" },
-  { text: "Frontend", link: "/dev/frontend" },
-  { text: "Backend", link: "/dev/backend" },
-  { text: "Search Architecture", link: "/dev/search" },
-  { text: "Indexing", link: "/dev/indexing" },
-  { text: "Parser", link: "/dev/parser" },
-  { text: "Settings Architecture", link: "/dev/settings" },
-  { text: "Logging", link: "/dev/logging" },
-];
-
 const search = [
   { text: "Query Syntax", link: "/search/syntax" },
   { text: "Target Groups", link: "/search/groups" },
@@ -61,18 +49,6 @@ const jaIntroduction = [
   { text: "検索の基本", link: "/ja/intro/search" },
 ];
 
-const jaDevelopment = [
-  { text: "開発者ドキュメント", link: "/ja/dev/README" },
-  { text: "アーキテクチャ", link: "/ja/dev/architecture" },
-  { text: "フロントエンド", link: "/ja/dev/frontend" },
-  { text: "バックエンド", link: "/ja/dev/backend" },
-  { text: "検索アーキテクチャ", link: "/ja/dev/search" },
-  { text: "インデックス作成", link: "/ja/dev/indexing" },
-  { text: "パーサー", link: "/ja/dev/parser" },
-  { text: "設定アーキテクチャ", link: "/ja/dev/settings" },
-  { text: "ログ", link: "/ja/dev/logging" },
-];
-
 const jaSearch = [
   { text: "クエリ構文", link: "/ja/search/syntax" },
   { text: "Target Groups", link: "/ja/search/groups" },
@@ -110,7 +86,7 @@ export default defineConfig({
   title: "Glimpse",
   description: "Fast local search with instant preview.",
   base: "/glimpse/",
-  srcExclude: ["private/**"],
+  srcExclude: ["private/**", "dev/**", "ja/dev/**"],
   locales: {
     root: {
       label: "English",
@@ -119,7 +95,7 @@ export default defineConfig({
         nav: [
           { text: "Roadmap", link: "/others/roadmap" },
           { text: "Changelog", link: "/others/changelog" },
-          { text: "GitHub", link: "https://github.com/cromon-code/glimpse" },
+          { text: "GitHub", link: "https://github.com/getglimpse/glimpse" },
         ],
       },
     },
@@ -131,7 +107,7 @@ export default defineConfig({
         nav: [
           { text: "Roadmap", link: "/ja/others/roadmap" },
           { text: "Changelog", link: "/ja/others/changelog" },
-          { text: "GitHub", link: "https://github.com/cromon-code/glimpse" },
+          { text: "GitHub", link: "https://github.com/getglimpse/glimpse" },
         ],
       },
     },
@@ -146,7 +122,6 @@ export default defineConfig({
         { text: "ドキュメント", items: jaDocuments },
         { text: "内部ページ", items: jaInternalPages },
         { text: "プラグイン", items: jaPlugins },
-        { text: "開発者ガイド", items: jaDevelopment },
         { text: "その他", items: jaOthers },
       ],
       "/": [
@@ -156,7 +131,6 @@ export default defineConfig({
         { text: "Documents", items: documents },
         { text: "Internal Pages", items: internalPages },
         { text: "Plugins", items: plugins },
-        { text: "Developer Guide", items: development },
         { text: "Others", items: others },
       ],
     },

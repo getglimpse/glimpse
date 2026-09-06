@@ -350,7 +350,7 @@ export const PluginPage = () => {
     });
     setRemoteManagementMessage(null);
 
-    window.setTimeout(() => {
+    const installPhaseTimer = window.setTimeout(() => {
       setRemoteInstallStates((states) =>
         states[entry.id] === "downloading"
           ? { ...states, [entry.id]: "installing" }
@@ -384,6 +384,7 @@ export const PluginPage = () => {
         );
       })
       .finally(() => {
+        window.clearTimeout(installPhaseTimer);
         setRemoteInstallStates((states) => {
           const nextStates = { ...states };
 

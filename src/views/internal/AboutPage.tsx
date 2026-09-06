@@ -47,7 +47,7 @@ export const AboutPage = () => {
 
           <div className="flex flex-col gap-1 text-sm">
             <a
-              href="https://github.com/cromon-code/glimpse"
+              href="https://github.com/getglimpse/glimpse"
               target="_blank"
               rel="noreferrer"
               className="text-[var(--accent)] hover:underline"
@@ -56,7 +56,7 @@ export const AboutPage = () => {
             </a>
 
             <a
-              href="https://github.com/cromon-code/glimpse/issues"
+              href="https://github.com/getglimpse/glimpse/issues"
               target="_blank"
               rel="noreferrer"
               className="text-[var(--accent)] hover:underline"

@@ -1,13 +1,13 @@
 # 開発者ドキュメント
 
-このセクションは、Glimpse の実装を変更する人に向けた内部ドキュメントです。
+このセクションは、Glimpse の実装を変更する contributor 向けの公開可能な技術ドキュメントです。
 
-ユーザー向けの挙動、導入手順、検索構文、FAQ は通常の `docs/` を参照してください。ここでは、実装の責務、データフロー、API 契約、運用時の確認項目を扱います。
+ユーザー向けの挙動、導入手順、検索構文、FAQ は通常の `docs/` を参照してください。ここでは、実装の責務、データフロー、API 契約、contributor 向けの確認項目を扱います。このセクションは repository には残しますが、ユーザー向けドキュメントのナビゲーションには出しません。
 
 ## ドキュメントの位置づけ
 
 - 公開向けの説明は `docs/` と `docs/ja/` に置きます。
-- 英語版の実装方針、内部 API は `docs/dev/` に置きます。
+- 英語版の実装方針は `docs/dev/` に置きます。
 - 日本語版の開発者ドキュメントは `docs/ja/dev/` に置きます。
 - 開発者ドキュメントには、公開してよい技術説明だけを残します。
 
@@ -36,9 +36,10 @@
 
 - IPC command、型、store schema、設定値を変えた。
 - 検索、indexing、preview、plugin の挙動を変えた。
-- 内部向け manual test に新しい確認項目が必要になった。
 - ユーザー向け docs と実装 docs の説明が食い違った。
 - 公開に向かない内容が混ざった場合は、公開 docs から外す。
+- Plugin API 仕様と author 向け実装 docs は `getglimpse/plugin-template` で管理します。
+- Plugin store policy、review workflow、未公開 plugin roadmap は public product repository の外で管理します。
 
 ## ソース構成
 
@@ -78,7 +79,7 @@ src-tauri/src/
 
 1. 変更した API 付近の Rust doc comment または TypeScript comment。
 2. `docs/dev` と `docs/ja/dev` の開発者ドキュメント。
-3. manual verification や release work に影響する場合は `.private-docs` の運用メモ。
+3. manual verification や release work に影響する場合は private な運用メモ。
 4. `docs/` のユーザー向けドキュメント。
 5. 画面上の挙動が変わる場合は `docs/ja` の日本語ユーザー向けドキュメント。
 6. ユーザーに見える変更の場合は changelog または release notes。

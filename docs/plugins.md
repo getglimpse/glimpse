@@ -16,6 +16,25 @@ Use Plugin Page to install, trust, enable, disable, or remove plugins.
 
 Remote plugins are listed from the official Glimpse plugin registry. Glimpse downloads the `.glimpse-plugin.zip` archive referenced by the registry and verifies its SHA-256 checksum before installing it.
 
+## Installing Remote Plugins
+
+Remote plugins appear in the Remote plugins section of Plugin Page.
+
+1. Open Plugin Page with `:plugin`.
+2. Find the plugin you want to install.
+3. Click Install, or Update if an installed plugin has a newer registry version.
+4. Review the installed plugin details.
+5. Click Trust only if you understand the plugin and its source.
+6. Turn the plugin ON.
+
+An installed remote plugin is still treated like any other plugin. Glimpse does not run `main.js` until the plugin is trusted, and replacing a plugin clears the previous trust record.
+
+## Installing Local Archives
+
+Plugin Page can also install a local `.glimpse-plugin.zip` archive. Add or drop the archive path in the local install area, then install it the same way you would install a plugin folder.
+
+Local archives use the same validation rules as remote downloads: checksum verification is only available for registry installs, but archive layout, file allowlists, path traversal checks, executable checks, and archive size limits still apply.
+
 ## Trust
 
 Plugins are not loaded automatically. After installing a plugin, Glimpse asks you to trust it before running its code.
@@ -38,4 +57,4 @@ Viewer plugins can also add previews for supported file types. When a trusted vi
 
 ## Plugin Authors
 
-User documentation only explains how plugins appear in Glimpse. Plugin API specifications and author-facing notes live in `.plugins/docs/`. Starter templates live in `.plugin-template/templates/`.
+User documentation only explains how plugins appear in Glimpse. Plugin API specifications and author-facing notes live in the `getglimpse/plugin-template` repository. Free public plugins and the official registry live in `getglimpse/plugins`.

@@ -1,13 +1,13 @@
 # Developer Documentation
 
-This section explains the public implementation details of Glimpse for contributors.
+This section explains public implementation details for contributors.
 
-For user-facing behavior, installation steps, search syntax, and FAQ, see the regular `docs/` pages. The developer pages focus on module responsibilities, data flow, API contracts, and contributor verification.
+For user-facing behavior, installation steps, search syntax, and FAQ, see the regular `docs/` pages. The developer pages focus on module responsibilities, data flow, API contracts, and contributor verification. They are kept in the repository for contributors, but they are not part of the user documentation navigation.
 
 ## Scope
 
 - User-facing documentation lives in `docs/` and `docs/ja/`.
-- Public implementation notes and internal APIs live in `docs/dev/`.
+- Public implementation notes live in `docs/dev/`.
 - `docs/dev/` should contain only technical material that is safe to publish.
 
 ## Recommended Reading Order
@@ -35,10 +35,10 @@ For user-facing behavior, installation steps, search syntax, and FAQ, see the re
 
 - You changed an IPC command, type, store schema, or setting.
 - You changed search, indexing, preview, or plugin behavior.
-- Internal manual verification needs a new check.
 - User-facing docs and implementation docs disagree.
 - Content is not appropriate for public docs and should be removed from this repo.
-- Plugin API specifications and author-facing plans belong in `.plugins/docs/`.
+- Plugin API specifications and author-facing implementation docs belong in `getglimpse/plugin-template`.
+- Plugin store policy, review workflow, and unreleased plugin roadmap notes belong outside the public product repository.
 
 ## Source Layout
 
@@ -78,7 +78,7 @@ When an implementation changes, update docs in this order when relevant:
 
 1. Rust doc comments or TypeScript comments near the changed API.
 2. Developer documentation in `docs/dev`.
-3. Private operational notes in `.private-docs` when the change affects manual verification or release work.
+3. Private operational notes when the change affects manual verification or release work.
 4. User-facing documentation in `docs/`.
 5. Japanese user-facing documentation in `docs/ja` when visible behavior changes.
 6. Changelog or release notes when the change is user-visible.

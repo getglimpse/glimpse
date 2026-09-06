@@ -2,10 +2,10 @@
 
 [日本語](README_ja.md)
 
-[![Release](https://img.shields.io/github/v/release/cromon-code/glimpse?display_name=tag)](https://github.com/cromon-code/glimpse/releases)
+[![Release](https://img.shields.io/github/v/release/getglimpse/glimpse?display_name=tag)](https://github.com/getglimpse/glimpse/releases)
 [![License](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-4CAF50)](#platforms)
-[![Status](https://img.shields.io/badge/Status-Beta-orange)](https://github.com/cromon-code/glimpse)
+[![Status](https://img.shields.io/badge/Status-Beta-orange)](https://github.com/getglimpse/glimpse)
 
 > Fast local search with instant preview.
 
@@ -30,7 +30,7 @@ The core workflow is usable, but some features, settings, file formats, and plug
 - Target groups for searching multiple folders
 - Built-in internal pages for settings, help, shortcuts, diagnostics, and plugin management
 - Custom CSS themes
-- Local plugin system with explicit trust checks
+- Local and remote plugin system with explicit trust checks
 
 ## Use Cases
 
@@ -40,13 +40,13 @@ Glimpse is useful for:
 - Quickly previewing working documents without opening an editor
 - Opening frequently used files, links, and command references
 - Keeping project notes, snippets, and lightweight knowledge bases searchable
-- Extending the launcher with local plugins
+- Extending the launcher with local or remote plugins
 
 Glimpse is not trying to be a full knowledge management suite. Its goal is simple: help you reach the information you need as quickly as possible.
 
 ## Installation
 
-Download the latest build from the [Releases](https://github.com/cromon-code/glimpse/releases) page.
+Download the latest build from the [Releases](https://github.com/getglimpse/glimpse/releases) page.
 
 ### Platforms
 
@@ -72,13 +72,19 @@ For more details, see the [Quick Start](docs/intro/quick-start.md) guide.
 
 ## Plugins
 
-Glimpse supports local frontend-only plugins.
+Glimpse supports frontend-only plugins installed from local folders, local
+`.glimpse-plugin.zip` archives, or the official remote plugin registry.
 
 Plugins can add internal pages, actions, and viewers. They are not loaded automatically; installed plugins must be trusted before Glimpse runs their code.
 
+Remote plugins are listed on Plugin Page. Glimpse downloads the release archive,
+verifies its SHA-256 checksum, installs it, and then waits for the user to trust
+and enable the plugin. Installing or updating a plugin clears the previous trust
+record.
+
 See the user guide for [using plugins](docs/plugins.md).
 
-Author-created and sample plugins updated for v0.2.0 are available in the [.plugins](.plugins) directory. Plugin specifications and author-facing notes live in [.plugins/docs](.plugins/docs).
+Free public plugins and the official registry live in the [getglimpse/plugins](https://github.com/getglimpse/plugins) repository. Plugin specifications and author-facing implementation notes live in [getglimpse/plugin-template](https://github.com/getglimpse/plugin-template).
 
 - Numeric calculator
 - Date calculator
@@ -88,9 +94,10 @@ Author-created and sample plugins updated for v0.2.0 are available in the [.plug
 - File converter
 - Office documents viewer
 
-New plugin templates live in [.plugin-template/templates](.plugin-template/templates).
+New plugin templates live in [getglimpse/plugin-template](https://github.com/getglimpse/plugin-template).
+Release archives can be created with `pnpm plugins:package`.
 
-The main `docs/` directory is user documentation. Detailed plugin specifications are maintained under `.plugins/docs/`.
+The main `docs/` directory is user documentation. Detailed plugin author documentation is maintained in `getglimpse/plugin-template`.
 
 ## Documentation
 
@@ -147,7 +154,7 @@ Planned work includes:
 - Trash and restore workflows
 - Search ranking and metadata improvements
 - Richer previews for audio, video, PDF, and Office documents
-- Plugin distribution and update workflows
+- Plugin distribution and update workflow refinements
 - More extension points for custom viewers, parsers, and indexing features
 
 See the [roadmap](docs/others/roadmap.md) for more information.

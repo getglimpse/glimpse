@@ -226,14 +226,16 @@ pub fn install_plugin_from_path(
         return Err(error);
     }
 
-    fs::remove_dir_all(&staging_parent).map_err(|error| {
+    let cleanup_result = fs::remove_dir_all(&staging_parent);
+
+    revoke_plugin_trust_record(settings_path, &manifest.id)?;
+
+    cleanup_result.map_err(|error| {
         format!(
             "failed to clean plugin install staging directory: {}: {error}",
             staging_parent.display()
         )
     })?;
-
-    revoke_plugin_trust_record(settings_path, &manifest.id)?;
 
     Ok(PluginInstallResult {
         plugin_id: manifest.id.clone(),
@@ -1722,12 +1724,7 @@ fn promote_staged_plugin_install(
         };
     }
 
-    fs::remove_dir_all(&backup_root).map_err(|error| {
-        format!(
-            "failed to remove replaced plugin backup: {}: {error}",
-            backup_root.display()
-        )
-    })?;
+    let _ = fs::remove_dir_all(&backup_root);
 
     Ok(())
 }
@@ -3710,6 +3707,103 @@ mod tests {
                 false,
             ),
             "unsupported file",
+        );
+        assert!(!app_data_dir.join("plugins").join(plugin_id).exists());
+
+        fs::remove_dir_all(app_data_dir).ok();
+        fs::remove_dir_all(archive_root).ok();
+    }
+
+    #[test]
+    fn archive_install_rejects_missing_manifest() {
+        let app_data_dir = unique_test_dir("app");
+        let archive_root = unique_test_dir("archive");
+        let settings_path = app_data_dir.join("settings.json");
+        let plugin_id = "archive-missing-manifest-plugin";
+        let entries = valid_archive_entries(plugin_id)
+            .into_iter()
+            .filter(|(path, _)| path != "manifest.json")
+            .collect();
+        let archive_path = write_plugin_archive(&archive_root, plugin_id, entries);
+
+        assert_error_contains(
+            install_plugin_from_archive(
+                &app_data_dir,
+                &settings_path,
+                &archive_path.display().to_string(),
+                false,
+            ),
+            "manifest.json",
+        );
+        assert!(!app_data_dir.join("plugins").join(plugin_id).exists());
+
+        fs::remove_dir_all(app_data_dir).ok();
+        fs::remove_dir_all(archive_root).ok();
+    }
+
+    #[test]
+    fn archive_install_rejects_manifest_page_id_mismatch() {
+        let app_data_dir = unique_test_dir("app");
+        let archive_root = unique_test_dir("archive");
+        let settings_path = app_data_dir.join("settings.json");
+        let archive_plugin_id = "archive-id-mismatch-plugin";
+        let manifest_plugin_id = "archive-other-plugin";
+        let mut entries = valid_archive_entries(archive_plugin_id);
+
+        entries[0] = (
+            "manifest.json".to_string(),
+            valid_archive_manifest(manifest_plugin_id).into_bytes(),
+        );
+
+        let archive_path = write_plugin_archive(&archive_root, archive_plugin_id, entries);
+
+        assert_error_contains(
+            install_plugin_from_archive(
+                &app_data_dir,
+                &settings_path,
+                &archive_path.display().to_string(),
+                false,
+            ),
+            "page.id must start with plugin:archive-other-plugin",
+        );
+        assert!(!app_data_dir
+            .join("plugins")
+            .join(archive_plugin_id)
+            .exists());
+        assert!(!app_data_dir
+            .join("plugins")
+            .join(manifest_plugin_id)
+            .exists());
+
+        fs::remove_dir_all(app_data_dir).ok();
+        fs::remove_dir_all(archive_root).ok();
+    }
+
+    #[test]
+    fn archive_install_rejects_unsupported_api_version() {
+        let app_data_dir = unique_test_dir("app");
+        let archive_root = unique_test_dir("archive");
+        let settings_path = app_data_dir.join("settings.json");
+        let plugin_id = "archive-unsupported-api-plugin";
+        let mut entries = valid_archive_entries(plugin_id);
+
+        entries[0] = (
+            "manifest.json".to_string(),
+            valid_archive_manifest(plugin_id)
+                .replace(r#""apiVersion": "0.2.0""#, r#""apiVersion": "999.0.0""#)
+                .into_bytes(),
+        );
+
+        let archive_path = write_plugin_archive(&archive_root, plugin_id, entries);
+
+        assert_error_contains(
+            install_plugin_from_archive(
+                &app_data_dir,
+                &settings_path,
+                &archive_path.display().to_string(),
+                false,
+            ),
+            "unsupported plugin apiVersion",
         );
         assert!(!app_data_dir.join("plugins").join(plugin_id).exists());
 
