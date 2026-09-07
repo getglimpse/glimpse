@@ -7,7 +7,6 @@ import type { GlimpsePlugin, PluginTrustStatus } from "@/types";
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(),
-  convertFileSrc: (filePath: string) => `asset://${filePath}`,
   isTauri: () => true,
 }));
 
@@ -367,7 +366,8 @@ export default function activate(ctx) {
     });
     expect(mockedInvoke).toHaveBeenCalledWith("install_plugin_from_url", {
       downloadUrl: "https://example.com/remote-plugin.glimpse-plugin.zip",
-      sha256: "f8e403e2374041ab56e8c44469fb639c45643237c7c543fd9efedab9b69c41b7",
+      sha256:
+        "f8e403e2374041ab56e8c44469fb639c45643237c7c543fd9efedab9b69c41b7",
       replace: true,
     });
     expect(registry.getPlugins()).toHaveLength(1);

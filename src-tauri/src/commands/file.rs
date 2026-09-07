@@ -118,6 +118,19 @@ pub fn read_binary_file_in_target_group(
 }
 
 #[tauri::command]
+pub fn read_preview_asset_data_url(
+    settings_path: State<SharedSettingsPath>,
+    source_path: String,
+    asset_path: String,
+) -> Result<String, String> {
+    crate::store::file::read_preview_asset_data_url(
+        &resolve_settings_path(&settings_path)?,
+        source_path,
+        asset_path,
+    )
+}
+
+#[tauri::command]
 pub async fn create_markdown_file(
     settings_path: State<'_, SharedSettingsPath>,
     runtime: State<'_, Arc<IndexerRuntime>>,

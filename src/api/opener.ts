@@ -22,6 +22,21 @@ import { invoke } from "@tauri-apps/api/core";
  */
 export const openerApi = {
   /**
+   * Opens a web URL in the operating system's default browser.
+   *
+   * Backend command:
+   *
+   * - `open_external_url`
+   *
+   * The backend accepts only normalized `http` and `https` URLs.
+   */
+  openExternalUrl(url: string) {
+    return invoke("open_external_url", {
+      url,
+    });
+  },
+
+  /**
    * Opens a source file using the operating system's
    * default application.
    *

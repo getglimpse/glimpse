@@ -132,6 +132,22 @@ export const fileApi = {
     }),
 
   /**
+   * Reads a local preview asset as a data URL after backend scope checks.
+   *
+   * Backend command:
+   *
+   * - `read_preview_asset_data_url`
+   *
+   * The asset must belong to the same configured Target Group as the source
+   * file that produced the Markdown/GJSON preview.
+   */
+  readPreviewAssetDataUrl: (sourcePath: string, assetPath: string) =>
+    invoke<string>("read_preview_asset_data_url", {
+      sourcePath,
+      assetPath,
+    }),
+
+  /**
    * Creates a new text file.
    *
    * Backend command:

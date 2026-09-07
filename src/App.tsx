@@ -188,7 +188,7 @@ const createTemporaryMarkdownResult = ({
   };
 }): SearchResult => {
   const now = new Date().toISOString();
-  const url = metadata?.url ?? null;
+  const url = metadata?.url ? normalizeHttpUrl(metadata.url) : null;
   const item: IndexItem = {
     id: `temporary-saved:${normalizeFilePath(filePath)}`,
     title,

@@ -6,7 +6,6 @@ import {
   type ReactNode,
 } from "react";
 
-import { convertFileSrc } from "@tauri-apps/api/core";
 import { fileApi, type FileMetadata } from "@/api/file";
 import { pluginsApi } from "@/api/plugins";
 import { settingsApi } from "@/api/settings";
@@ -1506,6 +1505,14 @@ const deserializePluginProps = (
 
   delete nextProps.srcDocBasePath;
 
+  if (type === "iframe") {
+    if (typeof nextProps.sandbox !== "string") {
+      nextProps.sandbox = "allow-same-origin allow-scripts";
+    }
+
+    nextProps.referrerPolicy = "no-referrer";
+  }
+
   return nextProps;
 };
 
@@ -1573,7 +1580,7 @@ const deserializePluginAssetUrl = (
     },
   );
 
-  return convertFileSrc(sourcePath);
+  return undefined;
 };
 
 const deserializePluginAssetBaseHref = (
@@ -1613,37 +1620,8 @@ const deserializePluginAssetBaseHref = (
     },
   );
 
-  const parentPath = getParentFilePath(sourcePath);
-
-  if (!parentPath) {
-    return undefined;
-  }
-
-  return ensureTrailingSlash(convertFileSrc(parentPath));
+  return undefined;
 };
-
-const getParentFilePath = (sourcePath: string): string | undefined => {
-  const normalized = sourcePath
-    .trim()
-    .replace(/^\\\\\?\\/, "")
-    .replace(/^\/\/\?\//, "")
-    .replace(/\\/g, "/")
-    .replace(/\/+$/g, "");
-  const lastSlashIndex = normalized.lastIndexOf("/");
-
-  if (lastSlashIndex < 0) {
-    return undefined;
-  }
-
-  if (lastSlashIndex === 0) {
-    return "/";
-  }
-
-  return normalized.slice(0, lastSlashIndex);
-};
-
-const ensureTrailingSlash = (value: string): string =>
-  value.endsWith("/") ? value : `${value}/`;
 
 const injectHtmlBaseHref = (html: string, baseHref: string): string => {
   const base = `<base href="${escapeHtmlAttribute(baseHref)}">`;

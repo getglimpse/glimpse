@@ -13,7 +13,6 @@ import type { GlimpsePlugin, PluginTrustStatus } from "@/types";
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(),
-  convertFileSrc: (filePath: string) => `asset://${filePath}`,
   isTauri: () => true,
 }));
 

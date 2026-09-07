@@ -1,7 +1,12 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   AlertCircle,
   Download,
@@ -13,6 +18,7 @@ import {
 } from "lucide-react";
 
 import { pluginsApi } from "@/api/plugins";
+import { openerApi } from "@/api/opener";
 import { Switch } from "@/components/ui/switch";
 import {
   getRemotePluginInstallErrorMessage,
@@ -524,7 +530,9 @@ export const PluginPage = () => {
               <RemotePluginCard
                 key={entry.id}
                 entry={entry}
-                installedPlugin={plugins.find((plugin) => plugin.id === entry.id)}
+                installedPlugin={plugins.find(
+                  (plugin) => plugin.id === entry.id,
+                )}
                 installState={remoteInstallStates[entry.id]}
                 error={remoteInstallErrors[entry.id]}
                 LL={LL}
@@ -867,7 +875,7 @@ const RemotePluginCard = ({
             <button
               type="button"
               onClick={() => {
-                void openUrl(sourceUrl).catch((openError) => {
+                void openerApi.openExternalUrl(sourceUrl).catch((openError) => {
                   console.warn("Failed to open plugin source URL:", openError);
                 });
               }}

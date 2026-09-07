@@ -394,6 +394,8 @@ export const PreviewPanel = forwardRef<PreviewPanelHandle, Props>(
               <iframe
                 key={item.preview.url}
                 src={item.preview.url}
+                sandbox="allow-same-origin allow-scripts"
+                referrerPolicy="no-referrer"
                 onLoad={onLoad}
                 className={`w-full h-full border-none pointer-events-none ${
                   animation ? "transition-opacity duration-500" : ""

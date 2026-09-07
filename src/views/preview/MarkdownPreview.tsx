@@ -14,7 +14,6 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { toast } from "@/utils/toast";
-import { convertFileSrc } from "@tauri-apps/api/core";
 
 import { fileApi } from "@/api/file";
 import { useI18nContext } from "@/i18n/I18nProvider";
@@ -73,6 +72,22 @@ const VIDEO_MIME_TYPES: Record<string, string> = {
   wmv: "video/x-ms-wmv",
 };
 
+const IMAGE_MIME_TYPES: Record<string, string> = {
+  bmp: "image/bmp",
+  gif: "image/gif",
+  jpeg: "image/jpeg",
+  jpg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+};
+
+const PREVIEWABLE_LOCAL_FILE_EXTENSIONS = new Set([
+  ...Object.keys(AUDIO_MIME_TYPES),
+  ...Object.keys(VIDEO_MIME_TYPES),
+  ...Object.keys(IMAGE_MIME_TYPES),
+  "pdf",
+]);
+
 const normalizeLocalFilePath = (src: string) => {
   let path = src;
 
@@ -111,6 +126,135 @@ const isNestedTaskClick = (
   }
 
   return target.closest("li[data-task-index]") !== currentTarget;
+};
+
+type LocalFilePreviewProps = {
+  alt?: string;
+  imageProps: React.ImgHTMLAttributes<HTMLImageElement>;
+  sourcePath?: string | null;
+  src: string;
+};
+
+const LocalFilePreview = ({
+  alt,
+  imageProps,
+  sourcePath,
+  src,
+}: LocalFilePreviewProps) => {
+  const label = alt ?? "";
+  const extension = getExtension(src);
+  const [dataUrl, setDataUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    setDataUrl(null);
+    setError(null);
+
+    if (!sourcePath) {
+      setError("Local preview needs a source file");
+      return;
+    }
+
+    if (!PREVIEWABLE_LOCAL_FILE_EXTENSIONS.has(extension)) {
+      setError("Unsupported local preview file type");
+      return;
+    }
+
+    fileApi
+      .readPreviewAssetDataUrl(sourcePath, normalizeLocalFilePath(src))
+      .then((nextDataUrl) => {
+        if (!cancelled) {
+          setDataUrl(nextDataUrl);
+        }
+      })
+      .catch((nextError) => {
+        if (!cancelled) {
+          setError(
+            nextError instanceof Error ? nextError.message : String(nextError),
+          );
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [extension, sourcePath, src]);
+
+  if (error) {
+    return (
+      <span className="not-prose my-3 block rounded border border-border-main bg-main-bg px-3 py-2 text-sm text-text-muted">
+        {label || "Local preview unavailable"}
+      </span>
+    );
+  }
+
+  if (!dataUrl) {
+    return (
+      <span className="not-prose my-3 block rounded border border-border-main bg-main-bg px-3 py-2 text-sm text-text-muted">
+        {label || "Loading local preview"}
+      </span>
+    );
+  }
+
+  if (extension === "pdf") {
+    return (
+      <iframe
+        title={label || "PDF preview"}
+        src={dataUrl}
+        sandbox="allow-same-origin allow-scripts"
+        referrerPolicy="no-referrer"
+        className="not-prose h-[75vh] min-h-96 w-full rounded-lg border border-border-main bg-main-bg"
+      />
+    );
+  }
+
+  if (extension in AUDIO_MIME_TYPES) {
+    return (
+      <figure className="not-prose my-4 border-y border-border-main py-4">
+        {label && (
+          <figcaption className="mb-3 break-words text-sm font-medium text-text-main">
+            {label}
+          </figcaption>
+        )}
+        <audio controls preload="metadata" className="w-full">
+          <source src={dataUrl} type={AUDIO_MIME_TYPES[extension]} />
+        </audio>
+      </figure>
+    );
+  }
+
+  if (extension in VIDEO_MIME_TYPES) {
+    return (
+      <figure className="not-prose my-4 bg-black">
+        <video
+          controls
+          preload="metadata"
+          playsInline
+          title={label || "Video preview"}
+          className="max-h-[75vh] w-full bg-black"
+        >
+          <source src={dataUrl} type={VIDEO_MIME_TYPES[extension]} />
+        </video>
+        {label && (
+          <figcaption className="border-y border-border-main bg-main-bg px-3 py-2 break-words text-sm text-text-muted">
+            {label}
+          </figcaption>
+        )}
+      </figure>
+    );
+  }
+
+  return (
+    <img
+      {...imageProps}
+      src={dataUrl}
+      alt={label}
+      className="max-h-[70vh] max-w-full rounded-lg object-contain"
+      loading="lazy"
+    />
+  );
 };
 
 export const MarkdownPreview = forwardRef<MarkdownPreviewHandle, Props>(
@@ -329,75 +473,12 @@ export const MarkdownPreview = forwardRef<MarkdownPreviewHandle, Props>(
 
                   img: ({ src, alt, ...props }) => {
                     if (isLocalFileUrl(src)) {
-                      const extension = getExtension(src);
-                      const fileSrc = convertFileSrc(
-                        normalizeLocalFilePath(src),
-                      );
-                      const label = alt ?? "";
-
-                      if (extension === "pdf") {
-                        return (
-                          <iframe
-                            title={label || "PDF preview"}
-                            src={fileSrc}
-                            className="not-prose h-[75vh] min-h-96 w-full rounded-lg border border-border-main bg-main-bg"
-                          />
-                        );
-                      }
-
-                      if (extension in AUDIO_MIME_TYPES) {
-                        return (
-                          <figure className="not-prose my-4 border-y border-border-main py-4">
-                            {label && (
-                              <figcaption className="mb-3 break-words text-sm font-medium text-text-main">
-                                {label}
-                              </figcaption>
-                            )}
-                            <audio
-                              controls
-                              preload="metadata"
-                              className="w-full"
-                            >
-                              <source
-                                src={fileSrc}
-                                type={AUDIO_MIME_TYPES[extension]}
-                              />
-                            </audio>
-                          </figure>
-                        );
-                      }
-
-                      if (extension in VIDEO_MIME_TYPES) {
-                        return (
-                          <figure className="not-prose my-4 bg-black">
-                            <video
-                              controls
-                              preload="metadata"
-                              playsInline
-                              title={label || "Video preview"}
-                              className="max-h-[75vh] w-full bg-black"
-                            >
-                              <source
-                                src={fileSrc}
-                                type={VIDEO_MIME_TYPES[extension]}
-                              />
-                            </video>
-                            {label && (
-                              <figcaption className="border-y border-border-main bg-main-bg px-3 py-2 break-words text-sm text-text-muted">
-                                {label}
-                              </figcaption>
-                            )}
-                          </figure>
-                        );
-                      }
-
                       return (
-                        <img
-                          {...props}
-                          src={fileSrc}
-                          alt={label}
-                          className="max-h-[70vh] max-w-full rounded-lg object-contain"
-                          loading="lazy"
+                        <LocalFilePreview
+                          alt={alt ?? ""}
+                          imageProps={props}
+                          sourcePath={sourcePath}
+                          src={src}
                         />
                       );
                     }
@@ -440,10 +521,7 @@ export const MarkdownPreview = forwardRef<MarkdownPreviewHandle, Props>(
                           }
 
                           if (
-                            isNestedTaskClick(
-                              event.target,
-                              event.currentTarget,
-                            )
+                            isNestedTaskClick(event.target, event.currentTarget)
                           ) {
                             return;
                           }

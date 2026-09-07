@@ -69,12 +69,12 @@ use utils::app_path::{get_app_data_dir, get_default_target_dir};
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
             commands::search::search_items,
             commands::search::get_items_by_source_path,
+            commands::open::open_external_url,
             commands::open::reveal_in_explorer,
             commands::open::open_source_file,
             commands::action::run_item_command,
@@ -111,6 +111,7 @@ pub fn run() {
             commands::file::get_file_metadata_in_target_group,
             commands::file::read_binary_file,
             commands::file::read_binary_file_in_target_group,
+            commands::file::read_preview_asset_data_url,
             commands::file::create_markdown_file,
             commands::file::create_text_file,
             commands::file::get_default_download_directory,

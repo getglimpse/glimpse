@@ -29,21 +29,22 @@ const toastMocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("@tauri-apps/plugin-opener", () => ({
-  openUrl: vi.fn(),
-}));
-
 vi.mock("@/api/command", () => ({
   commandApi: {
     runItemCommand: vi.fn(),
   },
 }));
 
-vi.mock("@/api/opener", () => ({
+const openerMocks = vi.hoisted(() => ({
   openerApi: {
+    openExternalUrl: vi.fn(),
     openSourceFileOrReveal: vi.fn(),
     revealInExplorer: vi.fn(),
   },
+}));
+
+vi.mock("@/api/opener", () => ({
+  openerApi: openerMocks.openerApi,
 }));
 
 vi.mock("@/api/preview", () => ({
@@ -113,6 +114,48 @@ afterEach(() => {
 });
 
 describe("createAppShortcuts", () => {
+  it("opens URL actions through the validated backend opener API", async () => {
+    const item: IndexItem = {
+      ...pluginItem,
+      id: "rust",
+      title: "Rust",
+      preview: {
+        type: "markdown",
+        content: "Rust",
+      },
+      url: "https://www.rust-lang.org/",
+      defaultAction: "url",
+    };
+
+    createShortcuts({ getActiveItem: () => item }).openActiveItem();
+
+    await vi.waitFor(() => {
+      expect(openerMocks.openerApi.openExternalUrl).toHaveBeenCalledWith(
+        "https://www.rust-lang.org/",
+      );
+    });
+  });
+
+  it("opens external previews through the validated backend opener API", async () => {
+    const item: IndexItem = {
+      ...pluginItem,
+      id: "external-preview",
+      title: "External Preview",
+      preview: {
+        type: "external",
+        url: "https://example.com/",
+      },
+    };
+
+    createShortcuts({ getActiveItem: () => item }).openActiveItem();
+
+    await vi.waitFor(() => {
+      expect(openerMocks.openerApi.openExternalUrl).toHaveBeenCalledWith(
+        "https://example.com/",
+      );
+    });
+  });
+
   it("copies successful plugin page action results when enabled", async () => {
     pluginRegistryMocks.executePluginAction.mockResolvedValue("2026-08-31");
     pluginRegistryMocks.getInternalPageContribution.mockReturnValue({
@@ -164,7 +207,9 @@ describe("createAppShortcuts", () => {
   });
 });
 
-const createShortcuts = () =>
+const createShortcuts = (
+  overrides: Partial<Parameters<typeof createAppShortcuts>[0]> = {},
+) =>
   createAppShortcuts({
     LL,
     setSelectedIndex: vi.fn(),
@@ -195,4 +240,5 @@ const createShortcuts = () =>
     openFileCreator: vi.fn(),
     openActiveFileEditor: vi.fn(),
     recordCommandHistory: vi.fn(),
+    ...overrides,
   });

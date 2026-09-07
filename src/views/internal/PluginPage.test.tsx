@@ -51,7 +51,9 @@ const windowMocks = vi.hoisted(() => ({
 }));
 
 const openerMocks = vi.hoisted(() => ({
-  openUrl: vi.fn(async () => undefined),
+  openerApi: {
+    openExternalUrl: vi.fn(async () => undefined),
+  },
 }));
 
 vi.mock("@/features/plugins/pluginRegistry", () => ({
@@ -77,8 +79,8 @@ vi.mock("@tauri-apps/api/window", () => ({
   getCurrentWindow: windowMocks.getCurrentWindow,
 }));
 
-vi.mock("@tauri-apps/plugin-opener", () => ({
-  openUrl: openerMocks.openUrl,
+vi.mock("@/api/opener", () => ({
+  openerApi: openerMocks.openerApi,
 }));
 
 const registryEntry = (
@@ -98,10 +100,7 @@ const registryEntry = (
   ...overrides,
 });
 
-const installedPlugin = (
-  id: string,
-  version: string,
-): PluginRegistryItem => ({
+const installedPlugin = (id: string, version: string): PluginRegistryItem => ({
   id,
   name: id,
   version,
@@ -168,7 +167,7 @@ beforeEach(() => {
   pluginRegistryMocks.setPluginTrusted.mockClear();
   pluginRegistryMocks.subscribeToPluginChanges.mockClear();
   windowMocks.getCurrentWindow.mockClear();
-  openerMocks.openUrl.mockClear();
+  openerMocks.openerApi.openExternalUrl.mockClear();
 });
 
 afterEach(() => {
@@ -215,17 +214,21 @@ describe("PluginPage remote plugins", () => {
     const installedCard = await cardFor("Installed Plugin");
     expect(installedCard.getAllByText("Installed").length).toBeGreaterThan(0);
     expect(
-      (installedCard.getByRole("button", {
-        name: "Installed",
-      }) as HTMLButtonElement).disabled,
+      (
+        installedCard.getByRole("button", {
+          name: "Installed",
+        }) as HTMLButtonElement
+      ).disabled,
     ).toBe(true);
 
     const unsupportedCard = await cardFor("Future Plugin");
     expect(unsupportedCard.getByText("Unsupported API")).toBeTruthy();
     expect(
-      (unsupportedCard.getByRole("button", {
-        name: "Unsupported",
-      }) as HTMLButtonElement).disabled,
+      (
+        unsupportedCard.getByRole("button", {
+          name: "Unsupported",
+        }) as HTMLButtonElement
+      ).disabled,
     ).toBe(true);
   });
 
@@ -234,7 +237,9 @@ describe("PluginPage remote plugins", () => {
 
     stubRegistryFetch([entry]);
     pluginRegistryMocks.installPluginFromUrl.mockImplementation(async () => {
-      pluginRegistryMocks.setPlugins([installedPlugin(entry.id, entry.version)]);
+      pluginRegistryMocks.setPlugins([
+        installedPlugin(entry.id, entry.version),
+      ]);
 
       return {
         ...installResult(entry),
@@ -256,7 +261,9 @@ describe("PluginPage remote plugins", () => {
       );
     });
     expect(
-      await screen.findByText("Installed new-plugin. Trust it before enabling."),
+      await screen.findByText(
+        "Installed new-plugin. Trust it before enabling.",
+      ),
     ).toBeTruthy();
     expect(pluginRegistryMocks.setPluginTrusted).not.toHaveBeenCalled();
   });

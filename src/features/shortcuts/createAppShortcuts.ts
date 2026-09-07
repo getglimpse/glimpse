@@ -1,5 +1,4 @@
 import { previewApi } from "@/api/preview";
-import { openUrl } from "@tauri-apps/plugin-opener";
 
 import {
   CommandHistoryEntry,
@@ -132,7 +131,7 @@ export const createAppShortcuts = ({
       return;
     }
 
-    await openUrl(item.url);
+    await openerApi.openExternalUrl(item.url);
   };
 
   const runActiveCommandAction = async () => {
@@ -246,11 +245,10 @@ export const createAppShortcuts = ({
     value: string;
   }) => {
     try {
-      const shouldCopy =
-        await readPluginCopySuccessfulSearchResultEnabled(
-          pluginId,
-          actionId,
-        );
+      const shouldCopy = await readPluginCopySuccessfulSearchResultEnabled(
+        pluginId,
+        actionId,
+      );
 
       if (shouldCopy) {
         await copyText(value);
@@ -282,7 +280,7 @@ export const createAppShortcuts = ({
 
       default:
         if (!item.url && item.preview.type === "external") {
-          await openUrl(item.preview.url);
+          await openerApi.openExternalUrl(item.preview.url);
         }
         return;
     }

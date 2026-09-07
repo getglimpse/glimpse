@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { invoke } from "@tauri-apps/api/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -8,7 +8,6 @@ import type { GlimpsePlugin } from "@/types";
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(),
-  convertFileSrc: (filePath: string) => `asset://${filePath}`,
   isTauri: () => true,
 }));
 
@@ -619,6 +618,10 @@ export default function activate(ctx) {
     const iframe = screen.getByTitle("schema frame");
 
     expect(iframe.getAttribute("src")).toBeNull();
+    expect(iframe.getAttribute("sandbox")).toBe(
+      "allow-same-origin allow-scripts",
+    );
+    expect(iframe.getAttribute("referrerpolicy")).toBe("no-referrer");
     expect(document.body.dataset.pluginEscape).toBeUndefined();
   });
 
@@ -742,7 +745,7 @@ export default function activate(ctx) {
     });
   });
 
-  it("allows plugins to gate file asset frames with active-tab metadata", async () => {
+  it("does not expose active-tab files as raw asset protocol URLs", async () => {
     const runtimeModule = await loadRuntimeModule();
     const plugin: GlimpsePlugin = {
       ...testPlugin("deferred-frame-plugin"),
@@ -789,17 +792,20 @@ export default function activate(ctx) {
     await screen.findByText("Large PDF");
     expect(screen.queryByTitle("PDF preview")).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Load Preview" }));
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Load Preview",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
 
-    const frame = screen.getByTitle("PDF preview");
-
-    expect(frame.getAttribute("src")).toBe("asset://C:/docs/a.pdf");
     expect(mockedInvoke).toHaveBeenCalledWith("get_file_metadata", {
       filePath: "C:/docs/a.pdf",
     });
   });
 
-  it("injects a base URL into plugin iframe srcDoc previews", async () => {
+  it("does not inject raw local asset base URLs into plugin iframe srcDoc previews", async () => {
     const runtimeModule = await loadRuntimeModule();
     const plugin: GlimpsePlugin = {
       ...testPlugin("html-frame-plugin"),
@@ -838,9 +844,7 @@ export default function activate(ctx) {
 
     const frame = await screen.findByTitle("HTML preview");
 
-    expect(frame.getAttribute("srcdoc")).toContain(
-      '<base href="asset://C:/docs/demo/">',
-    );
+    expect(frame.getAttribute("srcdoc")).not.toContain("<base ");
     expect(frame.getAttribute("srcdoc")).toContain(
       "file:C:/docs/demo/index.html",
     );

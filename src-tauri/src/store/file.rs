@@ -176,6 +176,92 @@ pub fn read_binary_file_in_target_group(
         .map_err(|error| format!("failed to read file: {}: {error}", path.display()))
 }
 
+/// Reads a local preview asset as a data URL.
+///
+/// # Security
+///
+/// Markdown and GJSON preview content is treated as untrusted. The referenced
+/// asset must be in the same configured Target Group as the source file that is
+/// being previewed; callers cannot use Markdown `file://` URLs to reach files
+/// from another configured group or outside Glimpse's configured roots.
+pub fn read_preview_asset_data_url(
+    settings_path: &Path,
+    source_path: String,
+    asset_path: String,
+) -> Result<String, String> {
+    let settings = load_settings(settings_path);
+    let source_path = canonicalize_existing_file(source_path)?;
+    let asset_path = canonicalize_existing_file(asset_path)?;
+    let source_groups = settings
+        .target_groups
+        .iter()
+        .filter(|group| path_is_in_roots(&source_path, &group.paths))
+        .collect::<Vec<_>>();
+
+    if source_groups.is_empty() {
+        return Err(format!(
+            "preview source is outside configured target group directories: {}",
+            source_path.display()
+        ));
+    }
+
+    if !source_groups
+        .iter()
+        .any(|group| path_is_in_roots(&asset_path, &group.paths))
+    {
+        return Err(format!(
+            "preview asset is outside the source target group: {}",
+            asset_path.display()
+        ));
+    }
+
+    let mime_type = preview_asset_mime_type(&asset_path)?;
+
+    ensure_binary_file_size_within_limit(&asset_path)?;
+
+    let encoded = fs::read(&asset_path)
+        .map(|bytes| BASE64_STANDARD.encode(bytes))
+        .map_err(|error| format!("failed to read file: {}: {error}", asset_path.display()))?;
+
+    Ok(format!("data:{mime_type};base64,{encoded}"))
+}
+
+fn preview_asset_mime_type(path: &Path) -> Result<&'static str, String> {
+    let extension = path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+
+    match extension.as_str() {
+        "aac" => Ok("audio/aac"),
+        "aif" | "aiff" => Ok("audio/aiff"),
+        "avi" => Ok("video/x-msvideo"),
+        "bmp" => Ok("image/bmp"),
+        "flac" => Ok("audio/flac"),
+        "flv" => Ok("video/x-flv"),
+        "gif" => Ok("image/gif"),
+        "jpg" | "jpeg" => Ok("image/jpeg"),
+        "m4a" => Ok("audio/mp4"),
+        "m4v" => Ok("video/mp4"),
+        "mkv" => Ok("video/x-matroska"),
+        "mov" => Ok("video/quicktime"),
+        "mp3" => Ok("audio/mpeg"),
+        "mp4" => Ok("video/mp4"),
+        "mpeg" | "mpg" => Ok("video/mpeg"),
+        "ogg" | "opus" => Ok("audio/ogg"),
+        "ogv" => Ok("video/ogg"),
+        "pdf" => Ok("application/pdf"),
+        "png" => Ok("image/png"),
+        "wav" => Ok("audio/wav"),
+        "weba" => Ok("audio/webm"),
+        "webm" => Ok("video/webm"),
+        "webp" => Ok("image/webp"),
+        "wmv" => Ok("video/x-ms-wmv"),
+        _ => Err(format!("unsupported preview asset type: {extension}")),
+    }
+}
+
 fn ensure_binary_file_size_within_limit(path: &Path) -> Result<(), String> {
     let size = file_metadata(path)?.size_bytes;
 
@@ -455,17 +541,25 @@ fn ensure_path_is_in_configured_target_group(
 }
 
 fn ensure_path_is_in_roots(path: &Path, roots: &[String], label: &str) -> Result<(), String> {
+    if path_is_in_roots(path, roots) {
+        return Ok(());
+    }
+
+    Err(format!("path is outside {label}: {}", path.display()))
+}
+
+fn path_is_in_roots(path: &Path, roots: &[String]) -> bool {
     for root in roots {
         let Ok(root) = canonicalize_existing_dir(root) else {
             continue;
         };
 
         if path_starts_with(path, &root) {
-            return Ok(());
+            return true;
         }
     }
 
-    Err(format!("path is outside {label}: {}", path.display()))
+    false
 }
 
 fn normalize_input_path(path: impl AsRef<Path>) -> PathBuf {
@@ -967,6 +1061,107 @@ mod tests {
             read_binary_file(&settings_path, file_path.to_string_lossy().to_string()).unwrap();
 
         assert_eq!(content, "aGVsbG8=");
+
+        fs::remove_dir_all(target_dir).ok();
+        fs::remove_dir_all(settings_dir).ok();
+    }
+
+    #[test]
+    fn read_preview_asset_data_url_reads_asset_inside_source_target_group() {
+        let target_dir = unique_test_dir("target");
+        let settings_dir = unique_test_dir("settings");
+        let settings_path = settings_dir.join("settings.json");
+
+        fs::create_dir_all(&target_dir).unwrap();
+        fs::create_dir_all(&settings_dir).unwrap();
+
+        write_settings(&settings_path, &target_dir);
+
+        let source_path = target_dir.join("Note.md");
+        let asset_path = target_dir.join("image.png");
+        fs::write(&source_path, "![image](image.png)").unwrap();
+        fs::write(&asset_path, b"hello").unwrap();
+
+        let data_url = read_preview_asset_data_url(
+            &settings_path,
+            source_path.to_string_lossy().to_string(),
+            asset_path.to_string_lossy().to_string(),
+        )
+        .unwrap();
+
+        assert_eq!(data_url, "data:image/png;base64,aGVsbG8=");
+
+        fs::remove_dir_all(target_dir).ok();
+        fs::remove_dir_all(settings_dir).ok();
+    }
+
+    #[test]
+    fn read_preview_asset_data_url_rejects_asset_in_other_target_group() {
+        let active_dir = unique_test_dir("active");
+        let other_dir = unique_test_dir("other");
+        let settings_dir = unique_test_dir("settings");
+        let settings_path = settings_dir.join("settings.json");
+
+        fs::create_dir_all(&active_dir).unwrap();
+        fs::create_dir_all(&other_dir).unwrap();
+        fs::create_dir_all(&settings_dir).unwrap();
+
+        write_settings_with_groups(
+            &settings_path,
+            vec![
+                target_group("active", vec![active_dir.clone()]),
+                target_group("other", vec![other_dir.clone()]),
+            ],
+            "active",
+        );
+
+        let source_path = active_dir.join("Note.md");
+        let asset_path = other_dir.join("secret.png");
+        fs::write(&source_path, "![secret](secret.png)").unwrap();
+        fs::write(&asset_path, b"secret").unwrap();
+
+        let result = read_preview_asset_data_url(
+            &settings_path,
+            source_path.to_string_lossy().to_string(),
+            asset_path.to_string_lossy().to_string(),
+        );
+
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .contains("preview asset is outside the source target group"));
+
+        fs::remove_dir_all(active_dir).ok();
+        fs::remove_dir_all(other_dir).ok();
+        fs::remove_dir_all(settings_dir).ok();
+    }
+
+    #[test]
+    fn read_preview_asset_data_url_rejects_unsupported_asset_type() {
+        let target_dir = unique_test_dir("target");
+        let settings_dir = unique_test_dir("settings");
+        let settings_path = settings_dir.join("settings.json");
+
+        fs::create_dir_all(&target_dir).unwrap();
+        fs::create_dir_all(&settings_dir).unwrap();
+
+        write_settings(&settings_path, &target_dir);
+
+        let source_path = target_dir.join("Note.md");
+        let asset_path = target_dir.join("vector.svg");
+        fs::write(&source_path, "![vector](vector.svg)").unwrap();
+        fs::write(&asset_path, "<svg></svg>").unwrap();
+
+        let result = read_preview_asset_data_url(
+            &settings_path,
+            source_path.to_string_lossy().to_string(),
+            asset_path.to_string_lossy().to_string(),
+        );
+
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .contains("unsupported preview asset type: svg"));
 
         fs::remove_dir_all(target_dir).ok();
         fs::remove_dir_all(settings_dir).ok();

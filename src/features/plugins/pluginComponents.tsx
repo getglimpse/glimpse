@@ -708,7 +708,16 @@ const DeferredFrame = ({
   const [loaded, setLoaded] = useState(false);
 
   if (loaded && src) {
-    return <iframe key={src} src={src} title={title} className={className} />;
+    return (
+      <iframe
+        key={src}
+        src={src}
+        title={title}
+        sandbox="allow-same-origin allow-scripts"
+        referrerPolicy="no-referrer"
+        className={className}
+      />
+    );
   }
 
   return (
@@ -908,7 +917,10 @@ const FileDropConverter = ({
       ...(multiple ? { files: payloadFiles } : payloadFiles[0]),
     });
 
-    await saveConverterOutputs(payloadFiles[0]?.name ?? "converted.txt", result);
+    await saveConverterOutputs(
+      payloadFiles[0]?.name ?? "converted.txt",
+      result,
+    );
   };
 
   const convertSourcePaths = async (sourcePaths: string[]) => {
@@ -917,7 +929,9 @@ const FileDropConverter = ({
     }
 
     if (sourcePaths.length > maxFiles) {
-      throw new Error(`Too many files: ${sourcePaths.length} exceeds ${maxFiles}`);
+      throw new Error(
+        `Too many files: ${sourcePaths.length} exceeds ${maxFiles}`,
+      );
     }
 
     const payloadFiles = await Promise.all(
@@ -942,7 +956,10 @@ const FileDropConverter = ({
       ...(multiple ? { files: payloadFiles } : payloadFiles[0]),
     });
 
-    await saveConverterOutputs(payloadFiles[0]?.name ?? "converted.txt", result);
+    await saveConverterOutputs(
+      payloadFiles[0]?.name ?? "converted.txt",
+      result,
+    );
   };
 
   const runFiles = async (files: File[]) => {
@@ -1025,19 +1042,13 @@ const FileDropConverter = ({
     event.stopPropagation();
     setDragActive(false);
     void runFiles(
-      Array.from(event.dataTransfer.files).slice(
-        0,
-        multiple ? undefined : 1,
-      ),
+      Array.from(event.dataTransfer.files).slice(0, multiple ? undefined : 1),
     );
   };
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     void runFiles(
-      Array.from(event.target.files ?? []).slice(
-        0,
-        multiple ? undefined : 1,
-      ),
+      Array.from(event.target.files ?? []).slice(0, multiple ? undefined : 1),
     );
     event.target.value = "";
   };
@@ -1143,7 +1154,10 @@ const FileDropConverter = ({
                 </tr>
               ) : (
                 results.map((result) => (
-                  <tr key={result.path} className="border-b border-border-main/40 last:border-b-0">
+                  <tr
+                    key={result.path}
+                    className="border-b border-border-main/40 last:border-b-0"
+                  >
                     <td className="truncate px-2 py-2 text-text-main">
                       {result.fileName}
                     </td>
