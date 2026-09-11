@@ -1,8 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { IndexItem } from "@/types";
+import type { IndexItem, IndexMetadata } from "@/types";
 
-const item = (id: string, title: string): IndexItem => ({
+const item = (
+  id: string,
+  title: string,
+  metadata?: Partial<IndexMetadata>,
+): IndexItem => ({
   id,
   title,
   sourcePath: null,
@@ -12,6 +16,7 @@ const item = (id: string, title: string): IndexItem => ({
     aliases: [],
     star: false,
     boost: 1,
+    ...metadata,
   },
   preview: {
     type: "internal",
@@ -22,6 +27,16 @@ const item = (id: string, title: string): IndexItem => ({
 vi.mock("@/features/plugins/pluginRegistry", () => ({
   getPluginInternalItems: () => [
     item("internal://plugin:test-plugin", "Test Plugin"),
+    item("internal://plugin:title-match", "Needle Title", {
+      tags: ["internal"],
+    }),
+    item("internal://plugin:alias-match", "Alias Match", {
+      tags: ["internal"],
+      aliases: ["needle alias"],
+    }),
+    item("internal://plugin:tag-match", "Tag Match", {
+      tags: ["internal", "needle"],
+    }),
   ],
   getPluginPlaygroundInternalItems: () => [
     item("internal://plugin:playground-plugin", "Playground Plugin"),
@@ -48,6 +63,21 @@ describe("internalItems", () => {
 
     expect(searchInternalItems("/").map((result) => result.item.title)).toEqual([
       "Playground Plugin",
+    ]);
+  });
+
+  it("ranks internal results by title, aliases, then tags", async () => {
+    const { searchInternalItems } = await import("./internalItems");
+
+    expect(
+      searchInternalItems(":needle").map((result) => ({
+        title: result.item.title,
+        score: result.score,
+      })),
+    ).toEqual([
+      { title: "Needle Title", score: 3 },
+      { title: "Alias Match", score: 2 },
+      { title: "Tag Match", score: 1 },
     ]);
   });
 });

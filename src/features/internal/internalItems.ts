@@ -240,6 +240,28 @@ const getItemsForScope = (scope: InternalSearchScope): IndexItem[] => {
   }
 };
 
+const getInternalSearchScore = (item: IndexItem, normalized: string) => {
+  const normalizedTitle = item.title.toLowerCase();
+  const normalizedAliases = item.metadata.aliases.map((alias) =>
+    alias.toLowerCase(),
+  );
+  const normalizedTags = item.metadata.tags.map((tag) => tag.toLowerCase());
+
+  if (normalizedTitle.includes(normalized)) {
+    return 3;
+  }
+
+  if (normalizedAliases.some((alias) => alias.includes(normalized))) {
+    return 2;
+  }
+
+  if (normalizedTags.some((tag) => tag.includes(normalized))) {
+    return 1;
+  }
+
+  return 0;
+};
+
 export const searchInternalItems = (query: string): SearchResult[] => {
   const scope = getInternalSearchScope(query);
   const normalized = query.trim().replace(/^[:/]/, "").trim().toLowerCase();
@@ -253,19 +275,17 @@ export const searchInternalItems = (query: string): SearchResult[] => {
   }
 
   return internalItems
-    .filter((item) => {
-      const haystack = [
-        item.title,
-        ...item.metadata.tags,
-        ...item.metadata.aliases,
-      ]
-        .join(" ")
-        .toLowerCase();
-
-      return haystack.includes(normalized);
-    })
-    .map((item) => ({
+    .map((item, index) => ({
       item,
-      score: 0,
-    }));
+      score: getInternalSearchScore(item, normalized),
+      index,
+    }))
+    .filter((result) => result.score > 0)
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .map(({ item, score }) => {
+      return {
+        item,
+        score,
+      };
+    });
 };

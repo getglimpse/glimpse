@@ -944,6 +944,7 @@ const RemotePluginDetail = ({
     Boolean(error),
   );
   const actionLabel = getRemotePluginActionLabel(LL, installKind, installState);
+  const readmeUrl = getRemotePluginReadmeUrl(entry);
   const [readmeState, setReadmeState] = useState<{
     content: string;
     error: string | null;
@@ -955,7 +956,7 @@ const RemotePluginDetail = ({
   });
 
   useEffect(() => {
-    if (!entry.readmeUrl) {
+    if (!readmeUrl) {
       setReadmeState({ content: "", error: null, loading: false });
       return;
     }
@@ -964,7 +965,7 @@ const RemotePluginDetail = ({
 
     setReadmeState({ content: "", error: null, loading: true });
 
-    void fetch(entry.readmeUrl, { cache: "no-store" })
+    void fetch(readmeUrl, { cache: "no-store" })
       .then(async (response) => {
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`);
@@ -997,7 +998,7 @@ const RemotePluginDetail = ({
     return () => {
       cancelled = true;
     };
-  }, [LL, entry.readmeUrl]);
+  }, [LL, readmeUrl]);
 
   const repositoryUrl = entry.repositoryUrl;
   const hasReadmeContent = readmeState.content.trim().length > 0;
@@ -1142,7 +1143,7 @@ const RemotePluginDetail = ({
         </div>
       )}
 
-      {entry.readmeUrl && (
+      {readmeUrl && (
         <section className="mt-6 border-t border-border-main/70 pt-4">
           <h4 className="text-xs font-medium text-text-main">
             {LL.pluginPage.remote.readme()}
@@ -1161,7 +1162,7 @@ const RemotePluginDetail = ({
           {hasReadmeContent && (
             <PluginReadmeMarkdown
               content={readmeState.content}
-              baseUrl={entry.readmeUrl}
+              baseUrl={readmeUrl}
             />
           )}
         </section>
@@ -1182,6 +1183,82 @@ const RemotePluginMetadataLine = ({
     <div className="min-w-0 text-text-main">{value}</div>
   </div>
 );
+
+const getRemotePluginReadmeUrl = (entry: PluginRegistryEntry) =>
+  entry.readmeUrl ??
+  getRemotePluginReadmeUrlFromSourceUrl(entry.sourceUrl) ??
+  getRemotePluginReadmeUrlFromRepositoryUrl(entry.repositoryUrl, entry.id);
+
+const getRemotePluginReadmeUrlFromSourceUrl = (sourceUrl: string | undefined) =>
+  getGitHubTreeRawFileUrl(sourceUrl, "README.md");
+
+const getRemotePluginReadmeUrlFromRepositoryUrl = (
+  repositoryUrl: string | undefined,
+  pluginId: string,
+) => {
+  if (!repositoryUrl) {
+    return undefined;
+  }
+
+  try {
+    const url = new URL(repositoryUrl);
+    const [owner, repo] = getGitHubRepositoryPath(url);
+
+    if (owner !== "getglimpse" || repo !== "plugins") {
+      return undefined;
+    }
+
+    return `https://raw.githubusercontent.com/getglimpse/plugins/main/${pluginId}/README.md`;
+  } catch {
+    return undefined;
+  }
+};
+
+const getGitHubTreeRawFileUrl = (
+  sourceUrl: string | undefined,
+  fileName: string,
+) => {
+  if (!sourceUrl) {
+    return undefined;
+  }
+
+  try {
+    const url = new URL(sourceUrl);
+    const [owner, repo, tree, branch, ...pathSegments] = url.pathname
+      .split("/")
+      .filter(Boolean);
+
+    if (
+      !isGitHubUrl(url) ||
+      tree !== "tree" ||
+      !branch ||
+      !pathSegments.length
+    ) {
+      return undefined;
+    }
+
+    return `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${pathSegments.join("/")}/${fileName}`;
+  } catch {
+    return undefined;
+  }
+};
+
+const getGitHubRepositoryPath = (url: URL) => {
+  if (!isGitHubUrl(url)) {
+    return [];
+  }
+
+  return url.pathname.split("/").filter(Boolean);
+};
+
+const isGitHubUrl = (url: URL) => {
+  const host = url.hostname.toLowerCase();
+
+  return (
+    url.protocol === "https:" &&
+    (host === "github.com" || host === "www.github.com")
+  );
+};
 
 const PluginReadmeMarkdown = ({
   content,

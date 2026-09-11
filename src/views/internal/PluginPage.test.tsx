@@ -154,12 +154,11 @@ const stubRegistryFetch = (plugins: PluginRegistryEntry[]) => {
     plugins,
   };
   const readmesByUrl = new Map(
-    plugins
-      .filter((plugin) => plugin.readmeUrl)
-      .map((plugin) => [
-        plugin.readmeUrl as string,
-        `# ${plugin.name} README\n\nDetailed README content for ${plugin.name}.`,
-      ]),
+    plugins.map((plugin) => [
+      plugin.readmeUrl ??
+        `https://raw.githubusercontent.com/getglimpse/plugins/main/${plugin.id}/README.md`,
+      `# ${plugin.name} README\n\nDetailed README content for ${plugin.name}.`,
+    ]),
   );
 
   vi.stubGlobal(
@@ -284,6 +283,7 @@ describe("PluginPage remote plugins", () => {
     const entries = [
       registryEntry("new-plugin", "New Plugin", {
         downloadCount: undefined,
+        readmeUrl: undefined,
       }),
       registryEntry("update-plugin", "Update Plugin"),
       registryEntry("installed-plugin", "Installed Plugin"),
