@@ -23,7 +23,8 @@ use zip::ZipArchive;
 use crate::models::plugins::{
     PluginAssetSource, PluginContributions, PluginDiscoveryError, PluginDiscoveryReport,
     PluginEntrypointSource, PluginInstallResult, PluginInternalPageManifest, PluginManifest,
-    PluginPageActionManifest, PluginTrustStatus, PluginUninstallResult, RawPluginManifest,
+    PluginPageActionManifest, PluginReadmeSource, PluginTrustStatus, PluginUninstallResult,
+    RawPluginManifest,
 };
 use crate::models::settings::PluginTrustRecord;
 use crate::store::settings::{load_settings, save_settings};
@@ -40,6 +41,7 @@ const PLUGIN_ARCHIVE_MAX_DEPTH: usize = 8;
 const PLUGIN_ARCHIVE_MAX_COMPRESSION_RATIO: u64 = 100;
 const PLUGIN_ARCHIVE_DOWNLOAD_TIMEOUT_SECS: u64 = 30;
 const PLUGIN_ARCHIVE_DOWNLOAD_REDIRECT_LIMIT: usize = 5;
+const PLUGIN_README_MAX_BYTES: u64 = 100 * 1024;
 
 pub fn ensure_plugins_dir(app_data_dir: &Path) -> Result<PathBuf, String> {
     let plugins_dir = app_data_dir.join("plugins");
@@ -1371,6 +1373,48 @@ pub fn read_plugin_asset_source(
     })
 }
 
+pub fn read_plugin_readme_source(
+    app_data_dir: &Path,
+    plugin_id: &str,
+) -> Result<PluginReadmeSource, String> {
+    let manifest_path = resolve_plugin_manifest_path(app_data_dir, plugin_id)?;
+    let plugin_root = manifest_path.parent().ok_or_else(|| {
+        format!(
+            "plugin manifest has no parent directory: {}",
+            manifest_path.display()
+        )
+    })?;
+    let readme_path = plugin_root.join("README.md");
+    let canonical_readme = resolve_plugin_child_file(plugin_root, &readme_path, "plugin README")?;
+    let metadata = canonical_readme.metadata().map_err(|error| {
+        format!(
+            "failed to inspect plugin README: {}: {error}",
+            canonical_readme.display()
+        )
+    })?;
+
+    if metadata.len() > PLUGIN_README_MAX_BYTES {
+        return Err(format!(
+            "plugin README is too large: {} bytes",
+            metadata.len()
+        ));
+    }
+
+    let source = fs::read_to_string(&canonical_readme).map_err(|error| {
+        format!(
+            "failed to read plugin README: {}: {error}",
+            canonical_readme.display()
+        )
+    })?;
+    let manifest = load_plugin_manifest(&manifest_path)?;
+
+    Ok(PluginReadmeSource {
+        plugin_id: manifest.id,
+        path: canonical_readme.display().to_string(),
+        source,
+    })
+}
+
 fn resolve_plugin_manifest_path(app_data_dir: &Path, plugin_id: &str) -> Result<PathBuf, String> {
     if !is_plain_plugin_id(plugin_id) {
         return Err(format!("invalid plugin id: {plugin_id}"));
@@ -2627,6 +2671,7 @@ mod tests {
         .unwrap();
         fs::write(plugin_root.join("page.js"), "export const page = true;").unwrap();
         fs::write(plugin_root.join("styles.css"), ".fixture { color: red; }").unwrap();
+        fs::write(plugin_root.join("README.md"), "# Full Plugin\n\nRead me.").unwrap();
 
         plugin_root
     }
@@ -3295,6 +3340,7 @@ mod tests {
         let main = read_plugin_entrypoint_source(&app_data_dir, plugin_id, "main").unwrap();
         let page = read_plugin_entrypoint_source(&app_data_dir, plugin_id, "page").unwrap();
         let styles = read_plugin_asset_source(&app_data_dir, plugin_id, "styles").unwrap();
+        let readme = read_plugin_readme_source(&app_data_dir, plugin_id).unwrap();
 
         assert_eq!(main.plugin_id, plugin_id);
         assert_eq!(main.entrypoint, "main");
@@ -3303,6 +3349,9 @@ mod tests {
         assert!(page.source.contains("page = true"));
         assert_eq!(styles.asset, "styles");
         assert!(styles.source.contains(".fixture"));
+        assert_eq!(readme.plugin_id, plugin_id);
+        assert!(readme.path.ends_with("README.md"));
+        assert!(readme.source.contains("Full Plugin"));
 
         assert_error_contains(
             read_plugin_entrypoint_source(&app_data_dir, plugin_id, "unknown"),
@@ -3315,6 +3364,31 @@ mod tests {
         assert_error_contains(
             read_plugin_entrypoint_source(&app_data_dir, "../escape", "main"),
             "invalid plugin id",
+        );
+        assert_error_contains(
+            read_plugin_readme_source(&app_data_dir, "../escape"),
+            "invalid plugin id",
+        );
+
+        let missing_readme_plugin = "missing-readme-plugin";
+        write_plugin_source(&plugins_dir, missing_readme_plugin);
+
+        assert_error_contains(
+            read_plugin_readme_source(&app_data_dir, missing_readme_plugin),
+            "plugin README not found",
+        );
+
+        let large_readme_plugin = "large-readme-plugin";
+        let large_readme_root = write_full_plugin(&plugins_dir, large_readme_plugin);
+        fs::write(
+            large_readme_root.join("README.md"),
+            vec![b'a'; (PLUGIN_README_MAX_BYTES + 1) as usize],
+        )
+        .unwrap();
+
+        assert_error_contains(
+            read_plugin_readme_source(&app_data_dir, large_readme_plugin),
+            "plugin README is too large",
         );
 
         fs::remove_dir_all(app_data_dir).ok();

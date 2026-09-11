@@ -12,26 +12,35 @@ Open Plugin Page from the search bar:
 :plugin
 ```
 
-Use Plugin Page to install, trust, enable, disable, or remove plugins.
+Use Plugin Page to install, trust, enable, disable, or remove plugins. If an
+installed plugin includes `README.md`, Plugin Page can show it in the installed
+plugin detail so you can review the plugin before enabling it.
 
-Remote plugins are listed from the official Glimpse plugin registry. Glimpse downloads the `.glimpse-plugin.zip` archive referenced by the registry and verifies its SHA-256 checksum before installing it.
+Remote plugins are listed separately in Plugin Store. Glimpse downloads the `.glimpse-plugin.zip` archive referenced by the official registry and verifies its SHA-256 checksum before installing it.
 
 ## Installing Remote Plugins
 
-Remote plugins appear in the Remote plugins section of Plugin Page.
+Remote plugins appear in Plugin Store:
 
-1. Open Plugin Page with `:plugin`.
+```text
+plugin store
+```
+
+1. Open Plugin Store from search.
 2. Find the plugin you want to install.
-3. Click Install, or Update if an installed plugin has a newer registry version.
-4. Review the installed plugin details.
-5. Click Trust only if you understand the plugin and its source.
-6. Turn the plugin ON.
+3. Open the plugin details and review the repository, description, and README.
+4. Click Install, or Update if an installed plugin has a newer registry version.
+5. Click Enable only if you understand the plugin and its source.
 
-An installed remote plugin is still treated like any other plugin. Glimpse does not run `main.js` until the plugin is trusted, and replacing a plugin clears the previous trust record.
+Plugin Store can also enable, disable, or uninstall an installed remote plugin from the same detail view. Enabling an untrusted remote plugin records trust for the currently installed files and then turns the plugin on.
+
+An installed remote plugin is still treated like any other plugin. Glimpse does not run `main.js` until the plugin is trusted, and installing or updating a plugin clears the previous trust record.
+
+The author shown in Plugin Store is derived from the GitHub repository owner in the plugin's repository URL. Download counts are optional; when Glimpse does not have a count, Plugin Store shows `-` next to the cloud download icon.
 
 ## Installing Local Archives
 
-Plugin Page can also install a local `.glimpse-plugin.zip` archive. Add or drop the archive path in the local install area, then install it the same way you would install a plugin folder.
+Plugin Page can also install a local `.glimpse-plugin.zip` archive. Open the local install dialog from the page menu, then add or drop the archive path and install it the same way you would install a plugin folder.
 
 Local archives use the same validation rules as remote downloads: checksum verification is only available for registry installs, but archive layout, file allowlists, path traversal checks, executable checks, and archive size limits still apply.
 
@@ -39,7 +48,10 @@ Local archives use the same validation rules as remote downloads: checksum verif
 
 Plugins are not loaded automatically. After installing a plugin, Glimpse asks you to trust it before running its code.
 
-Only trust plugins from a source you understand. Replacing a plugin or changing its files clears the trust record, so you can review it again before Glimpse loads it.
+Only trust plugins from a source you understand. Replacing a plugin or changing
+its files clears the trust record, so you can review it again before Glimpse
+loads it. `README.md` is treated as review material and may be shown before the
+plugin is trusted; Glimpse still does not run plugin code until you enable it.
 
 The registry tells Glimpse where to download a plugin and which checksum to expect. It does not replace your trust decision. A checksum detects a changed download, but it does not prove that the plugin is safe or that you want to run it.
 

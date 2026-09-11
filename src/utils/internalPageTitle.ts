@@ -29,6 +29,9 @@ export const getInternalPageTitle = (
     case "plugin":
       return LL.pluginPage.title();
 
+    case "plugin-store":
+      return LL.pluginPage.sections.remotePlugins();
+
     case "command-history":
       return LL.commandHistoryPage.title();
 

@@ -216,12 +216,28 @@ const validateRegistryEntry = (value: unknown, label: string): string[] => {
   }
 
   validateOptionalString(value, "description", label, errors);
+  validateOptionalString(value, "category", label, errors);
   validateOptionalString(value, "releaseDate", label, errors);
   validateOptionalString(value, "fileName", label, errors);
+  validateOptionalHttpsUrl(value, "readmeUrl", label, errors);
   validateOptionalHttpsUrl(value, "sourceUrl", label, errors);
   validateOptionalHttpsUrl(value, "repositoryUrl", label, errors);
   validateOptionalHttpsUrl(value, "homepageUrl", label, errors);
   validateOptionalHttpsUrl(value, "supportUrl", label, errors);
+
+  if (
+    typeof value.downloadCount === "number" &&
+    (!Number.isInteger(value.downloadCount) || value.downloadCount < 0)
+  ) {
+    errors.push(`${label}.downloadCount must be a non-negative integer`);
+  }
+
+  if (
+    value.downloadCount !== undefined &&
+    typeof value.downloadCount !== "number"
+  ) {
+    errors.push(`${label}.downloadCount must be a number when present`);
+  }
 
   if (
     typeof value.releaseDate === "string" &&
@@ -249,14 +265,48 @@ const normalizeRegistryEntry = (
   apiVersion: entry.apiVersion,
   downloadUrl: entry.downloadUrl,
   sha256: entry.sha256.toLowerCase(),
+  author: deriveAuthorFromRepositoryUrl(entry.repositoryUrl),
+  category: normalizeOptionalString(entry.category),
   description: normalizeOptionalString(entry.description),
+  downloadCount: entry.downloadCount,
   releaseDate: normalizeOptionalString(entry.releaseDate),
   fileName: normalizeOptionalString(entry.fileName),
+  readmeUrl: normalizeOptionalString(entry.readmeUrl),
   sourceUrl: normalizeOptionalString(entry.sourceUrl),
   repositoryUrl: normalizeOptionalString(entry.repositoryUrl),
   homepageUrl: normalizeOptionalString(entry.homepageUrl),
   supportUrl: normalizeOptionalString(entry.supportUrl),
 });
+
+const deriveAuthorFromRepositoryUrl = (repositoryUrl: string | undefined) => {
+  const normalizedUrl = normalizeOptionalString(repositoryUrl);
+
+  if (!normalizedUrl) {
+    return undefined;
+  }
+
+  try {
+    const url = new URL(normalizedUrl);
+    const host = url.hostname.toLowerCase();
+
+    if (host !== "github.com" && host !== "www.github.com") {
+      return undefined;
+    }
+
+    const [owner, repo] = url.pathname
+      .split("/")
+      .filter(Boolean)
+      .map((segment) => segment.trim());
+
+    if (!owner || !repo || owner === "." || owner === "..") {
+      return undefined;
+    }
+
+    return owner;
+  } catch {
+    return undefined;
+  }
+};
 
 const validateRequiredString = (
   record: Record<string, unknown>,

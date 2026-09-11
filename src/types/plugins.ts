@@ -177,6 +177,12 @@ export type PluginAssetSource = {
   source: string;
 };
 
+export type PluginReadmeSource = {
+  pluginId: string;
+  path: string;
+  source: string;
+};
+
 export type PluginTrustStatus = {
   pluginId: string;
   trusted: boolean;
@@ -283,9 +289,14 @@ export type PluginRegistryEntry = {
   apiVersion: string;
   downloadUrl: string;
   sha256: string;
+  /** Derived from repositoryUrl during registry validation. Raw registry author metadata is ignored. */
+  author?: string;
+  category?: string;
   description?: string;
+  downloadCount?: number;
   releaseDate?: string;
   fileName?: string;
+  readmeUrl?: string;
   sourceUrl?: string;
   repositoryUrl?: string;
   homepageUrl?: string;

@@ -10,6 +10,7 @@ import {
   Tags,
   RefreshCw,
   Copy,
+  Download,
   Search,
 } from "lucide-react";
 
@@ -28,6 +29,7 @@ import {
 import { useI18nContext } from "@/i18n/I18nProvider";
 import { getInternalPageTitle } from "@/utils/internalPageTitle";
 import { isPluginInternalPage } from "@/features/plugins/pluginRegistry";
+import { openLocalPluginInstallDialog } from "@/features/plugins/pluginPageEvents";
 import { hasHelpContent } from "@/utils/helpContent";
 import { toast } from "@/utils/toast";
 
@@ -152,6 +154,8 @@ export const PreviewHeader = ({
 
   const isSettingsPage =
     item.preview.type === "internal" && item.preview.page === "settings";
+  const isPluginPage =
+    item.preview.type === "internal" && item.preview.page === "plugin";
 
   const PreviewIcon = getPreviewIcon(item);
   const actionButtons = getActionButtons(item, LL);
@@ -310,6 +314,18 @@ export const PreviewHeader = ({
               >
                 {LL.previewPanel.openSettingsFile()}
                 <DropdownMenuShortcut action="openSettingsFile" />
+              </DropdownMenuItem>
+            )}
+
+            {isPluginPage && (
+              <DropdownMenuItem
+                onSelect={(event) => {
+                  event.preventDefault();
+                  openLocalPluginInstallDialog();
+                }}
+              >
+                <Download className="size-4 text-text-muted" />
+                {LL.pluginPage.installed.localInstall()}
               </DropdownMenuItem>
             )}
 

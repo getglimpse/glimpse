@@ -6,6 +6,7 @@ import type {
   PluginDiscoveryReport,
   PluginEntrypointSource,
   PluginInstallResult,
+  PluginReadmeSource,
   RemotePluginInstallResult,
   PluginTrustStatus,
   PluginUninstallResult,
@@ -59,5 +60,9 @@ export const pluginsApi = {
     invoke<PluginAssetSource>("get_plugin_asset_source", {
       pluginId,
       asset,
+    }),
+  getReadmeSource: (pluginId: string) =>
+    invoke<PluginReadmeSource>("get_plugin_readme_source", {
+      pluginId,
     }),
 };

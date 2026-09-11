@@ -5,7 +5,7 @@ use tauri::State;
 use crate::app_state::{SharedAppDataDir, SharedSettingsPath};
 use crate::models::plugins::{
     PluginAssetSource, PluginDiscoveryReport, PluginEntrypointSource, PluginInstallResult,
-    PluginManifest, PluginTrustStatus, PluginUninstallResult,
+    PluginManifest, PluginReadmeSource, PluginTrustStatus, PluginUninstallResult,
 };
 use crate::store::plugins::{
     ensure_plugin_trusted, ensure_plugins_dir,
@@ -14,7 +14,8 @@ use crate::store::plugins::{
     install_plugin_from_path as install_plugin_from_path_store,
     install_plugin_from_url as install_plugin_from_url_store, load_plugin_discovery_report,
     load_plugin_manifests, read_plugin_asset_source, read_plugin_entrypoint_source,
-    set_plugin_trust as set_plugin_trust_store, uninstall_plugin as uninstall_plugin_store,
+    read_plugin_readme_source, set_plugin_trust as set_plugin_trust_store,
+    uninstall_plugin as uninstall_plugin_store,
 };
 
 #[tauri::command]
@@ -155,4 +156,14 @@ pub fn get_plugin_asset_source(
     ensure_plugin_trusted(&app_data_dir, &settings_path, &plugin_id)?;
 
     read_plugin_asset_source(&app_data_dir, &plugin_id, &asset)
+}
+
+#[tauri::command]
+pub fn get_plugin_readme_source(
+    app_data_dir: State<SharedAppDataDir>,
+    plugin_id: String,
+) -> Result<PluginReadmeSource, String> {
+    let app_data_dir = app_data_dir.0.lock().map_err(|e| e.to_string())?;
+
+    read_plugin_readme_source(&app_data_dir, &plugin_id)
 }

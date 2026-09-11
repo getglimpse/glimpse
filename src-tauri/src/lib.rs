@@ -100,6 +100,7 @@ pub fn run() {
             commands::plugins::set_plugin_trust,
             commands::plugins::get_plugin_entrypoint_source,
             commands::plugins::get_plugin_asset_source,
+            commands::plugins::get_plugin_readme_source,
             commands::plugins::open_plugins_folder,
             commands::command_log::get_command_execution_logs,
             commands::command_log::open_command_logs_file,

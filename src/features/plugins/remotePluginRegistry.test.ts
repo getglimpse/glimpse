@@ -21,7 +21,10 @@ const validRegistry = (): PluginRegistry => ({
       name: "Numeric Calculator",
       version: "0.2.0",
       apiVersion: "0.2.0",
+      author: "Impersonated Publisher",
+      category: "Converter",
       description: "Calculator plugin for Glimpse.",
+      downloadCount: 1234,
       downloadUrl:
         "https://github.com/getglimpse/plugins/releases/download/numeric-calculator-plugin-v0.2.0/numeric-calculator-plugin-0.2.0.glimpse-plugin.zip",
       sha256: digest.toUpperCase(),
@@ -33,6 +36,8 @@ const validRegistry = (): PluginRegistry => ({
       supportUrl: "https://github.com/getglimpse/plugins/issues",
       releaseDate: "2026-09-05",
       fileName: "numeric-calculator-plugin-0.2.0.glimpse-plugin.zip",
+      readmeUrl:
+        "https://raw.githubusercontent.com/getglimpse/plugins/main/numeric-calculator-plugin/README.md",
     },
   ],
 });
@@ -54,6 +59,12 @@ describe("remotePluginRegistry", () => {
     }
 
     expect(result.registry.plugins[0].sha256).toBe(digest);
+    expect(result.registry.plugins[0].author).toBe("getglimpse");
+    expect(result.registry.plugins[0].category).toBe("Converter");
+    expect(result.registry.plugins[0].downloadCount).toBe(1234);
+    expect(result.registry.plugins[0].readmeUrl).toBe(
+      "https://raw.githubusercontent.com/getglimpse/plugins/main/numeric-calculator-plugin/README.md",
+    );
   });
 
   it("rejects insecure download URLs and invalid checksums", () => {
@@ -83,6 +94,37 @@ describe("remotePluginRegistry", () => {
     expect(result.errors).toContain(
       "plugins[1].id is duplicated: numeric-calculator-plugin",
     );
+  });
+
+  it("rejects invalid download counts", () => {
+    const registry = validRegistry();
+
+    registry.plugins[0].downloadCount = -1;
+
+    const result = validatePluginRegistry(registry);
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain(
+      "plugins[0].downloadCount must be a non-negative integer",
+    );
+  });
+
+  it("derives author from the GitHub repository URL instead of registry metadata", () => {
+    const registry = validRegistry();
+
+    registry.plugins[0].author = "Trusted Looking Name";
+    registry.plugins[0].repositoryUrl =
+      "https://github.com/example-publisher/example-plugin";
+
+    const result = validatePluginRegistry(registry);
+
+    expect(result.ok).toBe(true);
+
+    if (!result.ok) {
+      throw new Error(result.errors.join("\n"));
+    }
+
+    expect(result.registry.plugins[0].author).toBe("example-publisher");
   });
 
   it("checks registry entries against installed manifests", () => {

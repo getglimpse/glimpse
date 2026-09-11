@@ -148,21 +148,20 @@ const INTERNAL_ITEMS: IndexItem[] = [
   },
   {
     id: "internal://plugin",
-    title: "Plugin Page",
+    title: "Plugins",
     sourcePath: null,
     updatedAt: new Date(0).toISOString(),
     metadata: {
-      tags: ["internal", "plugin", "extension", "feature-page"],
+      tags: ["internal", "plugin", "plugins", "extension"],
       aliases: [
         "plugins",
         "extension",
         "extensions",
-        "capability",
-        "capabilities",
-        "feature page",
+        "installed plugins",
+        "plugin management",
         "プラグイン",
         "拡張機能",
-        "機能ページ",
+        "インストール済みプラグイン",
       ],
       star: false,
       boost: 1,
@@ -170,6 +169,30 @@ const INTERNAL_ITEMS: IndexItem[] = [
     preview: {
       type: "internal",
       page: "plugin",
+    },
+  },
+  {
+    id: "internal://plugin-store",
+    title: "Plugin Store",
+    sourcePath: null,
+    updatedAt: new Date(0).toISOString(),
+    metadata: {
+      tags: ["internal", "plugin", "plugins", "store", "remote"],
+      aliases: [
+        "remote plugins",
+        "plugin registry",
+        "plugin store",
+        "install plugins",
+        "リモートプラグイン",
+        "プラグインストア",
+        "プラグインをインストール",
+      ],
+      star: false,
+      boost: 1,
+    },
+    preview: {
+      type: "internal",
+      page: "plugin-store",
     },
   },
 ];
@@ -194,10 +217,7 @@ export const TAG_CLOUD_ITEM = INTERNAL_ITEMS.find(
   (item) => item.id === "internal://tag-cloud",
 )!;
 
-const getInternalItems = () => [
-  ...INTERNAL_ITEMS,
-  ...getPluginInternalItems(),
-];
+const getInternalItems = () => [...INTERNAL_ITEMS, ...getPluginInternalItems()];
 
 type InternalSearchScope = "all" | "pluginPlaygrounds";
 

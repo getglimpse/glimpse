@@ -30,7 +30,8 @@ import { RawPreview, RawPreviewHandle } from "@/views/preview/RawPreview";
 import { AboutPage } from "@/views/internal/AboutPage";
 import { HelpPage } from "@/views/internal/HelpPage";
 import { MetadataHelpPage } from "@/views/internal/MetadataHelpPage";
-import { PluginPage } from "@/views/internal/PluginPage";
+import { PluginManagementPage } from "@/views/internal/PluginManagementPage";
+import { RemotePluginPage } from "@/views/internal/RemotePluginPage";
 import { ShortcutsPage } from "@/views/internal/ShortcutsPage";
 import { SettingsPage } from "@/views/internal/SettingsPage";
 import { CommandHistoryPage } from "@/views/internal/CommandHistoryPage";
@@ -343,7 +344,10 @@ export const PreviewPanel = forwardRef<PreviewPanelHandle, Props>(
               return <DebugPage />;
 
             case "plugin":
-              return <PluginPage />;
+              return <PluginManagementPage />;
+
+            case "plugin-store":
+              return <RemotePluginPage />;
 
             case "command-history":
               return <CommandHistoryPage entries={commandHistory} />;

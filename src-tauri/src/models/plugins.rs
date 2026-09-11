@@ -190,6 +190,14 @@ pub struct PluginAssetSource {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct PluginReadmeSource {
+    pub plugin_id: String,
+    pub path: String,
+    pub source: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PluginTrustStatus {
     pub plugin_id: String,
     pub trusted: bool,

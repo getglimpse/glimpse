@@ -3,6 +3,7 @@ export type BuiltInInternalPage =
   | "settings"
   | "debug"
   | "plugin"
+  | "plugin-store"
   | "shortcuts"
   | "metadata"
   | "command-history"
