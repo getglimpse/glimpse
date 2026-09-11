@@ -1140,6 +1140,11 @@ type RootTranslation = {
        */
       trustNotice: string;
       /**
+       * A​ ​d​i​f​f​e​r​e​n​t​ ​p​l​u​g​i​n​ ​w​i​t​h​ ​i​d​ ​{​p​l​u​g​i​n​I​d​}​ ​i​s​ ​i​n​s​t​a​l​l​e​d​.​ ​M​a​n​a​g​e​ ​i​t​ ​f​r​o​m​ ​P​l​u​g​i​n​ ​M​a​n​a​g​e​m​e​n​t​ ​b​e​f​o​r​e​ ​e​n​a​b​l​i​n​g​ ​t​h​i​s​ ​r​e​m​o​t​e​ ​p​l​u​g​i​n​.
+       * @param {unknown} pluginId
+       */
+      localConflict: RequiredParams<"pluginId">;
+      /**
        * I​n​s​t​a​l​l​e​d​ ​{​p​l​u​g​i​n​I​d​}​.​ ​T​r​u​s​t​ ​i​t​ ​b​e​f​o​r​e​ ​e​n​a​b​l​i​n​g​.
        * @param {unknown} pluginId
        */
@@ -3445,6 +3450,10 @@ export type TranslationFunctions = {
        * Remote installs are not trusted automatically. Review the installed files, then trust and enable the plugin from Installed Plugins.
        */
       trustNotice: () => LocalizedString;
+      /**
+       * A different plugin with id {pluginId} is installed. Manage it from Plugin Management before enabling this remote plugin.
+       */
+      localConflict: (arg: { pluginId: unknown }) => LocalizedString;
       /**
        * Installed {pluginId}. Trust it before enabling.
        */

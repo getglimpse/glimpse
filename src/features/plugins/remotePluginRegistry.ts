@@ -10,6 +10,11 @@ export const OFFICIAL_PLUGIN_REGISTRY_URL =
 const semverPattern = /^\d+\.\d+\.\d+$/;
 const sha256Pattern = /^[a-f0-9]{64}$/i;
 const pluginIdPattern = /^[a-z0-9][a-z0-9._-]*$/;
+const officialPluginRepositoryUrl = "https://github.com/getglimpse/plugins";
+const officialPluginReadmeUrlPrefix =
+  "https://raw.githubusercontent.com/getglimpse/plugins/main/";
+const officialPluginSourceUrlPrefix =
+  "https://github.com/getglimpse/plugins/tree/main/";
 const supportedPluginApiVersion = "0.2.0";
 
 export type PluginRegistryValidationResult =
@@ -222,6 +227,7 @@ const validateRegistryEntry = (value: unknown, label: string): string[] => {
   validateOptionalHttpsUrl(value, "readmeUrl", label, errors);
   validateOptionalHttpsUrl(value, "sourceUrl", label, errors);
   validateOptionalHttpsUrl(value, "repositoryUrl", label, errors);
+  validateOfficialPluginUrls(value, label, errors);
   validateOptionalHttpsUrl(value, "homepageUrl", label, errors);
   validateOptionalHttpsUrl(value, "supportUrl", label, errors);
 
@@ -254,6 +260,41 @@ const validateRegistryEntry = (value: unknown, label: string): string[] => {
   }
 
   return errors;
+};
+
+const validateOfficialPluginUrls = (
+  value: Record<string, unknown>,
+  label: string,
+  errors: string[],
+) => {
+  if (typeof value.id !== "string" || !pluginIdPattern.test(value.id)) {
+    return;
+  }
+
+  if (
+    typeof value.repositoryUrl === "string" &&
+    value.repositoryUrl !== officialPluginRepositoryUrl
+  ) {
+    errors.push(
+      `${label}.repositoryUrl must be ${officialPluginRepositoryUrl}`,
+    );
+  }
+
+  const expectedReadmeUrl = `${officialPluginReadmeUrlPrefix}${value.id}/README.md`;
+  if (
+    typeof value.readmeUrl === "string" &&
+    value.readmeUrl !== expectedReadmeUrl
+  ) {
+    errors.push(`${label}.readmeUrl must be ${expectedReadmeUrl}`);
+  }
+
+  const expectedSourceUrl = `${officialPluginSourceUrlPrefix}${value.id}`;
+  if (
+    typeof value.sourceUrl === "string" &&
+    value.sourceUrl !== expectedSourceUrl
+  ) {
+    errors.push(`${label}.sourceUrl must be ${expectedSourceUrl}`);
+  }
 };
 
 const normalizeRegistryEntry = (

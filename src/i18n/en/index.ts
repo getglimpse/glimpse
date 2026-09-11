@@ -343,6 +343,8 @@ const en = {
       support: "Support",
       trustNotice:
         "Remote installs are not trusted automatically. Review the installed files, then trust and enable the plugin from Installed Plugins.",
+      localConflict:
+        "A different plugin with id {pluginId} is installed. Manage it from Plugin Management before enabling this remote plugin.",
       installSuccess: "Installed {pluginId}. Review it before enabling.",
       installFailed: "Install failed: {error}",
       enableFailed: "Enable failed: {error}",

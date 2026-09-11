@@ -347,6 +347,8 @@ const ja = {
       support: "サポート",
       trustNotice:
         "リモートからインストールしたプラグインは自動では信頼されません。インストール後のファイルを確認してから、インストール済みプラグインで信頼して有効化してください。",
+      localConflict:
+        "ID {pluginId} の別のプラグインがインストールされています。このリモートプラグインとして有効化する前に、Plugin Management で確認してください。",
       installSuccess:
         "{pluginId} をインストールしました。有効化する前に確認してください。",
       installFailed: "インストールに失敗しました: {error}",

@@ -27,10 +27,16 @@ export const pluginsApi = {
       archivePath,
       replace,
     }),
-  installFromUrl: (downloadUrl: string, sha256: string, replace = false) =>
+  installFromUrl: (
+    downloadUrl: string,
+    sha256: string,
+    replace = false,
+    registryUrl?: string,
+  ) =>
     invoke<PluginInstallResult>("install_plugin_from_url", {
       downloadUrl,
       sha256,
+      registryUrl,
       replace,
     }).then(
       (result): RemotePluginInstallResult => ({

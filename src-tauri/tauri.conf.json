@@ -47,11 +47,7 @@
         "enable": true,
         "scope": {
           "requireLiteralLeadingDot": false,
-          "allow": ["$APPDATA/plugins/**/*", "$RESOURCE/**/*"],
-          "deny": [
-            "$APPDATA/plugins/.install_*/**",
-            "$APPDATA/plugins/.backup_*/**"
-          ]
+          "allow": ["$RESOURCE/**/*"]
         }
       }
     }

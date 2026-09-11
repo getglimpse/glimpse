@@ -171,8 +171,14 @@ export const installPluginFromUrl = async (
   downloadUrl: string,
   sha256: string,
   replace = false,
+  registryUrl?: string,
 ) => {
-  const result = await pluginsApi.installFromUrl(downloadUrl, sha256, replace);
+  const result = await pluginsApi.installFromUrl(
+    downloadUrl,
+    sha256,
+    replace,
+    registryUrl,
+  );
   await reloadPlugins();
 
   return result;

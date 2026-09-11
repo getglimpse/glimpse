@@ -434,6 +434,7 @@ fn normalize_plugins(settings: &mut AppSettings) {
 
         if keep {
             normalize_plugin_trust(plugin_id, plugin_settings);
+            normalize_plugin_provenance(plugin_id, plugin_settings);
             normalize_plugin_search_result_copy_settings(
                 &mut plugin_settings.copy_successful_search_results,
             );
@@ -446,6 +447,7 @@ fn normalize_plugins(settings: &mut AppSettings) {
         }
 
         keep && (plugin_settings.trust.is_some()
+            || plugin_settings.provenance.is_some()
             || !plugin_settings.copy_successful_search_results.is_empty()
             || !plugin_settings.preferences.is_empty())
     });
@@ -473,6 +475,37 @@ fn normalize_plugin_trust(
         );
         plugin_settings.trust = None;
     }
+}
+
+fn normalize_plugin_provenance(
+    plugin_id: &str,
+    plugin_settings: &mut crate::models::settings::PluginSettings,
+) {
+    let keep =
+        plugin_settings
+            .provenance
+            .as_ref()
+            .is_some_and(|record| match record.install_source {
+                crate::models::settings::PluginInstallSource::Local => true,
+                crate::models::settings::PluginInstallSource::Remote => {
+                    non_empty_option(record.registry_url.as_deref())
+                        && non_empty_option(record.download_url.as_deref())
+                        && non_empty_option(record.registry_sha256.as_deref())
+                        && non_empty_option(record.installed_package_sha256.as_deref())
+                }
+            });
+
+    if !keep && plugin_settings.provenance.is_some() {
+        warn!(
+            plugin_id = %plugin_id,
+            "removed invalid plugin provenance record"
+        );
+        plugin_settings.provenance = None;
+    }
+}
+
+fn non_empty_option(value: Option<&str>) -> bool {
+    value.is_some_and(|value| !value.trim().is_empty())
 }
 
 fn normalize_plugin_search_result_copy_settings(action_settings: &mut HashMap<String, bool>) {

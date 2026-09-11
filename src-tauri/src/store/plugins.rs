@@ -26,7 +26,7 @@ use crate::models::plugins::{
     PluginPageActionManifest, PluginReadmeSource, PluginTrustStatus, PluginUninstallResult,
     RawPluginManifest,
 };
-use crate::models::settings::PluginTrustRecord;
+use crate::models::settings::{PluginInstallProvenance, PluginInstallSource, PluginTrustRecord};
 use crate::store::settings::{load_settings, save_settings};
 
 const SUPPORTED_PLUGIN_API_VERSION: &str = "0.2.0";
@@ -42,6 +42,8 @@ const PLUGIN_ARCHIVE_MAX_COMPRESSION_RATIO: u64 = 100;
 const PLUGIN_ARCHIVE_DOWNLOAD_TIMEOUT_SECS: u64 = 30;
 const PLUGIN_ARCHIVE_DOWNLOAD_REDIRECT_LIMIT: usize = 5;
 const PLUGIN_README_MAX_BYTES: u64 = 100 * 1024;
+const OFFICIAL_PLUGIN_REGISTRY_URL: &str =
+    "https://raw.githubusercontent.com/getglimpse/plugins/main/registry.json";
 
 pub fn ensure_plugins_dir(app_data_dir: &Path) -> Result<PathBuf, String> {
     let plugins_dir = app_data_dir.join("plugins");
@@ -230,7 +232,7 @@ pub fn install_plugin_from_path(
 
     let cleanup_result = fs::remove_dir_all(&staging_parent);
 
-    revoke_plugin_trust_record(settings_path, &manifest.id)?;
+    clear_plugin_install_security_record(settings_path, &manifest.id)?;
 
     cleanup_result.map_err(|error| {
         format!(
@@ -326,10 +328,14 @@ pub async fn install_plugin_from_url(
     settings_path: &Path,
     download_url: &str,
     expected_sha256: &str,
+    registry_url: Option<&str>,
     replace: bool,
 ) -> Result<PluginInstallResult, String> {
     let download_url = validate_plugin_archive_download_url(download_url)?;
     let expected_sha256 = validate_sha256_digest(expected_sha256)?;
+    let registry_url = registry_url
+        .ok_or_else(|| "plugin registry URL is required".to_string())
+        .and_then(validate_plugin_registry_url)?;
     let temp_root = std::env::temp_dir().join(format!(
         "glimpse_plugin_download_{}",
         Uuid::new_v4().simple()
@@ -347,6 +353,7 @@ pub async fn install_plugin_from_url(
         settings_path,
         &download_url,
         &expected_sha256,
+        registry_url.as_str(),
         &temp_root,
         replace,
     )
@@ -368,25 +375,38 @@ async fn install_plugin_from_url_inner(
     settings_path: &Path,
     download_url: &Url,
     expected_sha256: &str,
+    registry_url: &str,
     temp_root: &Path,
     replace: bool,
 ) -> Result<PluginInstallResult, String> {
     let archive_path = temp_root.join("download.glimpse-plugin.zip");
 
-    download_plugin_archive(download_url, expected_sha256, &archive_path).await?;
-    install_plugin_from_archive(
+    let actual_sha256 =
+        download_plugin_archive(download_url, expected_sha256, &archive_path).await?;
+    let result = install_plugin_from_archive(
         app_data_dir,
         settings_path,
         &archive_path.display().to_string(),
         replace,
-    )
+    )?;
+
+    set_remote_plugin_provenance(
+        settings_path,
+        &result.plugin_id,
+        registry_url,
+        download_url.as_str(),
+        expected_sha256,
+        &actual_sha256,
+    )?;
+
+    Ok(result)
 }
 
 async fn download_plugin_archive(
     download_url: &Url,
     expected_sha256: &str,
     archive_path: &Path,
-) -> Result<(), String> {
+) -> Result<String, String> {
     let client = Client::builder()
         .timeout(Duration::from_secs(PLUGIN_ARCHIVE_DOWNLOAD_TIMEOUT_SECS))
         .redirect(Policy::custom(|attempt| {
@@ -474,7 +494,7 @@ async fn download_plugin_archive(
 
     verify_sha256_digest(&actual_sha256, expected_sha256)?;
 
-    Ok(())
+    Ok(actual_sha256)
 }
 
 fn validate_plugin_archive_download_url(download_url: &str) -> Result<Url, String> {
@@ -498,6 +518,29 @@ fn validate_plugin_archive_download_url(download_url: &str) -> Result<Url, Strin
     }
 
     Ok(parsed)
+}
+
+fn validate_plugin_registry_url(value: &str) -> Result<String, String> {
+    let value = value.trim();
+
+    if value.is_empty() {
+        return Err("plugin registry URL is empty".to_string());
+    }
+
+    let url =
+        Url::parse(value).map_err(|error| format!("plugin registry URL is invalid: {error}"))?;
+
+    if url.scheme() != "https" {
+        return Err("plugin registry URL must use https".to_string());
+    }
+
+    let normalized = url.to_string();
+
+    if normalized != OFFICIAL_PLUGIN_REGISTRY_URL {
+        return Err("plugin registry URL must be the official Glimpse plugin registry".to_string());
+    }
+
+    Ok(normalized)
 }
 
 fn validate_sha256_digest(value: &str) -> Result<String, String> {
@@ -1251,9 +1294,35 @@ pub fn set_plugin_trust(
     Ok(build_plugin_trust_status(&manifest, &settings, fingerprint))
 }
 
-fn revoke_plugin_trust_record(settings_path: &Path, plugin_id: &str) -> Result<(), String> {
+fn clear_plugin_install_security_record(
+    settings_path: &Path,
+    plugin_id: &str,
+) -> Result<(), String> {
     let mut settings = load_settings(settings_path);
-    remove_plugin_trust(&mut settings.plugins, plugin_id);
+    clear_plugin_trust_and_provenance(&mut settings.plugins, plugin_id);
+    save_settings(settings_path, &settings)
+}
+
+fn set_remote_plugin_provenance(
+    settings_path: &Path,
+    plugin_id: &str,
+    registry_url: &str,
+    download_url: &str,
+    registry_sha256: &str,
+    installed_package_sha256: &str,
+) -> Result<(), String> {
+    let mut settings = load_settings(settings_path);
+    let plugin_settings = settings.plugins.entry(plugin_id.to_string()).or_default();
+
+    plugin_settings.provenance = Some(PluginInstallProvenance {
+        install_source: PluginInstallSource::Remote,
+        registry_url: Some(registry_url.to_string()),
+        download_url: Some(download_url.to_string()),
+        registry_sha256: Some(registry_sha256.to_string()),
+        installed_package_sha256: Some(installed_package_sha256.to_string()),
+        installed_at: Some(Utc::now().to_rfc3339()),
+    });
+
     save_settings(settings_path, &settings)
 }
 
@@ -1266,6 +1335,23 @@ fn remove_plugin_settings_record(settings_path: &Path, plugin_id: &str) -> Resul
 fn remove_plugin_trust(settings: &mut crate::models::settings::PluginSettingsMap, plugin_id: &str) {
     if let Some(plugin_settings) = settings.get_mut(plugin_id) {
         plugin_settings.trust = None;
+
+        if plugin_settings.copy_successful_search_results.is_empty()
+            && plugin_settings.preferences.is_empty()
+            && plugin_settings.provenance.is_none()
+        {
+            settings.remove(plugin_id);
+        }
+    }
+}
+
+fn clear_plugin_trust_and_provenance(
+    settings: &mut crate::models::settings::PluginSettingsMap,
+    plugin_id: &str,
+) {
+    if let Some(plugin_settings) = settings.get_mut(plugin_id) {
+        plugin_settings.trust = None;
+        plugin_settings.provenance = None;
 
         if plugin_settings.copy_successful_search_results.is_empty()
             && plugin_settings.preferences.is_empty()
@@ -1452,6 +1538,10 @@ fn build_plugin_trust_status(
         .plugins
         .get(&manifest.id)
         .and_then(|plugin_settings| plugin_settings.trust.as_ref());
+    let provenance = settings
+        .plugins
+        .get(&manifest.id)
+        .and_then(|plugin_settings| plugin_settings.provenance.clone());
     let trusted_fingerprint = record.and_then(|record| record.manifest_fingerprint.clone());
     let trusted_version = record.and_then(|record| record.version.clone());
     let trusted_at = record.and_then(|record| record.trusted_at.clone());
@@ -1480,6 +1570,7 @@ fn build_plugin_trust_status(
         trusted_fingerprint,
         version: manifest.version.clone(),
         trusted_version,
+        provenance,
     }
 }
 
@@ -2574,7 +2665,10 @@ mod tests {
     use std::io::Write;
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    use crate::models::settings::{AppSettings, PluginSettings, PluginTrustRecord};
+    use crate::models::settings::{
+        AppSettings, PluginInstallProvenance, PluginInstallSource, PluginSettings,
+        PluginTrustRecord,
+    };
 
     fn unique_test_dir(name: &str) -> PathBuf {
         let unique = SystemTime::now()
@@ -4040,6 +4134,7 @@ mod tests {
         let app_data_dir = unique_test_dir("app");
         let settings_path = app_data_dir.join("settings.json");
         let digest = "f8e403e2374041ab56e8c44469fb639c45643237c7c543fd9efedab9b69c41b7";
+        let registry_url = OFFICIAL_PLUGIN_REGISTRY_URL;
 
         assert_error_contains(
             install_plugin_from_url(
@@ -4047,6 +4142,7 @@ mod tests {
                 &settings_path,
                 "http://example.com/plugin.glimpse-plugin.zip",
                 digest,
+                Some(registry_url),
                 false,
             )
             .await,
@@ -4058,13 +4154,123 @@ mod tests {
                 &settings_path,
                 "https://example.com/plugin.glimpse-plugin.zip",
                 "not-a-digest",
+                Some(registry_url),
                 false,
             )
             .await,
             "64 character hex digest",
         );
+        assert_error_contains(
+            install_plugin_from_url(
+                &app_data_dir,
+                &settings_path,
+                "https://example.com/plugin.glimpse-plugin.zip",
+                digest,
+                Some("https://example.com/registry.json"),
+                false,
+            )
+            .await,
+            "official Glimpse plugin registry",
+        );
 
         fs::remove_dir_all(app_data_dir).ok();
+    }
+
+    #[test]
+    fn remote_plugin_provenance_is_returned_in_trust_status() {
+        let app_data_dir = unique_test_dir("app");
+        let settings_path = app_data_dir.join("settings.json");
+        let plugins_dir = app_plugins_dir(&app_data_dir);
+        let plugin_id = "remote-provenance-plugin";
+        let registry_url =
+            "https://raw.githubusercontent.com/getglimpse/plugins/main/registry.json";
+        let download_url = "https://github.com/getglimpse/plugins/releases/download/remote-provenance-plugin-v0.1.0/remote-provenance-plugin-0.1.0.glimpse-plugin.zip";
+        let digest = "f8e403e2374041ab56e8c44469fb639c45643237c7c543fd9efedab9b69c41b7";
+
+        write_plugin_source(&plugins_dir, plugin_id);
+        set_remote_plugin_provenance(
+            &settings_path,
+            plugin_id,
+            registry_url,
+            download_url,
+            digest,
+            digest,
+        )
+        .unwrap();
+
+        let status = get_plugin_trust_status(&app_data_dir, &settings_path, plugin_id).unwrap();
+        let provenance = status.provenance.unwrap();
+
+        assert_eq!(provenance.install_source, PluginInstallSource::Remote);
+        assert_eq!(provenance.registry_url.as_deref(), Some(registry_url));
+        assert_eq!(provenance.download_url.as_deref(), Some(download_url));
+        assert_eq!(provenance.registry_sha256.as_deref(), Some(digest));
+        assert_eq!(provenance.installed_package_sha256.as_deref(), Some(digest));
+        assert!(provenance.installed_at.is_some());
+
+        fs::remove_dir_all(app_data_dir).ok();
+    }
+
+    #[test]
+    fn local_install_clears_remote_plugin_provenance_and_trust() {
+        let app_data_dir = unique_test_dir("app");
+        let source_parent = unique_test_dir("source");
+        let settings_path = app_data_dir.join("settings.json");
+        let plugin_id = "local-over-remote-plugin";
+        let digest = "f8e403e2374041ab56e8c44469fb639c45643237c7c543fd9efedab9b69c41b7";
+
+        let mut settings = AppSettings::default();
+        settings.plugins.insert(
+            plugin_id.to_string(),
+            PluginSettings {
+                trust: Some(PluginTrustRecord {
+                    trusted_at: Some("2026-09-06T00:00:00Z".to_string()),
+                    manifest_fingerprint: Some("remote-fingerprint".to_string()),
+                    version: Some("0.1.0".to_string()),
+                }),
+                provenance: Some(PluginInstallProvenance {
+                    install_source: PluginInstallSource::Remote,
+                    registry_url: Some(
+                        "https://raw.githubusercontent.com/getglimpse/plugins/main/registry.json"
+                            .to_string(),
+                    ),
+                    download_url: Some("https://github.com/getglimpse/plugins/releases/download/local-over-remote-plugin-v0.1.0/local-over-remote-plugin-0.1.0.glimpse-plugin.zip".to_string()),
+                    registry_sha256: Some(digest.to_string()),
+                    installed_package_sha256: Some(digest.to_string()),
+                    installed_at: Some("2026-09-06T00:00:00Z".to_string()),
+                }),
+                copy_successful_search_results: std::collections::HashMap::from([(
+                    "calculate".to_string(),
+                    true,
+                )]),
+                ..Default::default()
+            },
+        );
+        save_settings(&settings_path, &settings).unwrap();
+
+        write_plugin_source(&source_parent, plugin_id);
+        install_plugin_from_path(
+            &app_data_dir,
+            &settings_path,
+            &source_parent.join(plugin_id).display().to_string(),
+            false,
+        )
+        .unwrap();
+
+        let settings = load_settings(&settings_path);
+        let plugin_settings = settings.plugins.get(plugin_id).unwrap();
+
+        assert!(plugin_settings.trust.is_none());
+        assert!(plugin_settings.provenance.is_none());
+        assert_eq!(
+            plugin_settings
+                .copy_successful_search_results
+                .get("calculate"),
+            Some(&true)
+        );
+
+        fs::remove_dir_all(app_data_dir).ok();
+        fs::remove_dir_all(source_parent).ok();
     }
 
     #[test]

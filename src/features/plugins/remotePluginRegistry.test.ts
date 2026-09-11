@@ -109,12 +109,10 @@ describe("remotePluginRegistry", () => {
     );
   });
 
-  it("derives author from the GitHub repository URL instead of registry metadata", () => {
+  it("derives author from the official GitHub repository URL instead of registry metadata", () => {
     const registry = validRegistry();
 
     registry.plugins[0].author = "Trusted Looking Name";
-    registry.plugins[0].repositoryUrl =
-      "https://github.com/example-publisher/example-plugin";
 
     const result = validatePluginRegistry(registry);
 
@@ -124,7 +122,31 @@ describe("remotePluginRegistry", () => {
       throw new Error(result.errors.join("\n"));
     }
 
-    expect(result.registry.plugins[0].author).toBe("example-publisher");
+    expect(result.registry.plugins[0].author).toBe("getglimpse");
+  });
+
+  it("rejects remote metadata URLs outside the official plugin registry", () => {
+    const registry = validRegistry();
+
+    registry.plugins[0].repositoryUrl =
+      "https://github.com/example-publisher/example-plugin";
+    registry.plugins[0].sourceUrl =
+      "https://github.com/example-publisher/example-plugin/tree/main";
+    registry.plugins[0].readmeUrl =
+      "https://raw.githubusercontent.com/example-publisher/example-plugin/main/README.md";
+
+    const result = validatePluginRegistry(registry);
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain(
+      "plugins[0].repositoryUrl must be https://github.com/getglimpse/plugins",
+    );
+    expect(result.errors).toContain(
+      "plugins[0].sourceUrl must be https://github.com/getglimpse/plugins/tree/main/numeric-calculator-plugin",
+    );
+    expect(result.errors).toContain(
+      "plugins[0].readmeUrl must be https://raw.githubusercontent.com/getglimpse/plugins/main/numeric-calculator-plugin/README.md",
+    );
   });
 
   it("checks registry entries against installed manifests", () => {

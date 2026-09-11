@@ -11,6 +11,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::models::settings::PluginInstallProvenance;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PluginManifest {
@@ -208,6 +210,7 @@ pub struct PluginTrustStatus {
     pub trusted_fingerprint: Option<String>,
     pub version: String,
     pub trusted_version: Option<String>,
+    pub provenance: Option<PluginInstallProvenance>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

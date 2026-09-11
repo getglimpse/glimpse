@@ -76,6 +76,7 @@ pub async fn install_plugin_from_url(
     settings_path: State<'_, SharedSettingsPath>,
     download_url: String,
     sha256: String,
+    registry_url: Option<String>,
     replace: bool,
 ) -> Result<PluginInstallResult, String> {
     let app_data_dir = app_data_dir.0.lock().map_err(|e| e.to_string())?.clone();
@@ -86,6 +87,7 @@ pub async fn install_plugin_from_url(
         &settings_path,
         &download_url,
         &sha256,
+        registry_url.as_deref(),
         replace,
     )
     .await

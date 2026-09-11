@@ -11,6 +11,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { I18nProvider } from "@/i18n/I18nProvider";
+import { OFFICIAL_PLUGIN_REGISTRY_URL } from "@/features/plugins/remotePluginRegistry";
 import { OPEN_LOCAL_PLUGIN_INSTALL_EVENT } from "@/features/plugins/pluginPageEvents";
 import type {
   GlimpsePlugin,
@@ -18,6 +19,7 @@ import type {
   PluginRegistry,
   PluginRegistryEntry,
   PluginRegistryItem,
+  PluginTrustStatus,
 } from "@/types";
 
 import { PluginManagementPage } from "./PluginManagementPage";
@@ -25,6 +27,9 @@ import { RemotePluginPage } from "./RemotePluginPage";
 
 const digest =
   "f8e403e2374041ab56e8c44469fb639c45643237c7c543fd9efedab9b69c41b7";
+
+const pluginDownloadUrl = (id: string, version: string) =>
+  `https://github.com/getglimpse/plugins/releases/download/${id}-v${version}/${id}-${version}.glimpse-plugin.zip`;
 
 const pluginRegistryMocks = vi.hoisted(() => {
   let plugins: unknown[] = [];
@@ -117,7 +122,7 @@ const registryEntry = (
   readmeUrl: `https://raw.githubusercontent.com/getglimpse/plugins/main/${id}/README.md`,
   sourceUrl: `https://github.com/getglimpse/plugins/tree/main/${id}`,
   repositoryUrl: "https://github.com/getglimpse/plugins",
-  downloadUrl: `https://github.com/getglimpse/plugins/releases/download/${id}-v0.2.0/${id}-0.2.0.glimpse-plugin.zip`,
+  downloadUrl: pluginDownloadUrl(id, "0.2.0"),
   sha256: digest,
   ...overrides,
 });
@@ -134,6 +139,30 @@ const installedPlugin = (
   enabled: false,
   trusted: false,
   ...overrides,
+});
+
+const remoteTrustStatus = (
+  entry: PluginRegistryEntry,
+  version = entry.version,
+  provenanceOverrides: Partial<
+    NonNullable<PluginTrustStatus["provenance"]>
+  > = {},
+): PluginTrustStatus => ({
+  pluginId: entry.id,
+  trusted: false,
+  trustRequired: true,
+  reason: "plugin has not been trusted yet",
+  manifestFingerprint: "fingerprint",
+  version,
+  provenance: {
+    installSource: "remote",
+    registryUrl: OFFICIAL_PLUGIN_REGISTRY_URL,
+    downloadUrl: pluginDownloadUrl(entry.id, version),
+    registrySha256: entry.sha256,
+    installedPackageSha256: entry.sha256,
+    installedAt: "2026-09-06T00:00:00Z",
+    ...provenanceOverrides,
+  },
 });
 
 const installResult = (entry: PluginRegistryEntry): PluginInstallResult => ({
@@ -287,14 +316,20 @@ describe("PluginPage remote plugins", () => {
       }),
       registryEntry("update-plugin", "Update Plugin"),
       registryEntry("installed-plugin", "Installed Plugin"),
+      registryEntry("local-conflict-plugin", "Local Conflict Plugin"),
       registryEntry("future-plugin", "Future Plugin", {
         apiVersion: "999.0.0",
       }),
     ];
 
     pluginRegistryMocks.setPlugins([
-      installedPlugin("update-plugin", "0.1.0"),
-      installedPlugin("installed-plugin", "0.2.0"),
+      installedPlugin("update-plugin", "0.1.0", {
+        trustStatus: remoteTrustStatus(entries[1], "0.1.0"),
+      }),
+      installedPlugin("installed-plugin", "0.2.0", {
+        trustStatus: remoteTrustStatus(entries[2]),
+      }),
+      installedPlugin("local-conflict-plugin", "0.2.0"),
     ]);
     stubRegistryFetch(entries);
 
@@ -389,6 +424,22 @@ describe("PluginPage remote plugins", () => {
     ).toBeTruthy();
     await closeRemoteDetailDialog();
 
+    const localConflictPluginRow = await remotePluginRow(
+      "Local Conflict Plugin",
+    );
+    fireEvent.click(localConflictPluginRow);
+    detailDialog = await remoteDetailDialog();
+    expect(
+      detailDialog.getByText(
+        "A different plugin with id local-conflict-plugin is installed. Manage it from Plugin Management before enabling this remote plugin.",
+      ),
+    ).toBeTruthy();
+    expect(detailDialog.queryByRole("button", { name: "Enable" })).toBeNull();
+    expect(
+      detailDialog.queryByRole("button", { name: "Uninstall" }),
+    ).toBeNull();
+    await closeRemoteDetailDialog();
+
     const futurePluginRow = await remotePluginRow("Future Plugin");
     const unsupportedCard = within(futurePluginRow);
     fireEvent.click(futurePluginRow);
@@ -403,13 +454,44 @@ describe("PluginPage remote plugins", () => {
     ).toBe(true);
   });
 
+  it("does not manage update-available plugins with forged remote provenance", async () => {
+    const entry = registryEntry("forged-update-plugin", "Forged Update Plugin");
+
+    pluginRegistryMocks.setPlugins([
+      installedPlugin(entry.id, "0.1.0", {
+        trustStatus: remoteTrustStatus(entry, "0.1.0", {
+          downloadUrl:
+            "https://github.com/getglimpse/plugins/releases/download/other-plugin-v0.1.0/other-plugin-0.1.0.glimpse-plugin.zip",
+        }),
+      }),
+    ]);
+    stubRegistryFetch([entry]);
+
+    renderPluginStorePage();
+
+    fireEvent.click(await remotePluginRow("Forged Update Plugin"));
+    const detailDialog = await remoteDetailDialog();
+
+    expect(
+      detailDialog.getByText(
+        "A different plugin with id forged-update-plugin is installed. Manage it from Plugin Management before enabling this remote plugin.",
+      ),
+    ).toBeTruthy();
+    expect(detailDialog.queryByRole("button", { name: "Enable" })).toBeNull();
+    expect(
+      detailDialog.queryByRole("button", { name: "Uninstall" }),
+    ).toBeNull();
+  });
+
   it("installs remote plugins, refreshes installed state, and does not trust them", async () => {
     const entry = registryEntry("new-plugin", "New Plugin");
 
     stubRegistryFetch([entry]);
     pluginRegistryMocks.installPluginFromUrl.mockImplementation(async () => {
       pluginRegistryMocks.setPlugins([
-        installedPlugin(entry.id, entry.version),
+        installedPlugin(entry.id, entry.version, {
+          trustStatus: remoteTrustStatus(entry),
+        }),
       ]);
 
       return {
@@ -432,6 +514,7 @@ describe("PluginPage remote plugins", () => {
         entry.downloadUrl,
         entry.sha256,
         false,
+        OFFICIAL_PLUGIN_REGISTRY_URL,
       );
     });
     expect(
@@ -449,6 +532,7 @@ describe("PluginPage remote plugins", () => {
       installedPlugin(entry.id, entry.version, {
         enabled: false,
         trusted: false,
+        trustStatus: remoteTrustStatus(entry),
       }),
     ]);
     stubRegistryFetch([entry]);
@@ -477,6 +561,11 @@ describe("PluginPage remote plugins", () => {
       installedPlugin(entry.id, entry.version, {
         enabled: true,
         trusted: true,
+        trustStatus: {
+          ...remoteTrustStatus(entry),
+          trusted: true,
+          reason: null,
+        },
       }),
     ]);
     stubRegistryFetch([entry]);

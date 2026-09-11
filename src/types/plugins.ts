@@ -193,6 +193,16 @@ export type PluginTrustStatus = {
   trustedFingerprint?: string | null;
   version: string;
   trustedVersion?: string | null;
+  provenance?: PluginInstallProvenance | null;
+};
+
+export type PluginInstallProvenance = {
+  installSource: "local" | "remote";
+  registryUrl?: string | null;
+  downloadUrl?: string | null;
+  registrySha256?: string | null;
+  installedPackageSha256?: string | null;
+  installedAt?: string | null;
 };
 
 export type PluginInstallResult = {

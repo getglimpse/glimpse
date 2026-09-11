@@ -244,11 +244,43 @@ pub struct PluginSettings {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub trust: Option<PluginTrustRecord>,
 
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provenance: Option<PluginInstallProvenance>,
+
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub copy_successful_search_results: HashMap<String, bool>,
 
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub preferences: HashMap<String, String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginInstallProvenance {
+    pub install_source: PluginInstallSource,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub registry_url: Option<String>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub download_url: Option<String>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub registry_sha256: Option<String>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub installed_package_sha256: Option<String>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub installed_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum PluginInstallSource {
+    #[default]
+    Local,
+    Remote,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

@@ -108,6 +108,83 @@ const getRemotePluginInstallKind = (
   return "installed";
 };
 
+const sha256DigestPattern = /^[a-f0-9]{64}$/i;
+
+const isRemoteManagedInstalledPlugin = (
+  entry: PluginRegistryEntry,
+  installedPlugin: PluginRegistryItem,
+) => {
+  const provenance = installedPlugin.trustStatus?.provenance;
+
+  if (
+    !provenance ||
+    provenance.installSource !== "remote" ||
+    provenance.registryUrl !== OFFICIAL_PLUGIN_REGISTRY_URL
+  ) {
+    return false;
+  }
+
+  const registrySha256 = provenance.registrySha256?.toLowerCase();
+  const installedPackageSha256 =
+    provenance.installedPackageSha256?.toLowerCase();
+
+  if (
+    !registrySha256 ||
+    !installedPackageSha256 ||
+    !sha256DigestPattern.test(registrySha256) ||
+    registrySha256 !== installedPackageSha256 ||
+    !isOfficialPluginDownloadUrlForVersion(
+      provenance.downloadUrl,
+      entry.id,
+      installedPlugin.version,
+    )
+  ) {
+    return false;
+  }
+
+  if (installedPlugin.version !== entry.version) {
+    return true;
+  }
+
+  return (
+    provenance.downloadUrl === entry.downloadUrl &&
+    registrySha256 === entry.sha256.toLowerCase()
+  );
+};
+
+const isOfficialPluginDownloadUrlForVersion = (
+  downloadUrl: string | null | undefined,
+  pluginId: string,
+  version: string,
+) => {
+  if (!downloadUrl) {
+    return false;
+  }
+
+  try {
+    const url = new URL(downloadUrl);
+
+    if (!isGitHubUrl(url)) {
+      return false;
+    }
+
+    const [owner, repo, releases, download, tag, fileName] = url.pathname
+      .split("/")
+      .filter(Boolean);
+
+    return (
+      owner === "getglimpse" &&
+      repo === "plugins" &&
+      releases === "releases" &&
+      download === "download" &&
+      tag === `${pluginId}-v${version}` &&
+      fileName === `${pluginId}-${version}.glimpse-plugin.zip`
+    );
+  } catch {
+    return false;
+  }
+};
+
 export const RemotePluginPage = () => {
   const { LL, locale } = useI18nContext();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -265,6 +342,7 @@ export const RemotePluginPage = () => {
       entry.downloadUrl,
       entry.sha256,
       installKind === "update-available",
+      OFFICIAL_PLUGIN_REGISTRY_URL,
     )
       .then((result) => {
         setPlugins(getPlugins());
@@ -392,10 +470,18 @@ export const RemotePluginPage = () => {
   );
   const remotePluginViews = remotePlugins.map((entry) => {
     const installedPlugin = installedPluginsById.get(entry.id);
+    const remoteManagedInstalledPlugin =
+      installedPlugin && isRemoteManagedInstalledPlugin(entry, installedPlugin)
+        ? installedPlugin
+        : undefined;
 
     return {
       entry,
-      installedPlugin,
+      installedPlugin: remoteManagedInstalledPlugin,
+      conflictingInstalledPlugin:
+        installedPlugin && !remoteManagedInstalledPlugin
+          ? installedPlugin
+          : undefined,
       installKind: getRemotePluginInstallKind(entry, installedPlugin),
     };
   });
@@ -547,6 +633,9 @@ export const RemotePluginPage = () => {
                   <RemotePluginDetail
                     entry={selectedRemotePluginView.entry}
                     installedPlugin={selectedRemotePluginView.installedPlugin}
+                    conflictingInstalledPlugin={
+                      selectedRemotePluginView.conflictingInstalledPlugin
+                    }
                     installKind={selectedRemotePluginView.installKind}
                     installState={
                       remoteInstallStates[selectedRemotePluginView.entry.id]
@@ -578,6 +667,9 @@ export const RemotePluginPage = () => {
           <RemotePluginDetailOverlay
             entry={selectedRemotePluginView.entry}
             installedPlugin={selectedRemotePluginView.installedPlugin}
+            conflictingInstalledPlugin={
+              selectedRemotePluginView.conflictingInstalledPlugin
+            }
             installKind={selectedRemotePluginView.installKind}
             installState={
               remoteInstallStates[selectedRemotePluginView.entry.id]
@@ -741,6 +833,7 @@ const RemotePluginCatalogRow = ({
 const RemotePluginDetailOverlay = ({
   entry,
   installedPlugin,
+  conflictingInstalledPlugin,
   installKind,
   installState,
   managementState,
@@ -755,6 +848,7 @@ const RemotePluginDetailOverlay = ({
 }: {
   entry: PluginRegistryEntry;
   installedPlugin?: PluginRegistryItem;
+  conflictingInstalledPlugin?: PluginRegistryItem;
   installKind: RemotePluginInstallKind;
   installState?: RemotePluginInstallState;
   managementState?: RemotePluginManagementState;
@@ -887,6 +981,7 @@ const RemotePluginDetailOverlay = ({
           <RemotePluginDetail
             entry={entry}
             installedPlugin={installedPlugin}
+            conflictingInstalledPlugin={conflictingInstalledPlugin}
             installKind={installKind}
             installState={installState}
             managementState={managementState}
@@ -907,6 +1002,7 @@ const RemotePluginDetailOverlay = ({
 const RemotePluginDetail = ({
   entry,
   installedPlugin,
+  conflictingInstalledPlugin,
   installKind,
   installState,
   managementState,
@@ -920,6 +1016,7 @@ const RemotePluginDetail = ({
 }: {
   entry: PluginRegistryEntry;
   installedPlugin?: PluginRegistryItem;
+  conflictingInstalledPlugin?: PluginRegistryItem;
   installKind: RemotePluginInstallKind;
   installState?: RemotePluginInstallState;
   managementState?: RemotePluginManagementState;
@@ -1089,6 +1186,14 @@ const RemotePluginDetail = ({
         </p>
       )}
 
+      {conflictingInstalledPlugin && (
+        <div className="mt-4 rounded-md border border-border-main bg-main-bg p-3 text-xs text-text-muted">
+          {LL.pluginPage.remote.localConflict({
+            pluginId: conflictingInstalledPlugin.id,
+          })}
+        </div>
+      )}
+
       <div className="mt-4 flex flex-wrap gap-2">
         {(installKind === "not-installed" ||
           installKind === "update-available" ||
@@ -1186,11 +1291,7 @@ const RemotePluginMetadataLine = ({
 
 const getRemotePluginReadmeUrl = (entry: PluginRegistryEntry) =>
   entry.readmeUrl ??
-  getRemotePluginReadmeUrlFromSourceUrl(entry.sourceUrl) ??
   getRemotePluginReadmeUrlFromRepositoryUrl(entry.repositoryUrl, entry.id);
-
-const getRemotePluginReadmeUrlFromSourceUrl = (sourceUrl: string | undefined) =>
-  getGitHubTreeRawFileUrl(sourceUrl, "README.md");
 
 const getRemotePluginReadmeUrlFromRepositoryUrl = (
   repositoryUrl: string | undefined,
@@ -1209,35 +1310,6 @@ const getRemotePluginReadmeUrlFromRepositoryUrl = (
     }
 
     return `https://raw.githubusercontent.com/getglimpse/plugins/main/${pluginId}/README.md`;
-  } catch {
-    return undefined;
-  }
-};
-
-const getGitHubTreeRawFileUrl = (
-  sourceUrl: string | undefined,
-  fileName: string,
-) => {
-  if (!sourceUrl) {
-    return undefined;
-  }
-
-  try {
-    const url = new URL(sourceUrl);
-    const [owner, repo, tree, branch, ...pathSegments] = url.pathname
-      .split("/")
-      .filter(Boolean);
-
-    if (
-      !isGitHubUrl(url) ||
-      tree !== "tree" ||
-      !branch ||
-      !pathSegments.length
-    ) {
-      return undefined;
-    }
-
-    return `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${pathSegments.join("/")}/${fileName}`;
   } catch {
     return undefined;
   }
