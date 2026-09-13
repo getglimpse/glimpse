@@ -23,6 +23,11 @@ export type CreateTextFilePayload = {
   extension: "md" | "gjson";
 };
 
+export type CreateTextFileAtPathPayload = {
+  filePath: string;
+  body: string;
+};
+
 export type WritePluginTextOutputPayload = {
   directory: string;
   fileName: string;
@@ -158,6 +163,9 @@ export const fileApi = {
    */
   createTextFile: (payload: CreateTextFilePayload) =>
     invoke<string>("create_text_file", { payload }),
+
+  createTextFileAtPath: (payload: CreateTextFileAtPathPayload) =>
+    invoke<string>("create_text_file_at_path", { payload }),
 
   getDefaultDownloadDirectory: () =>
     invoke<string>("get_default_download_directory"),

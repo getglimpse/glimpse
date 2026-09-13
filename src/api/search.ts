@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { SearchResult } from "@/types";
+import type { IndexItem, SearchResult } from "@/types";
 
 /**
  * Search request parameters.
@@ -47,6 +47,18 @@ export interface SearchParams {
    */
   reverse?: boolean;
 }
+
+export type MarkdownLinkResolutionStatus =
+  | "found"
+  | "existsUnindexed"
+  | "missing";
+
+export type MarkdownLinkResolution = {
+  status: MarkdownLinkResolutionStatus;
+  targetPath?: string | null;
+  createPath?: string | null;
+  item?: IndexItem | null;
+};
 
 /**
  * Backend API for searching indexed items.
@@ -115,6 +127,28 @@ export const searchApi = {
         typeof error === "string" ? error : "Unknown source path lookup error",
       );
     }
+  },
+
+  async resolveMarkdownLink(
+    sourcePath: string,
+    href: string,
+  ): Promise<MarkdownLinkResolution> {
+    const resolution = await invoke<{
+      status: MarkdownLinkResolutionStatus;
+      targetPath?: string | null;
+      createPath?: string | null;
+      item?: SearchResult | null;
+    }>("resolve_markdown_link", {
+      sourcePath,
+      href,
+    });
+
+    return {
+      status: resolution.status,
+      targetPath: resolution.targetPath,
+      createPath: resolution.createPath,
+      item: resolution.item?.item ?? null,
+    };
   },
 
   // Future APIs:

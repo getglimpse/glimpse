@@ -43,6 +43,13 @@ pub struct CreateTextFilePayload {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct CreateTextFileAtPathPayload {
+    pub file_path: String,
+    pub body: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct WritePluginTextOutputPayload {
     pub directory: String,
     pub file_name: String,
@@ -158,6 +165,23 @@ pub async fn create_text_file(
         payload.title,
         payload.body,
         payload.extension,
+    )?;
+
+    runtime.index_file(PathBuf::from(&file_path)).await?;
+
+    Ok(file_path)
+}
+
+#[tauri::command]
+pub async fn create_text_file_at_path(
+    settings_path: State<'_, SharedSettingsPath>,
+    runtime: State<'_, Arc<IndexerRuntime>>,
+    payload: CreateTextFileAtPathPayload,
+) -> Result<String, String> {
+    let file_path = crate::store::file::create_text_file_at_path(
+        &resolve_settings_path(&settings_path)?,
+        payload.file_path,
+        payload.body,
     )?;
 
     runtime.index_file(PathBuf::from(&file_path)).await?;

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import {
   ChevronDown,
   CircleHelp,
@@ -43,6 +44,7 @@ type Props = {
   onClose: (options?: { force?: boolean }) => void;
   onHelp: () => void;
   onSaved: (result: SaveResult) => void;
+  headerLeading?: ReactNode;
 };
 
 const resolveDisplayTitle = (title: string, untitledLabel: string) =>
@@ -76,6 +78,7 @@ export const FileEditorPanel = ({
   onClose,
   onHelp,
   onSaved,
+  headerLeading,
 }: Props) => {
   const [title, setTitle] = useState(editor.initialTitle);
   const [body, setBody] = useState(editor.initialBody);
@@ -190,11 +193,16 @@ export const FileEditorPanel = ({
           }
         }
 
-        savedPath = await fileApi.createTextFile({
-          title: trimmedTitle,
-          body: savedBody,
-          extension: editor.extension === "gjson" ? "gjson" : "md",
-        });
+        savedPath = editor.filePath
+          ? await fileApi.createTextFileAtPath({
+              filePath: editor.filePath,
+              body: savedBody,
+            })
+          : await fileApi.createTextFile({
+              title: trimmedTitle,
+              body: savedBody,
+              extension: editor.extension === "gjson" ? "gjson" : "md",
+            });
       } else {
         savedPath = editor.filePath!;
 
@@ -270,6 +278,7 @@ export const FileEditorPanel = ({
   const EditorIcon = editor.mode === "create" ? FilePlus : Pencil;
   const canChangeExtension =
     editor.mode === "create" &&
+    !editor.filePath &&
     body === "" &&
     isEmptyGjsonDocument(gjsonDocument);
 
@@ -293,20 +302,22 @@ export const FileEditorPanel = ({
           <div className="absolute left-0 top-0 h-0.5 w-full bg-accent" />
         )}
 
-        <div className="flex min-w-0 items-center gap-2">
-          <EditorIcon className="h-4 w-4 shrink-0 text-text-muted" />
-          <span className="truncate text-sm font-semibold tracking-wide">
-            {editor.mode === "create"
-              ? LL.fileEditor.createFile()
-              : LL.fileEditor.editFile()}
-          </span>
-          <span className="truncate text-xs text-text-muted">
-            {resolveDisplayTitle(title, LL.fileEditor.untitled())}
-            {editor.dirty ? " *" : ""}
-          </span>
-        </div>
+        {headerLeading ?? (
+          <div className="flex min-w-0 items-center gap-2">
+            <EditorIcon className="h-4 w-4 shrink-0 text-text-muted" />
+            <span className="truncate text-sm font-semibold tracking-wide">
+              {editor.mode === "create"
+                ? LL.fileEditor.createFile()
+                : LL.fileEditor.editFile()}
+            </span>
+            <span className="truncate text-xs text-text-muted">
+              {resolveDisplayTitle(title, LL.fileEditor.untitled())}
+              {editor.dirty ? " *" : ""}
+            </span>
+          </div>
+        )}
 
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <button
             type="button"
             onClick={() => void save(false)}

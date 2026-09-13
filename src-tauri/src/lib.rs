@@ -74,6 +74,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::search::search_items,
             commands::search::get_items_by_source_path,
+            commands::search::resolve_markdown_link,
             commands::open::open_external_url,
             commands::open::reveal_in_explorer,
             commands::open::open_source_file,
@@ -115,6 +116,7 @@ pub fn run() {
             commands::file::read_preview_asset_data_url,
             commands::file::create_markdown_file,
             commands::file::create_text_file,
+            commands::file::create_text_file_at_path,
             commands::file::get_default_download_directory,
             commands::file::write_plugin_text_output,
             commands::file::update_markdown_file_title,

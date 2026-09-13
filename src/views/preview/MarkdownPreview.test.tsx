@@ -170,6 +170,74 @@ describe("MarkdownPreview", () => {
     );
   });
 
+  it("routes relative markdown links through the internal link callback", async () => {
+    const onOpenInternalLink = vi.fn();
+
+    render(
+      <MarkdownPreview
+        id="relative-link"
+        content="[Template](./docs/template)"
+        onOpenInternalLink={onOpenInternalLink}
+      />,
+    );
+
+    await waitFor(() => {
+      fireEvent.click(screen.getByRole("link", { name: "Template" }));
+      expect(onOpenInternalLink).toHaveBeenCalledWith("./docs/template");
+    });
+  });
+
+  it("opens web markdown links through the default app opener", async () => {
+    const onOpenInternalLink = vi.fn();
+    mockedInvoke.mockResolvedValue(undefined);
+
+    render(
+      <MarkdownPreview
+        id="external-link"
+        content="[Example](https://example.com)"
+        onOpenInternalLink={onOpenInternalLink}
+      />,
+    );
+
+    fireEvent.click(await screen.findByRole("link", { name: "Example" }));
+
+    expect(onOpenInternalLink).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(mockedInvoke).toHaveBeenCalledWith("open_external_url", {
+        url: "https://example.com",
+      });
+    });
+  });
+
+  it("does not open unsupported markdown link schemes", async () => {
+    render(
+      <MarkdownPreview
+        id="unsupported-link"
+        content="[Mail](mailto:test@example.com)"
+      />,
+    );
+
+    fireEvent.click(await screen.findByRole("link", { name: "Mail" }));
+
+    expect(mockedInvoke).not.toHaveBeenCalledWith(
+      "open_external_url",
+      expect.anything(),
+    );
+  });
+
+  it("leaves same-document anchor links in the preview", async () => {
+    render(
+      <MarkdownPreview id="anchor-link" content="[Section](#section)" />,
+    );
+
+    fireEvent.click(await screen.findByRole("link", { name: "Section" }));
+
+    expect(mockedInvoke).not.toHaveBeenCalledWith(
+      "open_external_url",
+      expect.anything(),
+    );
+  });
+
   it("toggles only the clicked nested task item", async () => {
     mockedInvoke.mockResolvedValue(undefined);
 

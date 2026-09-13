@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
 } from "react";
+import type { ReactNode } from "react";
 
 import {
   IndexItem,
@@ -45,6 +46,7 @@ import {
 import { PluginViewerPreview } from "@/features/plugins/PluginViewerPreview";
 import { useI18nContext } from "@/i18n/I18nProvider";
 import { toast } from "@/utils/toast";
+import { cn } from "@/lib/utils";
 
 type Props = {
   item: IndexItem | null;
@@ -71,6 +73,12 @@ type Props = {
   onCommandAction?: () => void;
   onRefreshTemporaryItem?: () => void;
   onTagCloudTagSelect: (tag: string) => void;
+  onOpenMarkdownLink?: (
+    sourcePath: string | null | undefined,
+    href: string,
+  ) => void;
+  className?: string;
+  headerLeading?: ReactNode;
 };
 
 export const PreviewPanel = forwardRef<PreviewPanelHandle, Props>(
@@ -100,6 +108,9 @@ export const PreviewPanel = forwardRef<PreviewPanelHandle, Props>(
       onCommandAction,
       onRefreshTemporaryItem,
       onTagCloudTagSelect,
+      onOpenMarkdownLink,
+      className,
+      headerLeading,
     },
     ref,
   ) => {
@@ -437,6 +448,9 @@ export const PreviewPanel = forwardRef<PreviewPanelHandle, Props>(
               id={item.id}
               sourcePath={item.sourcePath}
               content={item.preview.content}
+              onOpenInternalLink={(href) =>
+                onOpenMarkdownLink?.(item.sourcePath, href)
+              }
             />
           );
 
@@ -452,7 +466,12 @@ export const PreviewPanel = forwardRef<PreviewPanelHandle, Props>(
     };
 
     return (
-      <main className="flex-1 flex flex-col bg-main-bg border-l border-border-main relative overflow-hidden min-w-0">
+      <main
+        className={cn(
+          "flex-1 flex flex-col bg-main-bg border-l border-border-main relative overflow-hidden min-w-0",
+          className,
+        )}
+      >
         <PreviewHeader
           item={item}
           selectedIndex={selectedIndex}
@@ -478,6 +497,7 @@ export const PreviewPanel = forwardRef<PreviewPanelHandle, Props>(
           onUrlAction={onUrlAction}
           onCommandAction={onCommandAction}
           onRefreshTemporaryItem={onRefreshTemporaryItem}
+          leading={headerLeading}
         />
 
         <div className="flex-1 relative min-h-0 overflow-hidden">

@@ -1,4 +1,5 @@
 import { Bug, SearchCode, X } from "lucide-react";
+import type { ReactNode } from "react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { nord } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { useI18nContext } from "@/i18n/I18nProvider";
@@ -10,6 +11,7 @@ type Props = {
   kind: "item" | "query";
   active?: boolean;
   onClose: () => void;
+  headerLeading?: ReactNode;
 };
 
 export const InspectorPanel = ({
@@ -19,6 +21,7 @@ export const InspectorPanel = ({
   kind,
   active,
   onClose,
+  headerLeading,
 }: Props) => {
   const { LL } = useI18nContext();
   const InspectorIcon = kind === "item" ? Bug : SearchCode;
@@ -30,15 +33,19 @@ export const InspectorPanel = ({
           <div className="absolute left-0 top-0 h-0.5 w-full bg-accent" />
         )}
 
-        <div className="flex min-w-0 items-center gap-2">
-          <InspectorIcon className="h-4 w-4 shrink-0 text-text-muted" />
-          <span className="truncate text-sm font-semibold tracking-wide">
-            {title}
-          </span>
-          {subtitle && (
-            <span className="truncate text-xs text-text-muted">{subtitle}</span>
-          )}
-        </div>
+        {headerLeading ?? (
+          <div className="flex min-w-0 items-center gap-2">
+            <InspectorIcon className="h-4 w-4 shrink-0 text-text-muted" />
+            <span className="truncate text-sm font-semibold tracking-wide">
+              {title}
+            </span>
+            {subtitle && (
+              <span className="truncate text-xs text-text-muted">
+                {subtitle}
+              </span>
+            )}
+          </div>
+        )}
 
         <button
           type="button"

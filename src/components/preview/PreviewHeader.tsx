@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import {
   Settings,
   CircleHelp,
@@ -32,6 +34,7 @@ import { isPluginInternalPage } from "@/features/plugins/pluginRegistry";
 import { openLocalPluginInstallDialog } from "@/features/plugins/pluginPageEvents";
 import { hasHelpContent } from "@/utils/helpContent";
 import { toast } from "@/utils/toast";
+import { cn } from "@/lib/utils";
 
 type Props = {
   item: IndexItem;
@@ -52,9 +55,10 @@ type Props = {
   onUrlAction?: () => void;
   onCommandAction?: () => void;
   onRefreshTemporaryItem?: () => void;
+  leading?: ReactNode;
 };
 
-const getPreviewIcon = (item: IndexItem) => {
+export const getPreviewIcon = (item: IndexItem) => {
   if (item.preview.type === "external") {
     return Globe;
   }
@@ -146,6 +150,7 @@ export const PreviewHeader = ({
   onUrlAction,
   onCommandAction,
   onRefreshTemporaryItem,
+  leading,
 }: Props) => {
   const { LL } = useI18nContext();
 
@@ -166,25 +171,32 @@ export const PreviewHeader = ({
       : item.title;
 
   return (
-    <header className="relative pr-4 pl-4 pt-2 pb-2 border-b border-border-main flex justify-between items-center bg-glass-bg backdrop-blur-md z-10 flex-shrink-0">
+    <header
+      className={cn(
+        "relative pl-4 pt-2 pb-2 border-b border-border-main flex justify-between items-center bg-glass-bg backdrop-blur-md z-10 flex-shrink-0",
+        leading ? "pr-2" : "pr-4",
+      )}
+    >
       {active && (
         <div className="absolute left-0 top-0 h-0.5 w-full bg-accent" />
       )}
 
-      <div className="flex items-center gap-2 min-w-0">
-        {PreviewIcon && (
-          <PreviewIcon
-            className="h-4 w-4 shrink-0 text-text-muted"
-            strokeWidth={2}
-          />
-        )}
+      {leading ?? (
+        <div className="flex items-center gap-2 min-w-0">
+          {PreviewIcon && (
+            <PreviewIcon
+              className="h-4 w-4 shrink-0 text-text-muted"
+              strokeWidth={2}
+            />
+          )}
 
-        <span className="truncate text-sm font-semibold tracking-wide">
-          {title}
-        </span>
-      </div>
+          <span className="truncate text-sm font-semibold tracking-wide">
+            {title}
+          </span>
+        </div>
+      )}
 
-      <div className="flex items-center gap-3">
+      <div className="flex shrink-0 items-center gap-3">
         {selectedIndex !== displayIndex && (
           <div className="text-[10px] text-accent animate-pulse font-mono font-bold">
             {LL.previewPanel.debouncing()}

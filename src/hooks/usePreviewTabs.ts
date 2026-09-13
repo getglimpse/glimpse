@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { previewApi } from "@/api/preview";
 
 import {
@@ -23,6 +23,13 @@ type OpenFileEditorTabParams = {
   gjsonParseError?: string;
 };
 
+type OpenFileCreatorTabParams = {
+  filePath?: string;
+  initialTitle?: string;
+  extension?: "md" | "gjson";
+  initialBody?: string;
+};
+
 /**
  * Manages preview tabs for the currently selected item.
  *
@@ -45,6 +52,9 @@ type OpenFileEditorTabParams = {
 export const usePreviewTabs = (item: IndexItem | null) => {
   const [pinnedTabs, setPinnedTabs] = useState<PreviewTab[]>([]);
   const [activeTabId, setActiveTabId] = useState(LIVE_PREVIEW_TAB_ID);
+  const [lastActivePinnedTabId, setLastActivePinnedTabId] = useState<
+    string | null
+  >(null);
 
   /**
    * Imperative handles for rendered preview panels.
@@ -79,6 +89,14 @@ export const usePreviewTabs = (item: IndexItem | null) => {
     setActiveTabId(LIVE_PREVIEW_TAB_ID);
   };
 
+  const activatePreviewTab = (tabId: string) => {
+    setActiveTabId(tabId);
+
+    if (tabId !== LIVE_PREVIEW_TAB_ID) {
+      setLastActivePinnedTabId(tabId);
+    }
+  };
+
   /**
    * Scrolls the active preview panel down.
    */
@@ -96,22 +114,31 @@ export const usePreviewTabs = (item: IndexItem | null) => {
   /**
    * Opens an item as a fixed preview tab.
    *
-   * If the item already has a pinned tab, that tab is activated.
+   * If the item already has a pinned tab, that tab is refreshed and activated.
    */
   const openPreviewTab = (tabItem: IndexItem) => {
     const id = `pinned:${tabItem.id}`;
 
     setPinnedTabs((prev) => {
-      if (prev.some((tab) => tab.id === id)) return prev;
+      let found = false;
+      const updatedTabs = prev.map((tab) => {
+        if (tab.id !== id || tab.type !== "item") return tab;
+
+        found = true;
+        return { ...tab, item: tabItem };
+      });
+
+      if (found) return updatedTabs;
 
       return [...prev, { id, type: "item", item: tabItem }];
     });
 
-    setActiveTabId(id);
+    activatePreviewTab(id);
   };
 
-  const openFileCreatorTab = () => {
+  const openFileCreatorTab = (params: OpenFileCreatorTabParams = {}) => {
     const id = `editor:create:${crypto.randomUUID()}`;
+    const extension = params.extension ?? "md";
 
     setPinnedTabs((prev) => [
       ...prev,
@@ -120,18 +147,19 @@ export const usePreviewTabs = (item: IndexItem | null) => {
         type: "fileEditor",
         editor: {
           mode: "create",
-          extension: "md",
-          extensionLabel: ".md",
-          contentMode: "markdown",
-          initialTitle: "",
-          initialBody: "",
-          title: "Untitled",
+          filePath: params.filePath,
+          extension,
+          extensionLabel: extension === "gjson" ? ".gjson" : ".md",
+          contentMode: extension === "gjson" ? "gjsonCards" : "markdown",
+          initialTitle: params.initialTitle ?? "",
+          initialBody: params.initialBody ?? "",
+          title: params.initialTitle?.trim() || "Untitled",
           dirty: false,
         },
       },
     ]);
 
-    setActiveTabId(id);
+    activatePreviewTab(id);
   };
 
   const openFileEditorTab = ({
@@ -188,7 +216,7 @@ export const usePreviewTabs = (item: IndexItem | null) => {
     });
 
     if (existingId) {
-      setActiveTabId(existingId);
+      activatePreviewTab(existingId);
     }
   };
 
@@ -208,7 +236,7 @@ export const usePreviewTabs = (item: IndexItem | null) => {
       ];
     });
 
-    setActiveTabId(id);
+    activatePreviewTab(id);
   };
 
   const openQueryInspectorTab = (inspectedQuery: string) => {
@@ -227,7 +255,7 @@ export const usePreviewTabs = (item: IndexItem | null) => {
       ];
     });
 
-    setActiveTabId(id);
+    activatePreviewTab(id);
   };
 
   const openHelpTab = (itemPage: string) => {
@@ -246,7 +274,7 @@ export const usePreviewTabs = (item: IndexItem | null) => {
       ];
     });
 
-    setActiveTabId(id);
+    activatePreviewTab(id);
   };
 
   const updateFileEditorTab = (
@@ -310,6 +338,25 @@ export const usePreviewTabs = (item: IndexItem | null) => {
     }
   };
 
+  useEffect(() => {
+    const pinnedIds = new Set(pinnedTabs.map((tab) => tab.id));
+
+    if (activeTabId !== LIVE_PREVIEW_TAB_ID && !pinnedIds.has(activeTabId)) {
+      setActiveTabId(LIVE_PREVIEW_TAB_ID);
+    }
+
+    if (
+      lastActivePinnedTabId !== null &&
+      pinnedIds.has(lastActivePinnedTabId)
+    ) {
+      return;
+    }
+
+    setLastActivePinnedTabId(
+      pinnedTabs.length > 0 ? pinnedTabs[pinnedTabs.length - 1].id : null,
+    );
+  }, [activeTabId, lastActivePinnedTabId, pinnedTabs]);
+
   /**
    * Pins the current live preview as a fixed tab.
    *
@@ -339,7 +386,7 @@ export const usePreviewTabs = (item: IndexItem | null) => {
 
     const nextIndex = (currentIndex + direction + tabs.length) % tabs.length;
 
-    setActiveTabId(tabs[nextIndex].id);
+    activatePreviewTab(tabs[nextIndex].id);
   };
 
   /**
@@ -390,11 +437,13 @@ export const usePreviewTabs = (item: IndexItem | null) => {
   return {
     tabs,
     activeTabId,
+    lastActivePinnedTabId,
     activePreviewItem,
     isFileEditorActive,
     setPreviewRef,
     getActivePreviewHandle,
     activateLivePreview,
+    activatePreviewTab,
     scrollActivePreviewDown,
     scrollActivePreviewUp,
     pinCurrentPreview,

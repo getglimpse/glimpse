@@ -16,6 +16,7 @@ import remarkGfm from "remark-gfm";
 import { toast } from "@/utils/toast";
 
 import { fileApi } from "@/api/file";
+import { openerApi } from "@/api/opener";
 import { useI18nContext } from "@/i18n/I18nProvider";
 import { CodeBlock } from "@/views/preview/CodeBlock";
 import { MermaidBlock } from "@/views/preview/MermaidBlock";
@@ -36,6 +37,7 @@ type Props = {
   content: string;
   sourcePath?: string | null;
   rawFallbackDelay?: number;
+  onOpenInternalLink?: (href: string) => void;
 };
 
 export type MarkdownPreviewHandle = {
@@ -117,6 +119,43 @@ const getExtension = (src: string): string => {
 const isLocalFileUrl = (src?: string | null): src is string =>
   typeof src === "string" && src.startsWith("file://");
 
+const isInternalMarkdownLink = (href?: string | null): href is string =>
+  typeof href === "string" && href.trim() !== "" && !isNonDocumentLink(href);
+
+const isNonDocumentLink = (href: string) => {
+  const trimmed = href.trim();
+  const firstSegment = trimmed.split(/[\\/#?]/, 1)[0] ?? "";
+
+  return (
+    trimmed.startsWith("#") ||
+    trimmed.startsWith("/") ||
+    trimmed.startsWith("\\") ||
+    firstSegment.includes(":")
+  );
+};
+
+const isWebUrl = (href: string) => {
+  try {
+    const url = new URL(href.trim());
+
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+};
+
+const isUnsupportedExternalMarkdownLink = (href: string) => {
+  const trimmed = href.trim();
+  const firstSegment = trimmed.split(/[\\/#?]/, 1)[0] ?? "";
+
+  return (
+    !trimmed.startsWith("#") &&
+    (trimmed.startsWith("/") ||
+      trimmed.startsWith("\\") ||
+      firstSegment.includes(":"))
+  );
+};
+
 const isNestedTaskClick = (
   target: EventTarget | null,
   currentTarget: HTMLElement,
@@ -126,6 +165,29 @@ const isNestedTaskClick = (
   }
 
   return target.closest("li[data-task-index]") !== currentTarget;
+};
+
+const getMarkdownLinkHref = (
+  target: EventTarget | null,
+  currentTarget: HTMLElement,
+) => {
+  if (!(target instanceof Element)) {
+    return null;
+  }
+
+  const anchor = target.closest("a[href]");
+
+  if (!(anchor instanceof HTMLAnchorElement)) {
+    return null;
+  }
+
+  if (!currentTarget.contains(anchor)) {
+    return null;
+  }
+
+  const href = anchor.getAttribute("href");
+
+  return typeof href === "string" && href.trim() !== "" ? href : null;
 };
 
 type LocalFilePreviewProps = {
@@ -258,7 +320,10 @@ const LocalFilePreview = ({
 };
 
 export const MarkdownPreview = forwardRef<MarkdownPreviewHandle, Props>(
-  ({ id, content, sourcePath, rawFallbackDelay = 50 }, ref) => {
+  (
+    { id, content, sourcePath, rawFallbackDelay = 50, onOpenInternalLink },
+    ref,
+  ) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const latestContentRef = useRef(content);
     const { LL } = useI18nContext();
@@ -432,6 +497,38 @@ export const MarkdownPreview = forwardRef<MarkdownPreviewHandle, Props>(
 
           {showMarkdown && (
             <article
+              onClickCapture={(event) => {
+                const href = getMarkdownLinkHref(
+                  event.target,
+                  event.currentTarget,
+                );
+
+                if (!href) {
+                  return;
+                }
+
+                if (isInternalMarkdownLink(href)) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onOpenInternalLink?.(href);
+                  return;
+                }
+
+                if (isWebUrl(href)) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  void openerApi.openExternalUrl(href).catch((error) => {
+                    toast.error(`Failed to open link: ${String(error)}`);
+                  });
+                  return;
+                }
+
+                if (isUnsupportedExternalMarkdownLink(href)) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  toast.warning(`Unsupported link target: ${href}`);
+                }
+              }}
               className="
                 prose max-w-none select-text break-words
                 prose-headings:text-text-main

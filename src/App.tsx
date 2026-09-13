@@ -728,10 +728,12 @@ export default function App() {
   const {
     tabs: previewTabs,
     activeTabId: activePreviewTabId,
+    lastActivePinnedTabId,
     activePreviewItem,
     isFileEditorActive,
     setPreviewRef,
     activateLivePreview,
+    activatePreviewTab,
     scrollActivePreviewDown,
     scrollActivePreviewUp,
     pinCurrentPreview,
@@ -913,6 +915,58 @@ export default function App() {
 
   const openFileCreator = () => {
     openFileCreatorTab();
+  };
+
+  const openMissingMarkdownLinkCreator = (filePath: string) => {
+    const extension = extensionFromPath(filePath) === "gjson" ? "gjson" : "md";
+
+    openFileCreatorTab({
+      filePath,
+      initialTitle: titleFromPath(filePath),
+      extension,
+    });
+  };
+
+  const handleMarkdownLinkOpen = async (
+    sourcePath: string | null | undefined,
+    href: string,
+  ) => {
+    if (!sourcePath) {
+      toast.error(LL.markdownPreview.sourceFileNotFound());
+      return;
+    }
+
+    try {
+      const resolution = await searchApi.resolveMarkdownLink(sourcePath, href);
+
+      if (resolution.status === "found" && resolution.item) {
+        const preview = await previewApi.getPreview(resolution.item.id);
+        openPreviewTab({
+          ...resolution.item,
+          preview: preview ?? resolution.item.preview,
+        });
+        return;
+      }
+
+      if (resolution.status === "existsUnindexed") {
+        toast.warning(`Link target exists but is not indexed yet: ${href}`);
+        return;
+      }
+
+      if (resolution.createPath) {
+        toast.warning(`Link target not found: ${href}`, {
+          action: {
+            label: "Create",
+            onClick: () => openMissingMarkdownLinkCreator(resolution.createPath!),
+          },
+        });
+        return;
+      }
+
+      toast.warning(`Link target not found: ${href}`);
+    } catch (error) {
+      toast.error(`Failed to open link: ${String(error)}`);
+    }
   };
 
   const openActiveFileEditor = async () => {
@@ -1250,6 +1304,7 @@ export default function App() {
               <PreviewPanelList
                 tabs={previewTabs}
                 activeTabId={activePreviewTabId}
+                lastActivePinnedTabId={lastActivePinnedTabId}
                 selectedIndex={selectedIndex}
                 displayIndex={displayIndex}
                 isLoading={isLoading}
@@ -1265,6 +1320,7 @@ export default function App() {
                   setIsLoading(false);
                 }}
                 setPreviewRef={setPreviewRef}
+                onActivateTab={activatePreviewTab}
                 language={language}
                 onLanguageChange={setLanguage}
                 commandHistory={commandHistory}
@@ -1277,6 +1333,9 @@ export default function App() {
                 onCommandAction={shortcutHandlers.openActiveCommandAction}
                 onRefreshTemporaryItem={refreshTemporarySavedResults}
                 onTagCloudTagSelect={handleTagCloudTagSelect}
+                onOpenMarkdownLink={(sourcePath, href) => {
+                  void handleMarkdownLinkOpen(sourcePath, href);
+                }}
                 onFileEditorChange={updateFileEditorTab}
                 onFileEditorHelp={() => {
                   openPreviewTab(METADATA_HELP_ITEM);

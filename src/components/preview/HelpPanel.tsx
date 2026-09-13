@@ -1,4 +1,5 @@
 import { CircleHelp, X } from "lucide-react";
+import type { ReactNode } from "react";
 
 import { useI18nContext } from "@/i18n/I18nProvider";
 import { getHelpContent } from "@/utils/helpContent";
@@ -7,9 +8,15 @@ type Props = {
   itemPage: string;
   active?: boolean;
   onClose: () => void;
+  headerLeading?: ReactNode;
 };
 
-export const HelpPanel = ({ itemPage, active, onClose }: Props) => {
+export const HelpPanel = ({
+  itemPage,
+  active,
+  onClose,
+  headerLeading,
+}: Props) => {
   const { LL } = useI18nContext();
   const help = getHelpContent(itemPage, LL);
 
@@ -24,12 +31,14 @@ export const HelpPanel = ({ itemPage, active, onClose }: Props) => {
           <div className="absolute left-0 top-0 h-0.5 w-full bg-accent" />
         )}
 
-        <div className="flex min-w-0 items-center gap-2">
-          <CircleHelp className="h-4 w-4 shrink-0 text-text-muted" />
-          <span className="truncate text-sm font-semibold tracking-wide">
-            {help.title}
-          </span>
-        </div>
+        {headerLeading ?? (
+          <div className="flex min-w-0 items-center gap-2">
+            <CircleHelp className="h-4 w-4 shrink-0 text-text-muted" />
+            <span className="truncate text-sm font-semibold tracking-wide">
+              {help.title}
+            </span>
+          </div>
+        )}
 
         <button
           type="button"

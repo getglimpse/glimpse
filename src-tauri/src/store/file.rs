@@ -348,6 +348,48 @@ pub fn create_text_file_in_current_target(
     Ok(file_path.to_string_lossy().to_string())
 }
 
+pub fn create_text_file_at_path(
+    settings_path: &Path,
+    file_path: String,
+    body: String,
+) -> Result<String, String> {
+    let settings = load_settings(settings_path);
+    let file_path = normalize_input_path(file_path);
+
+    if path_contains_parent_component(&file_path) {
+        return Err(format!(
+            "target file path must not contain parent traversal: {}",
+            file_path.display()
+        ));
+    }
+
+    if file_path.exists() {
+        return Err(format!("file already exists: {}", file_path.display()));
+    }
+
+    let extension = file_path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .ok_or_else(|| "target file path must include an extension".to_string())?;
+
+    supported_create_file_extension(extension)?;
+    ensure_new_file_path_is_in_configured_target_group(&file_path, &settings)?;
+
+    if let Some(parent) = file_path.parent() {
+        fs::create_dir_all(parent).map_err(|error| {
+            format!(
+                "failed to create parent directory: {}: {error}",
+                parent.display()
+            )
+        })?;
+    }
+
+    fs::write(&file_path, body)
+        .map_err(|error| format!("failed to write file: {}: {error}", file_path.display()))?;
+
+    Ok(file_path.to_string_lossy().to_string())
+}
+
 pub fn create_markdown_file_in_current_target(
     settings_path: &Path,
     title: String,
@@ -540,6 +582,37 @@ fn ensure_path_is_in_configured_target_group(
     ))
 }
 
+fn ensure_new_file_path_is_in_configured_target_group(
+    path: &Path,
+    settings: &AppSettings,
+) -> Result<(), String> {
+    let Some(ancestor) = nearest_existing_ancestor(path) else {
+        return Err(format!(
+            "path is outside configured target group directories: {}",
+            path.display()
+        ));
+    };
+
+    let ancestor = canonicalize_existing_dir(ancestor)?;
+
+    for group in &settings.target_groups {
+        for root in &group.paths {
+            let Ok(root) = canonicalize_existing_dir(root) else {
+                continue;
+            };
+
+            if path_starts_with(&ancestor, &root) && path_starts_with(path, &root) {
+                return Ok(());
+            }
+        }
+    }
+
+    Err(format!(
+        "path is outside configured target group directories: {}",
+        path.display()
+    ))
+}
+
 fn ensure_path_is_in_roots(path: &Path, roots: &[String], label: &str) -> Result<(), String> {
     if path_is_in_roots(path, roots) {
         return Ok(());
@@ -634,6 +707,25 @@ fn canonicalize_existing_dir(path: impl AsRef<Path>) -> Result<PathBuf, String> 
 
 fn path_starts_with(path: &Path, root: &Path) -> bool {
     normalize_comparison_path(path).starts_with(&normalize_comparison_path(root))
+}
+
+fn path_contains_parent_component(path: &Path) -> bool {
+    path.components()
+        .any(|component| matches!(component, std::path::Component::ParentDir))
+}
+
+fn nearest_existing_ancestor(path: &Path) -> Option<PathBuf> {
+    let mut current = path.parent()?.to_path_buf();
+
+    loop {
+        if current.exists() {
+            return Some(current);
+        }
+
+        if !current.pop() {
+            return None;
+        }
+    }
 }
 
 fn normalize_comparison_path(path: &Path) -> PathBuf {
@@ -1017,6 +1109,86 @@ mod tests {
         assert!(!target_dir.join("Raw.txt").exists());
 
         fs::remove_dir_all(target_dir).ok();
+        fs::remove_dir_all(settings_dir).ok();
+    }
+
+    #[test]
+    fn create_text_file_at_path_creates_nested_file_inside_target_group() {
+        let target_dir = unique_test_dir("target");
+        let settings_dir = unique_test_dir("settings");
+        let settings_path = settings_dir.join("settings.json");
+
+        fs::create_dir_all(&target_dir).unwrap();
+        fs::create_dir_all(&settings_dir).unwrap();
+
+        write_settings(&settings_path, &target_dir);
+
+        let requested_path = target_dir.join("docs").join("template.md");
+        let file_path = create_text_file_at_path(
+            &settings_path,
+            requested_path.to_string_lossy().to_string(),
+            "# Template".to_string(),
+        )
+        .unwrap();
+
+        assert_same_path(PathBuf::from(file_path), &requested_path);
+        assert_eq!(fs::read_to_string(requested_path).unwrap(), "# Template");
+
+        fs::remove_dir_all(target_dir).ok();
+        fs::remove_dir_all(settings_dir).ok();
+    }
+
+    #[test]
+    fn create_text_file_at_path_rejects_outside_target_group() {
+        let target_dir = unique_test_dir("target");
+        let outside_dir = unique_test_dir("outside");
+        let settings_dir = unique_test_dir("settings");
+        let settings_path = settings_dir.join("settings.json");
+
+        fs::create_dir_all(&target_dir).unwrap();
+        fs::create_dir_all(&outside_dir).unwrap();
+        fs::create_dir_all(&settings_dir).unwrap();
+
+        write_settings(&settings_path, &target_dir);
+
+        let requested_path = outside_dir.join("secret.md");
+        let result = create_text_file_at_path(
+            &settings_path,
+            requested_path.to_string_lossy().to_string(),
+            "secret".to_string(),
+        );
+
+        assert!(result.is_err());
+        assert!(!requested_path.exists());
+
+        fs::remove_dir_all(target_dir).ok();
+        fs::remove_dir_all(outside_dir).ok();
+        fs::remove_dir_all(settings_dir).ok();
+    }
+
+    #[test]
+    fn create_text_file_at_path_rejects_parent_traversal() {
+        let parent_dir = unique_test_dir("parent");
+        let target_dir = parent_dir.join("target");
+        let settings_dir = unique_test_dir("settings");
+        let settings_path = settings_dir.join("settings.json");
+
+        fs::create_dir_all(&target_dir).unwrap();
+        fs::create_dir_all(&settings_dir).unwrap();
+
+        write_settings(&settings_path, &target_dir);
+
+        let requested_path = target_dir.join("..").join("outside.md");
+        let result = create_text_file_at_path(
+            &settings_path,
+            requested_path.to_string_lossy().to_string(),
+            "outside".to_string(),
+        );
+
+        assert!(result.is_err());
+        assert!(!parent_dir.join("outside.md").exists());
+
+        fs::remove_dir_all(parent_dir).ok();
         fs::remove_dir_all(settings_dir).ok();
     }
 
