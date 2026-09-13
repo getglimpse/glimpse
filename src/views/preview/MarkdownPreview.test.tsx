@@ -126,10 +126,14 @@ describe("MarkdownPreview", () => {
       expect(screen.getByText("Demo audio")).toBeTruthy();
     });
 
-    const source = container.querySelector("audio source");
+    await waitFor(() => {
+      const source = container.querySelector("audio source");
 
-    expect(source?.getAttribute("src")).toBe("data:audio/mpeg;base64,YXVkaW8=");
-    expect(source?.getAttribute("type")).toBe("audio/mpeg");
+      expect(source?.getAttribute("src")).toBe(
+        "data:audio/mpeg;base64,YXVkaW8=",
+      );
+      expect(source?.getAttribute("type")).toBe("audio/mpeg");
+    });
   });
 
   it("renders local PDF file URLs with the built-in PDF frame", async () => {

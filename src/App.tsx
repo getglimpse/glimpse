@@ -36,6 +36,7 @@ import {
 } from "@/features/plugins/pluginRegistry";
 import { parseSearchInput } from "@/features/search/parseSearchInput";
 import { createAppShortcuts } from "@/features/shortcuts/createAppShortcuts";
+import { openMarkdownLink } from "@/features/preview/markdownLinkNavigation";
 
 import { useCustomThemeStyles } from "@/hooks/useCustomThemeStyles";
 import { useDebouncedIndex } from "@/hooks/useDebouncedIndex";
@@ -917,56 +918,20 @@ export default function App() {
     openFileCreatorTab();
   };
 
-  const openMissingMarkdownLinkCreator = (filePath: string) => {
-    const extension = extensionFromPath(filePath) === "gjson" ? "gjson" : "md";
-
-    openFileCreatorTab({
-      filePath,
-      initialTitle: titleFromPath(filePath),
-      extension,
-    });
-  };
-
   const handleMarkdownLinkOpen = async (
     sourcePath: string | null | undefined,
     href: string,
   ) => {
-    if (!sourcePath) {
-      toast.error(LL.markdownPreview.sourceFileNotFound());
-      return;
-    }
-
-    try {
-      const resolution = await searchApi.resolveMarkdownLink(sourcePath, href);
-
-      if (resolution.status === "found" && resolution.item) {
-        const preview = await previewApi.getPreview(resolution.item.id);
-        openPreviewTab({
-          ...resolution.item,
-          preview: preview ?? resolution.item.preview,
-        });
-        return;
-      }
-
-      if (resolution.status === "existsUnindexed") {
-        toast.warning(`Link target exists but is not indexed yet: ${href}`);
-        return;
-      }
-
-      if (resolution.createPath) {
-        toast.warning(`Link target not found: ${href}`, {
-          action: {
-            label: "Create",
-            onClick: () => openMissingMarkdownLinkCreator(resolution.createPath!),
-          },
-        });
-        return;
-      }
-
-      toast.warning(`Link target not found: ${href}`);
-    } catch (error) {
-      toast.error(`Failed to open link: ${String(error)}`);
-    }
+    await openMarkdownLink({
+      sourcePath,
+      href,
+      sourceFileNotFoundMessage: LL.markdownPreview.sourceFileNotFound(),
+      resolveMarkdownLink: searchApi.resolveMarkdownLink,
+      getPreview: previewApi.getPreview,
+      openPreviewTab,
+      openFileCreatorTab,
+      toast,
+    });
   };
 
   const openActiveFileEditor = async () => {

@@ -130,7 +130,24 @@ pub fn resolve_markdown_link(
     settings_path: State<'_, SharedSettingsPath>,
     db: State<'_, Arc<Mutex<Connection>>>,
 ) -> Result<MarkdownLinkResolution, String> {
-    let href_path = markdown_link_path(&href)?;
+    let settings_path = settings_path
+        .0
+        .lock()
+        .map_err(|error| error.to_string())?
+        .clone();
+    let settings = load_settings(&settings_path);
+    let conn = db.lock().map_err(|error| error.to_string())?;
+
+    resolve_markdown_link_with_settings(&source_path, &href, &settings, &conn)
+}
+
+fn resolve_markdown_link_with_settings(
+    source_path: &str,
+    href: &str,
+    settings: &AppSettings,
+    conn: &Connection,
+) -> Result<MarkdownLinkResolution, String> {
+    let href_path = markdown_link_path(href)?;
 
     if href_path.is_empty() {
         return Err("markdown link path is empty".to_string());
@@ -140,13 +157,7 @@ pub fn resolve_markdown_link(
         return Err(format!("unsupported markdown link target: {href}"));
     }
 
-    let settings_path = settings_path
-        .0
-        .lock()
-        .map_err(|error| error.to_string())?
-        .clone();
-    let settings = load_settings(&settings_path);
-    let source_path = canonicalize_existing_file(&source_path)?;
+    let source_path = canonicalize_existing_file(source_path)?;
     let source_dir = source_path
         .parent()
         .ok_or_else(|| "markdown source has no parent directory".to_string())?;
@@ -161,7 +172,6 @@ pub fn resolve_markdown_link(
 
     let resolved = resolve_relative_path(source_dir, &href_path)?;
     let existing_candidates = markdown_link_existing_candidates(&resolved);
-    let conn = db.lock().map_err(|error| error.to_string())?;
 
     for candidate in existing_candidates {
         if !candidate.is_file() {
@@ -492,6 +502,43 @@ fn normalize_comparison_path(path: &Path) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    struct TempDir {
+        path: PathBuf,
+    }
+
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.path);
+        }
+    }
+
+    fn temp_dir(name: &str) -> TempDir {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("glimpse_search_test_{name}_{unique}"));
+
+        fs::create_dir_all(&path).unwrap();
+
+        TempDir { path }
+    }
+
+    fn settings_with_target_root(root: &Path) -> AppSettings {
+        AppSettings {
+            target_groups: vec![TargetGroup {
+                id: "test".to_string(),
+                name: "Test".to_string(),
+                paths: vec![root.to_string_lossy().to_string()],
+                active: true,
+            }],
+            current_target_group_id: Some("test".to_string()),
+            ..AppSettings::default()
+        }
+    }
 
     #[test]
     fn markdown_link_existing_candidates_prefers_exact_path_then_markdown_conventions() {
@@ -528,5 +575,92 @@ mod tests {
         assert!(is_external_or_absolute_link("/etc/passwd"));
         assert!(is_external_or_absolute_link(r"\server\share"));
         assert!(is_external_or_absolute_link("mailto:test@example.com"));
+    }
+
+    #[test]
+    fn resolve_markdown_link_rejects_existing_target_outside_source_target_group() {
+        let temp = temp_dir("outside_target");
+        let target_root = temp.path.join("target");
+        let notes_dir = target_root.join("notes");
+        let outside_dir = temp.path.join("outside");
+
+        fs::create_dir_all(&notes_dir).unwrap();
+        fs::create_dir_all(&outside_dir).unwrap();
+
+        let source = notes_dir.join("source.md");
+        let outside_target = outside_dir.join("secret.md");
+
+        fs::write(&source, "[Secret](../../outside/secret.md)").unwrap();
+        fs::write(&outside_target, "# Secret").unwrap();
+
+        let settings = settings_with_target_root(&target_root);
+        let conn = Connection::open_in_memory().unwrap();
+        let error = resolve_markdown_link_with_settings(
+            source.to_str().unwrap(),
+            "../../outside/secret.md",
+            &settings,
+            &conn,
+        )
+        .unwrap_err();
+
+        assert!(
+            error.contains("markdown link target is outside the source target group"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn resolve_markdown_link_rejects_symlink_escape_target() {
+        let temp = temp_dir("symlink_escape");
+        let target_root = temp.path.join("target");
+        let notes_dir = target_root.join("notes");
+        let outside_dir = temp.path.join("outside");
+
+        fs::create_dir_all(&notes_dir).unwrap();
+        fs::create_dir_all(&outside_dir).unwrap();
+
+        let source = notes_dir.join("source.md");
+        let outside_target = outside_dir.join("secret.md");
+        let link = notes_dir.join("linked.md");
+
+        fs::write(&source, "[Secret](./linked.md)").unwrap();
+        fs::write(&outside_target, "# Secret").unwrap();
+
+        if create_file_symlink(&outside_target, &link).is_err() {
+            return;
+        }
+
+        let settings = settings_with_target_root(&target_root);
+        let conn = Connection::open_in_memory().unwrap();
+        let error = resolve_markdown_link_with_settings(
+            source.to_str().unwrap(),
+            "./linked.md",
+            &settings,
+            &conn,
+        )
+        .unwrap_err();
+
+        assert!(
+            error.contains("markdown link target is outside the source target group"),
+            "{error}"
+        );
+    }
+
+    #[cfg(unix)]
+    fn create_file_symlink(target: &Path, link: &Path) -> std::io::Result<()> {
+        std::os::unix::fs::symlink(target, link)
+    }
+
+    #[cfg(windows)]
+    fn create_file_symlink(target: &Path, link: &Path) -> std::io::Result<()> {
+        std::os::windows::fs::symlink_file(target, link)
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn source_path_lookup_candidates_strip_windows_verbatim_prefix() {
+        let candidates = source_path_lookup_candidates(r"\\?\C:\Users\j\Notes\doc.md");
+
+        assert!(candidates.contains(&r"C:\Users\j\Notes\doc.md".to_string()));
     }
 }
