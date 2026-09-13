@@ -103,6 +103,30 @@ Markdown の画像も表示できます。
 
 画像ファイルが存在する場合は、Preview 内に表示されます。
 
+## Markdown リンク
+
+Markdown リンクは、現在の Target Group 内の別ドキュメントへ移動するためにも使えます。
+
+```md
+[Template](./docs/template)
+[Meeting Note](../meetings/2026-09-12.md)
+```
+
+相対リンクをクリックすると、Glimpse は現在表示している Markdown ファイルを基準にリンク先を解決し、リンク先ドキュメントを Preview Tab として開きます。現在の Preview は置き換えません。
+
+リンクに拡張子がない場合は、次の順序で候補を探します。
+
+1. 書かれているパスそのもの
+2. `<path>.md`
+3. `<path>/index.md`
+4. `<path>/README.md`
+
+リンク先が存在しない場合は、warning toast と `Create` action を表示します。`Create` をクリックした場合だけ、作成候補の Markdown ファイルを File Editor の作成タブで開きます。存在しないリンクをクリックしただけでファイルが自動作成されることはありません。
+
+`https://example.com` のような Web リンクは、OS の既定ブラウザまたは既定アプリで開きます。通常の Web リンクでは確認ダイアログは表示しませんが、開けるのは `http` と `https` だけです。`file:`、`javascript:`、`mailto:` などの scheme はブロックします。
+
+`[Details](#details)` のような同一ドキュメント内リンクは、現在の Markdown Preview 内のリンクとして扱います。
+
 ## Metadata
 
 Markdown の Frontmatter は検索に利用されますが、Markdown Preview には表示されません。

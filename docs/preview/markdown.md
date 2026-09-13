@@ -103,6 +103,30 @@ Markdown images are also supported.
 
 If the referenced image file exists, it is displayed directly in the Preview.
 
+## Markdown Links
+
+Markdown links can point to other documents in your current target group.
+
+```md
+[Template](./docs/template)
+[Meeting Note](../meetings/2026-09-12.md)
+```
+
+When you click a relative link, Glimpse resolves it from the current Markdown file and opens the linked document as a Preview Tab. The current Preview is not replaced.
+
+If the link omits the file extension, Glimpse looks for these candidates in order:
+
+1. the path exactly as written
+2. `<path>.md`
+3. `<path>/index.md`
+4. `<path>/README.md`
+
+If the target does not exist, Glimpse shows a warning toast with a `Create` action. Clicking `Create` opens a new file editor tab for the proposed Markdown file. Files are not created just by clicking a missing link.
+
+Web links such as `https://example.com` open with your operating system's default browser or app. Glimpse does not show a confirmation prompt for ordinary web links, but it only opens `http` and `https` URLs. Other schemes such as `file:`, `javascript:`, and `mailto:` are blocked.
+
+Same-document links such as `[Details](#details)` stay inside the current Markdown Preview.
+
 ## Metadata
 
 Markdown frontmatter is used for indexing and search, but it is not displayed in the Markdown Preview.
