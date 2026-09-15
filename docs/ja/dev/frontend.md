@@ -84,6 +84,19 @@ preview type は `src/types/item.ts` で表現されます。
 
 画像は現在、独立した `image` preview type ではなく、image syntax を含む Markdown preview として表現されます。バックエンドは保存済み preview を返し、フロントエンドが描画方法を決めます。
 
+### Markdown リンク navigation
+
+Markdown Preview は、ブラウザがリンクを処理する前に document link を捕捉します。
+
+- 相対 Markdown リンクは `searchApi.resolveMarkdownLink` に渡します。
+- 解決された item は `usePreviewTabs.openPreviewTab` で開きます。
+- source path lookup では軽量な search item が返ることがあるため、固定タブで開く前に `previewApi.getPreview` で full preview を読み込みます。
+- 解決先が存在しない場合は warning toast を表示します。`Create` action は固定パス付きの File Editor 作成タブを開きます。クリックだけでファイルは作成しません。
+- `http` / `https` link は `openerApi.openExternalUrl` を使い、backend の URL policy と OS の既定 browser/app に委譲します。
+- 同一ドキュメント内 anchor は Markdown Preview 内のリンクとして残します。
+
+リンクを開く処理は `src/features/preview/markdownLinkNavigation.ts` に分離しています。toast action、preview hydration、File Editor への受け渡しを `App.tsx` から切り離して unit test できるようにするためです。
+
 ## プラグイン
 
 フロントエンド側の plugin code は `src/features/plugins` 配下にあります。

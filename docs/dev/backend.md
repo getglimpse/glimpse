@@ -66,3 +66,28 @@ The backend enforces boundaries for:
 - plugin source and asset loading
 
 Frontend UI should not be treated as the safety boundary. Backend commands must validate paths, scopes, and command policy before performing filesystem or process operations.
+
+### Markdown Link Resolver
+
+`commands::search::resolve_markdown_link` resolves relative Markdown links for Preview navigation.
+
+The command accepts a source file path and raw Markdown `href`, then:
+
+- strips query and fragment parts before filesystem resolution
+- percent-decodes the link path
+- rejects external URLs, arbitrary schemes, absolute paths, and root-relative paths
+- resolves the target relative to the source file directory
+- canonicalizes existing candidates before scope checks
+- accepts extensionless links in this order: exact path, `<path>.md`, `<path>/index.md`, `<path>/README.md`
+- rejects targets whose canonical path escapes the source file's Target Group, including symlink escapes
+- returns a safe create candidate only when the candidate remains inside the source Target Group
+
+The frontend receives one of three statuses:
+
+| Status | Meaning |
+| --- | --- |
+| `found` | An indexed item exists for the resolved source path |
+| `existsUnindexed` | A file exists but is not currently indexed |
+| `missing` | No candidate file exists; `createPath` may be present |
+
+The backend does not create files during link resolution. Creation is a separate explicit File Editor action.

@@ -88,6 +88,19 @@ Supported preview modes include:
 
 Preview tabs are managed by frontend state. The backend provides the preview payload and item actions attached to each indexed item.
 
+### Markdown Link Navigation
+
+Markdown Preview intercepts document links before the browser handles them.
+
+- Relative Markdown links are routed through `searchApi.resolveMarkdownLink`.
+- Found items are opened with `usePreviewTabs.openPreviewTab`.
+- The frontend loads the full preview with `previewApi.getPreview` before opening the pinned tab, because source-path lookups may return lightweight search items.
+- Missing targets show a warning toast. The `Create` action opens a fixed-path File Editor tab; files are not created on click.
+- `http` and `https` links use `openerApi.openExternalUrl`, which delegates to the backend URL policy and OS default browser or app.
+- Same-document anchors remain in the Markdown Preview.
+
+The link-opening workflow is kept in `src/features/preview/markdownLinkNavigation.ts` so the toast action, preview hydration, and file-creator handoff can be unit-tested outside `App.tsx`.
+
 ## Plugins
 
 Plugin frontend runtime code lives under `src/features/plugins/`.
