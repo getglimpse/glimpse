@@ -2,6 +2,48 @@
 
 This page records the release history of Glimpse.
 
+## v0.2.6
+
+### Added
+
+#### Markdown Preview
+
+* Added support for opening relative Markdown links such as `[Template](./docs/template)` from the current Markdown file.
+* Added extensionless Markdown link resolution using exact paths, `.md`, `index.md`, and `README.md` candidates.
+* Added a missing-link warning toast with a `Create` action that opens a fixed-path File Editor tab without creating the file automatically.
+* Added external `http` and `https` link handling through the operating system's default browser or app.
+
+#### Documentation
+
+* Updated Markdown Preview user documentation in English and Japanese.
+* Updated developer documentation for Markdown link navigation and backend path resolution.
+
+### Changed
+
+#### Preview Tabs
+
+* Relative Markdown links now open as pinned Preview Tabs while Live Preview continues to follow the selected search result.
+* Clicking an already-open Markdown link activates and refreshes the existing Preview Tab instead of creating a duplicate.
+* Clicking links from a Preview Tab keeps the current tab visible and opens the linked document in its own pinned tab.
+* Improved Preview Tab layout so pinned pages share one main content area and no longer shrink each other.
+* Improved `Ctrl+Tab`, `Ctrl+Shift+Tab`, and `Ctrl+W` behavior across Live Preview and pinned Preview Tabs.
+
+#### Markdown Preview
+
+* Same-document anchors stay inside the current preview.
+* Unsupported link schemes, including `file:`, `javascript:`, and `mailto:`, are blocked instead of being opened.
+
+### Fixed
+
+#### Preview Tabs
+
+* Fixed linked Markdown documents opening to an empty main page.
+
+### Tests
+
+* Added frontend tests for Markdown relative links, missing-link creation actions, web links, blocked schemes, anchors, and preview hydration before opening linked tabs.
+* Added backend path resolution tests for target group escapes, symlink escapes, and Windows verbatim path normalization.
+
 ## v0.2.4
 
 ### Added

@@ -2,6 +2,48 @@
 
 このページでは、Glimpse のリリース履歴を記録しています。
 
+## v0.2.6
+
+### Added
+
+#### Markdown Preview
+
+- `[Template](./docs/template)` のような相対 Markdown link を、現在表示している Markdown file を基準に開けるようにした
+- 拡張子なしの Markdown link で、完全一致、`.md`、`index.md`、`README.md` の候補を順に解決するようにした
+- リンク先が存在しない場合に warning toast を表示し、`Create` action から固定 path の File Editor tab を開けるようにした。クリックだけでは file を自動作成しない
+- `http` / `https` link を OS の既定 browser / app で開けるようにした
+
+#### Documentation
+
+- Markdown Preview の user documentation を英語版・日本語版とも更新
+- Markdown link navigation と backend path resolution の developer documentation を更新
+
+### Changed
+
+#### Preview Tabs
+
+- 相対 Markdown link は pinned Preview Tab として開き、Live Preview は選択中の検索結果に追従し続けるようにした
+- すでに開いている Markdown link をクリックした場合は、重複 tab を作らず既存の Preview Tab を activate / refresh するようにした
+- Preview Tab 内で link をクリックした場合も、現在の tab を表示したままリンク先を別の pinned tab として開くようにした
+- pinned page が単一の main content area を共有するように Preview Tab layout を改善し、複数 tab が互いに表示領域を縮めないようにした
+- Live Preview と pinned Preview Tabs 間の `Ctrl+Tab`、`Ctrl+Shift+Tab`、`Ctrl+W` の挙動を改善
+
+#### Markdown Preview
+
+- 同一 document 内 anchor は現在の preview 内で処理するようにした
+- `file:`、`javascript:`、`mailto:` などの unsupported scheme は開かずに block するようにした
+
+### Fixed
+
+#### Preview Tabs
+
+- link 先の Markdown document を開いたとき、main page が空になる問題を修正
+
+### Tests
+
+- Markdown の相対 link、missing-link creation action、web link、blocked scheme、anchor、linked tab を開く前の preview hydration を frontend test に追加
+- target group escape、symlink escape、Windows verbatim path normalization の backend path resolution test を追加
+
 ## v0.2.4
 
 ### Added
