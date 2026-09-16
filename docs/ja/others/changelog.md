@@ -2,6 +2,15 @@
 
 このページでは、Glimpse のリリース履歴を記録しています。
 
+## v0.2.7
+
+### Fixed
+
+#### Toasts
+
+- production app で Sonner の base style を bundle に含めるようにし、toast が window 下部から押し上がらず右下固定で表示されるように修正
+- production CSS 読み込み後も Glimpse の toast theme、border、icon、action button style が安定するように selector を強化
+
 ## v0.2.6
 
 ### Added

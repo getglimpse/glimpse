@@ -2,6 +2,7 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
+@import "sonner/dist/styles.css";
 @import "./styles/themes.css";
 
 @plugin "@tailwindcss/typography";
@@ -116,7 +117,7 @@
 
 /* Sonner */
 
-.cn-toast {
+[data-sonner-toast][data-styled="true"].cn-toast {
   background: var(--header-bg) !important;
   color: var(--text-main) !important;
 
@@ -126,54 +127,54 @@
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
 }
 
-.cn-toast[data-type="success"] {
+[data-sonner-toast][data-styled="true"].cn-toast[data-type="success"] {
   border-left-color: var(--primary) !important;
 }
 
-.cn-toast[data-type="error"] {
+[data-sonner-toast][data-styled="true"].cn-toast[data-type="error"] {
   border-left-color: #ef4444 !important;
 }
 
-.cn-toast[data-type="warning"] {
+[data-sonner-toast][data-styled="true"].cn-toast[data-type="warning"] {
   border-left-color: #f59e0b !important;
 }
 
-.cn-toast[data-type="info"] {
+[data-sonner-toast][data-styled="true"].cn-toast[data-type="info"] {
   border-left-color: #3b82f6 !important;
 }
 
-.cn-toast[data-type="success"] svg {
+[data-sonner-toast][data-styled="true"].cn-toast[data-type="success"] svg {
   color: var(--primary);
 }
 
-.cn-toast[data-type="error"] svg {
+[data-sonner-toast][data-styled="true"].cn-toast[data-type="error"] svg {
   color: #ef4444;
 }
 
-.cn-toast[data-type="warning"] svg {
+[data-sonner-toast][data-styled="true"].cn-toast[data-type="warning"] svg {
   color: #f59e0b;
 }
 
-.cn-toast[data-type="info"] svg {
+[data-sonner-toast][data-styled="true"].cn-toast[data-type="info"] svg {
   color: #3b82f6;
 }
 
-.cn-toast [data-action] {
+[data-sonner-toaster] [data-sonner-toast][data-styled="true"].cn-toast [data-action][data-button] {
   background: transparent !important;
   color: var(--primary) !important;
   border: 1px solid color-mix(in srgb, var(--primary), transparent 35%) !important;
   border-radius: calc(var(--radius) * 0.65) !important;
 }
 
-.cn-toast [data-action]:hover {
+[data-sonner-toaster] [data-sonner-toast][data-styled="true"].cn-toast [data-action][data-button]:hover {
   background: color-mix(in srgb, var(--primary), transparent 88%) !important;
   border-color: var(--primary) !important;
 }
 
-.cn-toast [data-action]:focus-visible {
+[data-sonner-toaster] [data-sonner-toast][data-styled="true"].cn-toast [data-action][data-button]:focus-visible {
   box-shadow: 0 0 0 2px var(--ring) !important;
 }
 
-.cn-toast [data-action] svg {
+[data-sonner-toaster] [data-sonner-toast][data-styled="true"].cn-toast [data-action][data-button] svg {
   color: currentColor !important;
 }

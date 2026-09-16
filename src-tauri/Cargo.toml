@@ -1,6 +1,6 @@
 [package]
 name = "glimpse"
-version = "0.2.6"
+version = "0.2.7"
 description = "A Tauri App"
 authors = ["cromon"]
 edition = "2021"

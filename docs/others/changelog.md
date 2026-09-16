@@ -2,6 +2,15 @@
 
 This page records the release history of Glimpse.
 
+## v0.2.7
+
+### Fixed
+
+#### Toasts
+
+* Fixed production app toast layout by bundling Sonner's base styles so toasts stay fixed to the bottom-right corner instead of being pushed up from the window bottom.
+* Strengthened Glimpse toast theme selectors so custom colors, borders, icons, and action buttons remain stable after production CSS loading.
+
 ## v0.2.6
 
 ### Added
