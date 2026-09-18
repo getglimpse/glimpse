@@ -108,7 +108,7 @@ pub fn start_settings_watch(
                     "settings file changed"
                 );
 
-                if let Err(error) = app_handle.emit(SETTINGS_CHANGED_EVENT, {}) {
+                if let Err(error) = app_handle.emit(SETTINGS_CHANGED_EVENT, ()) {
                     warn!(
                         error = %error,
                         "failed to emit settings-changed event"

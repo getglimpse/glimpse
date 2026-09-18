@@ -25,16 +25,14 @@ import {
   COMMAND_HISTORY_ITEM,
   DEBUG_ITEM,
   METADATA_HELP_ITEM,
-  searchInternalItems,
   TAG_CLOUD_ITEM,
 } from "@/features/internal/internalItems";
 import {
   getPluginInternalItem,
   loadPlugins,
   setPluginLocale,
-  subscribeToPluginChanges,
 } from "@/features/plugins/pluginRegistry";
-import { parseSearchInput } from "@/features/search/parseSearchInput";
+import { useSearchController } from "@/features/search/useSearchController";
 import { createAppShortcuts } from "@/features/shortcuts/createAppShortcuts";
 import { openMarkdownLink } from "@/features/preview/markdownLinkNavigation";
 
@@ -53,14 +51,10 @@ import { BUILT_IN_THEMES } from "@/constants/themes";
 import { perf } from "@/utils/debugPerf";
 import { parseGjsonEditorDocument } from "@/utils/gjsonEditor";
 import { hasHelpContent } from "@/utils/helpContent";
-import { parseMarkdownMetadata } from "@/utils/markdownMetadata";
 
 import type {
   CommandHistoryEntry,
   CssTheme,
-  GjsonCardItem,
-  GjsonEditorDocument,
-  IndexItem,
   SearchResult,
   SearchSnippet,
   StartupWarmStats,
@@ -72,89 +66,17 @@ const PREVIEW_DEBOUNCE_MS = 50;
 const PAGE_SIZE = 5;
 const COMMAND_HISTORY_LIMIT = 50;
 
-const isInternalSearchQuery = (query: string) => {
-  const trimmed = query.trim();
-
-  return trimmed.startsWith(":") || trimmed.startsWith("/");
-};
-
 const titleFromPath = (filePath: string) => {
   const name = filePath.split(/[\\/]/).pop() ?? "";
 
   return name.includes(".") ? name.replace(/\.[^.]+$/, "") : name;
 };
 
-const normalizeFilePath = (filePath: string) =>
-  filePath.replace(/\\/g, "/").replace(/^\/\/\?\//, "");
-
 const extensionFromPath = (filePath: string) => {
   const name = filePath.split(/[\\/]/).pop() ?? "";
   const match = /\.([^.]+)$/.exec(name);
 
   return match?.[1]?.toLowerCase() ?? "";
-};
-
-const sourcePathMatches = (
-  sourcePath: string | null | undefined,
-  filePath: string,
-) =>
-  !!sourcePath && normalizeFilePath(sourcePath) === normalizeFilePath(filePath);
-
-const includesSourcePath = (results: SearchResult[], filePath: string) => {
-  return results.some((result) =>
-    sourcePathMatches(result.item.sourcePath, filePath),
-  );
-};
-
-const filterResultsBySourcePath = (results: SearchResult[], filePath: string) =>
-  results.filter((result) =>
-    sourcePathMatches(result.item.sourcePath, filePath),
-  );
-
-const filterResultsBySourcePaths = (
-  results: SearchResult[],
-  sourcePaths: string[],
-) => {
-  const normalizedPaths = new Set(sourcePaths.map(normalizeFilePath));
-
-  return results.filter((result) => {
-    const sourcePath = result.item.sourcePath;
-
-    return !sourcePath || !normalizedPaths.has(normalizeFilePath(sourcePath));
-  });
-};
-
-const normalizeHttpUrl = (value: string) => {
-  const trimmed = value.trim();
-
-  if (!trimmed) return null;
-
-  try {
-    const url = new URL(trimmed);
-
-    return url.protocol === "http:" || url.protocol === "https:"
-      ? url.toString()
-      : null;
-  } catch {
-    return null;
-  }
-};
-
-const parseCommaList = (value: string) =>
-  value
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-
-const normalizeStringList = (items: string[]) =>
-  Array.from(new Set(items)).sort();
-
-type TemporarySavedResults = {
-  query: string;
-  filePath: string;
-  excludedSourcePaths: string[];
-  autoReplaceWhenIndexed: boolean;
-  results: SearchResult[];
 };
 
 type PendingSnippetNavigation = {
@@ -165,215 +87,6 @@ type PendingSnippetNavigation = {
 
 type WindowFocusedPayload = {
   selectedText?: string | null;
-};
-
-const createTemporaryMarkdownResult = ({
-  title,
-  filePath,
-  body,
-  raw,
-  metadata,
-}: {
-  title: string;
-  filePath: string;
-  body: string;
-  raw: boolean;
-  metadata?: {
-    tags: string[];
-    aliases: string[];
-    star: boolean;
-    hidden: boolean;
-    url?: string | null;
-    iframe: boolean;
-    defaultAction?: "url" | null;
-  };
-}): SearchResult => {
-  const now = new Date().toISOString();
-  const url = metadata?.url ? normalizeHttpUrl(metadata.url) : null;
-  const item: IndexItem = {
-    id: `temporary-saved:${normalizeFilePath(filePath)}`,
-    title,
-    sourcePath: filePath,
-    updatedAt: now,
-    metadata: {
-      tags: metadata?.tags ?? [],
-      aliases: metadata?.aliases ?? [],
-      star: metadata?.star ?? false,
-      hidden: metadata?.hidden || undefined,
-      boost: 0,
-    },
-    preview:
-      !raw && metadata?.iframe && url
-        ? {
-            type: "external",
-            url,
-          }
-        : raw
-          ? {
-              type: "raw",
-              content: body,
-            }
-          : {
-              type: "markdown",
-              content: body,
-            },
-    url,
-    defaultAction: metadata?.defaultAction ?? null,
-  };
-
-  return {
-    item,
-    score: Number.MAX_SAFE_INTEGER,
-  };
-};
-
-const previewContentForGjsonCard = (card: GjsonCardItem, url: string | null) =>
-  [card.desc.trim(), url].filter(Boolean).join("\n\n");
-
-const defaultActionForTemporaryGjsonCard = (
-  card: GjsonCardItem,
-  url: string | null,
-) => {
-  if (!url) return null;
-
-  if (card.defaultAction === "url") return "url";
-
-  return card.command.trim() ? null : "url";
-};
-
-const createTemporaryGjsonResults = ({
-  filePath,
-  document,
-}: {
-  filePath: string;
-  document: GjsonEditorDocument;
-}): SearchResult[] => {
-  const now = new Date().toISOString();
-  const sourceId = normalizeFilePath(filePath);
-
-  return document.items
-    .filter((card) => card.title.trim())
-    .map((card, index) => {
-      const url = normalizeHttpUrl(card.url);
-      const previewContent = previewContentForGjsonCard(card, url);
-      const defaultAction = defaultActionForTemporaryGjsonCard(card, url);
-      const item: IndexItem = {
-        id: `temporary-saved:${sourceId}::${index}:${card.id}`,
-        title: card.title.trim(),
-        sourcePath: filePath,
-        updatedAt: now,
-        metadata: {
-          tags: normalizeStringList(parseCommaList(card.tags)),
-          aliases: normalizeStringList(parseCommaList(card.aliases)),
-          star: card.star,
-          hidden: card.hidden || undefined,
-          boost: 0,
-        },
-        preview:
-          card.iframe && url
-            ? {
-                type: "external",
-                url,
-              }
-            : {
-                type: "markdown",
-                content: previewContent,
-              },
-        url,
-        defaultAction,
-      };
-
-      return {
-        item,
-        score: Number.MAX_SAFE_INTEGER - index,
-      };
-    });
-};
-
-const createTemporarySavedResults = ({
-  title,
-  filePath,
-  body,
-  contentMode,
-  gjsonDocument,
-}: {
-  title: string;
-  filePath: string;
-  body: string;
-  contentMode: "markdown" | "gjsonCards" | "raw";
-  gjsonDocument?: GjsonEditorDocument;
-}): SearchResult[] => {
-  if (contentMode === "gjsonCards" && gjsonDocument) {
-    return createTemporaryGjsonResults({
-      filePath,
-      document: gjsonDocument,
-    });
-  }
-
-  const markdownMetadata =
-    contentMode === "markdown" ? parseMarkdownMetadata(body) : null;
-  const url = markdownMetadata?.url
-    ? normalizeHttpUrl(markdownMetadata.url)
-    : null;
-  const defaultAction =
-    url && markdownMetadata?.defaultAction === "url"
-      ? "url"
-      : url && !markdownMetadata?.command
-        ? "url"
-        : null;
-
-  return [
-    createTemporaryMarkdownResult({
-      title: markdownMetadata?.title ?? title,
-      filePath,
-      body: markdownMetadata?.body ?? body,
-      raw: contentMode === "raw",
-      metadata: markdownMetadata
-        ? {
-            tags: markdownMetadata.tags,
-            aliases: markdownMetadata.aliases,
-            star: markdownMetadata.star,
-            hidden: markdownMetadata.hidden,
-            url,
-            iframe: markdownMetadata.iframe,
-            defaultAction,
-          }
-        : undefined,
-    }),
-  ];
-};
-
-const filterTemporaryResultsForQuery = (
-  results: SearchResult[],
-  query: string,
-) => {
-  const parsed = parseSearchInput(query);
-
-  if (isInternalSearchQuery(parsed.query)) {
-    return [];
-  }
-
-  const requiredTags = parsed.tags.map((tag) => tag.toLowerCase());
-
-  return results.filter((result) => {
-    if (!parsed.hidden && result.item.metadata.hidden) {
-      return false;
-    }
-
-    if (parsed.unstar && result.item.metadata.star) {
-      return false;
-    }
-
-    if (requiredTags.length === 0) {
-      return true;
-    }
-
-    const resultTags = new Set(
-      result.item.metadata.tags.map((tag) => tag.toLowerCase()),
-    );
-
-    return requiredTags.every((tag) => resultTags.has(tag));
-  });
 };
 
 const getHelpPageId = (item: SearchResult["item"] | null): string | null => {
@@ -392,46 +105,8 @@ const getHelpPageId = (item: SearchResult["item"] | null): string | null => {
   return hasHelpContent(page) ? page : null;
 };
 
-const addTagToSearchQuery = (currentQuery: string, tag: string) => {
-  const normalizedTag = tag.trim();
-
-  if (!normalizedTag) {
-    return currentQuery;
-  }
-
-  const parsed = parseSearchInput(currentQuery);
-  const tagToken = `#${normalizedTag}`;
-
-  if (isInternalSearchQuery(parsed.query)) {
-    return `${tagToken} `;
-  }
-
-  const searchPart = currentQuery.split(">")[0].trim();
-  const existingTags = new Set(
-    parseSearchInput(searchPart).tags.map((existingTag) =>
-      existingTag.toLowerCase(),
-    ),
-  );
-
-  if (existingTags.has(normalizedTag.toLowerCase())) {
-    return searchPart ? `${searchPart} ` : "";
-  }
-
-  return `${[searchPart, tagToken].filter(Boolean).join(" ")} `;
-};
-
-export const sanitizeSqliteFtsQuery = (query: string) => {
-  return query
-    .replace(/[^\p{L}\p{N}\s]/gu, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-};
-
 export default function App() {
-  const [query, setQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
   const [totalIndexedItems, setTotalIndexedItems] = useState<number | null>(
     null,
   );
@@ -443,14 +118,10 @@ export default function App() {
   const [commandHistory, setCommandHistory] = useState<CommandHistoryEntry[]>(
     [],
   );
-  const [temporarySavedResults, setTemporarySavedResults] =
-    useState<TemporarySavedResults | null>(null);
   const [pendingSnippetNavigation, setPendingSnippetNavigation] =
     useState<PendingSnippetNavigation | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
-  const currentQueryRef = useRef(query);
-  const previousSearchQueryRef = useRef("");
 
   const {
     layoutMode,
@@ -473,6 +144,24 @@ export default function App() {
   } = useSettings();
   const appLocale = isLocale(language) ? language : "en";
   const LL = i18nObject(appLocale);
+  const {
+    query,
+    setQuery,
+    visibleSearchResults,
+    isLoading,
+    setIsLoading,
+    fetchResults,
+    handleQueryChange,
+    selectTag,
+    refreshResultsAfterSave,
+    refreshTemporarySavedResults,
+    getCurrentQuery,
+  } = useSearchController({
+    setSelectedIndex,
+    setLoadedPreview,
+    failedRefreshMessage: (error) =>
+      LL.appMessages.failedRefreshSavedFile({ error }),
+  });
 
   const focusSearchInput = () => {
     requestAnimationFrame(() => {
@@ -500,107 +189,6 @@ export default function App() {
       console.error("Failed to load indexing status:", error);
     }
   };
-
-  const fetchResults = async (
-    nextQuery = query,
-    temporaryOverride?: TemporarySavedResults | null,
-    options?: { forceTemporaryReplace?: boolean },
-  ) => {
-    perf.begin("fetchResults");
-
-    try {
-      setIsLoading(true);
-
-      const parsed = parseSearchInput(nextQuery);
-      const activeTemporaryResults =
-        temporaryOverride === undefined
-          ? temporarySavedResults
-          : temporaryOverride;
-
-      if (isInternalSearchQuery(parsed.query)) {
-        const internalResults = searchInternalItems(parsed.query);
-
-        if (activeTemporaryResults?.query === nextQuery) {
-          setTemporarySavedResults(null);
-        }
-
-        perf.log("internal results", internalResults.length);
-        setSearchResults(internalResults);
-
-        return false;
-      }
-
-      const searchQuery = [
-        sanitizeSqliteFtsQuery(parsed.query),
-        ...parsed.tags.map((tag) => `#${tag}`),
-      ]
-        .filter(Boolean)
-        .join(" ");
-
-      perf.start("searchApi.getItems");
-
-      const results = await searchApi.getItems({
-        query: searchQuery,
-        unstar: parsed.unstar,
-        hidden: parsed.hidden,
-        reverse: parsed.reverse,
-      });
-
-      const foundTemporarySource = Boolean(
-        activeTemporaryResults?.query === nextQuery &&
-        includesSourcePath(results, activeTemporaryResults.filePath),
-      );
-      const shouldReplaceTemporaryResults =
-        foundTemporarySource &&
-        (activeTemporaryResults?.autoReplaceWhenIndexed ||
-          options?.forceTemporaryReplace);
-      const replacementResults = activeTemporaryResults
-        ? filterResultsBySourcePath(results, activeTemporaryResults.filePath)
-        : [];
-      const nextResults =
-        activeTemporaryResults?.query === nextQuery
-          ? shouldReplaceTemporaryResults
-            ? [
-                ...replacementResults,
-                ...filterResultsBySourcePaths(
-                  results,
-                  activeTemporaryResults.excludedSourcePaths,
-                ),
-              ]
-            : filterResultsBySourcePaths(
-                results,
-                activeTemporaryResults.excludedSourcePaths,
-              )
-          : results;
-
-      if (shouldReplaceTemporaryResults) {
-        setTemporarySavedResults(null);
-      }
-
-      perf.stop("searchApi.getItems");
-      perf.log("search result count", nextResults.length);
-
-      perf.start("setSearchResults");
-      setSearchResults(nextResults);
-      perf.stop("setSearchResults");
-
-      return foundTemporarySource;
-    } catch (error) {
-      console.error("Search failed:", error);
-      return false;
-    } finally {
-      setIsLoading(false);
-      perf.end();
-    }
-  };
-
-  useEffect(() => {
-    void fetchResults();
-  }, [query]);
-
-  useEffect(() => {
-    currentQueryRef.current = query;
-  }, [query]);
 
   useEffect(() => {
     void refreshIndexStats();
@@ -654,33 +242,6 @@ export default function App() {
   useEffect(() => {
     setPluginLocale(language);
   }, [language]);
-
-  useEffect(() => {
-    return subscribeToPluginChanges(() => {
-      const parsed = parseSearchInput(query);
-
-      if (isInternalSearchQuery(parsed.query)) {
-        void fetchResults(query);
-      }
-    });
-  }, [query]);
-
-  const activeTemporarySavedResults =
-    temporarySavedResults?.query === query ? temporarySavedResults : null;
-  const visibleBaseSearchResults = activeTemporarySavedResults
-    ? filterResultsBySourcePaths(
-        searchResults,
-        activeTemporarySavedResults.excludedSourcePaths,
-      )
-    : searchResults;
-  const shouldShowTemporarySavedResults =
-    activeTemporarySavedResults !== null &&
-    activeTemporarySavedResults.results.length > 0 &&
-    !includesSourcePath(searchResults, activeTemporarySavedResults.filePath);
-
-  const visibleSearchResults = shouldShowTemporarySavedResults
-    ? [...activeTemporarySavedResults.results, ...visibleBaseSearchResults]
-    : visibleBaseSearchResults;
 
   const items = visibleSearchResults.map((result) => result.item);
   const hasResults = items.length > 0;
@@ -818,101 +379,6 @@ export default function App() {
   useEffect(() => {
     void reloadCustomThemes();
   }, []);
-
-  const refreshResultsAfterSave = async ({
-    title,
-    filePath,
-    previousFilePath,
-    body,
-    contentMode,
-    gjsonDocument,
-  }: {
-    title: string;
-    filePath: string;
-    previousFilePath?: string;
-    body: string;
-    contentMode: "markdown" | "gjsonCards" | "raw";
-    gjsonDocument?: GjsonEditorDocument;
-  }) => {
-    try {
-      const activeQuery = currentQueryRef.current;
-      const excludedSourcePaths = [previousFilePath, filePath].filter(
-        (path): path is string => Boolean(path),
-      );
-      const temporaryResults = filterTemporaryResultsForQuery(
-        createTemporarySavedResults({
-          title,
-          filePath,
-          body,
-          contentMode,
-          gjsonDocument,
-        }),
-        activeQuery,
-      );
-      const nextTemporaryResults: TemporarySavedResults = {
-        query: activeQuery,
-        filePath,
-        excludedSourcePaths,
-        autoReplaceWhenIndexed:
-          !previousFilePath ||
-          normalizeFilePath(previousFilePath) !== normalizeFilePath(filePath),
-        results: temporaryResults,
-      };
-
-      setTemporarySavedResults(nextTemporaryResults);
-      setSearchResults((current) =>
-        filterResultsBySourcePaths(current, excludedSourcePaths),
-      );
-      setSelectedIndex(0);
-      setLoadedPreview(null);
-      await fetchResults(activeQuery, nextTemporaryResults);
-    } catch (error) {
-      toast.error(
-        LL.appMessages.failedRefreshSavedFile({ error: String(error) }),
-      );
-    }
-  };
-
-  const refreshTemporarySavedResults = () => {
-    const activeQuery = currentQueryRef.current;
-    const activeTemporaryResults =
-      temporarySavedResults?.query === activeQuery
-        ? temporarySavedResults
-        : null;
-
-    if (!activeTemporaryResults) {
-      return;
-    }
-
-    void searchApi
-      .getItemsBySourcePath(activeTemporaryResults.filePath)
-      .then((sourceResults) => {
-        if (sourceResults.length === 0) {
-          return;
-        }
-
-        const replacementResults = filterTemporaryResultsForQuery(
-          sourceResults,
-          activeQuery,
-        );
-
-        setTemporarySavedResults(null);
-        setSearchResults((current) => [
-          ...replacementResults,
-          ...filterResultsBySourcePaths(
-            current,
-            activeTemporaryResults.excludedSourcePaths,
-          ),
-        ]);
-        setSelectedIndex(0);
-        setLoadedPreview(null);
-      })
-      .catch((error) => {
-        toast.error(
-          LL.appMessages.failedRefreshSavedFile({ error: String(error) }),
-        );
-      });
-  };
 
   const openFileCreator = () => {
     openFileCreatorTab();
@@ -1150,30 +616,10 @@ export default function App() {
     };
   }, []);
 
-  const handleQueryChange = (value: string) => {
-    setTemporarySavedResults(null);
-
-    const previousParsed = parseSearchInput(previousSearchQueryRef.current);
-    const nextParsed = parseSearchInput(value);
-
-    if (
-      previousParsed.query !== nextParsed.query ||
-      previousParsed.unstar !== nextParsed.unstar ||
-      previousParsed.hidden !== nextParsed.hidden ||
-      previousParsed.tags.join("\0") !== nextParsed.tags.join("\0")
-    ) {
-      setSelectedIndex(0);
-    }
-
-    previousSearchQueryRef.current = value;
-    currentQueryRef.current = value;
-    setQuery(value);
-  };
-
   useEffect(() => {
     const unlisten = listen<WindowFocusedPayload>("window-focused", (event) => {
       const selectedText = event.payload?.selectedText?.trim();
-      const nextQuery = selectedText || currentQueryRef.current;
+      const nextQuery = selectedText || getCurrentQuery();
 
       if (selectedText) {
         handleQueryChange(selectedText);
@@ -1202,13 +648,7 @@ export default function App() {
   }, []);
 
   const handleTagCloudTagSelect = (tag: string) => {
-    const nextQuery = addTagToSearchQuery(query, tag);
-
-    setTemporarySavedResults(null);
-    previousSearchQueryRef.current = nextQuery;
-    currentQueryRef.current = nextQuery;
-    setSelectedIndex(0);
-    setQuery(nextQuery);
+    selectTag(tag);
     focusSearchInput();
   };
 

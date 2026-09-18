@@ -673,7 +673,7 @@ fn canonicalize_existing_file(path: impl AsRef<Path>) -> Result<PathBuf, String>
     }
 
     path.canonicalize()
-        .map(|path| normalize_input_path(path))
+        .map(normalize_input_path)
         .map_err(|error| format!("failed to canonicalize file: {}: {error}", path.display()))
 }
 
@@ -696,7 +696,7 @@ fn canonicalize_existing_dir(path: impl AsRef<Path>) -> Result<PathBuf, String> 
     }
 
     path.canonicalize()
-        .map(|path| normalize_input_path(path))
+        .map(normalize_input_path)
         .map_err(|error| {
             format!(
                 "failed to canonicalize directory: {}: {error}",
@@ -706,7 +706,7 @@ fn canonicalize_existing_dir(path: impl AsRef<Path>) -> Result<PathBuf, String> 
 }
 
 fn path_starts_with(path: &Path, root: &Path) -> bool {
-    normalize_comparison_path(path).starts_with(&normalize_comparison_path(root))
+    normalize_comparison_path(path).starts_with(normalize_comparison_path(root))
 }
 
 fn path_contains_parent_component(path: &Path) -> bool {
@@ -908,7 +908,7 @@ fn unique_file_path(dir: &Path, file_name: &str) -> PathBuf {
 /// Used for path equality checks during file renaming.
 fn normalize_path(path: &Path) -> PathBuf {
     path.canonicalize()
-        .map(|path| normalize_input_path(path))
+        .map(normalize_input_path)
         .unwrap_or_else(|_| normalize_input_path(path))
 }
 

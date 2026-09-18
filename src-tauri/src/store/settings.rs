@@ -812,22 +812,23 @@ mod tests {
 
     #[test]
     fn removes_invalid_target_groups() {
-        let mut settings = AppSettings::default();
-
-        settings.target_groups = vec![
-            TargetGroup {
-                id: "".into(),
-                name: "Invalid".into(),
-                paths: vec![],
-                active: true,
-            },
-            TargetGroup {
-                id: "work".into(),
-                name: "Work".into(),
-                paths: vec![],
-                active: true,
-            },
-        ];
+        let settings = AppSettings {
+            target_groups: vec![
+                TargetGroup {
+                    id: "".into(),
+                    name: "Invalid".into(),
+                    paths: vec![],
+                    active: true,
+                },
+                TargetGroup {
+                    id: "work".into(),
+                    name: "Work".into(),
+                    paths: vec![],
+                    active: true,
+                },
+            ],
+            ..AppSettings::default()
+        };
 
         let settings = normalize_settings(settings);
 
@@ -836,16 +837,16 @@ mod tests {
 
     #[test]
     fn fixes_invalid_current_target_group() {
-        let mut settings = AppSettings::default();
-
-        settings.target_groups = vec![TargetGroup {
-            id: "work".into(),
-            name: "Work".into(),
-            paths: vec![],
-            active: true,
-        }];
-
-        settings.current_target_group_id = Some("unknown".into());
+        let settings = AppSettings {
+            target_groups: vec![TargetGroup {
+                id: "work".into(),
+                name: "Work".into(),
+                paths: vec![],
+                active: true,
+            }],
+            current_target_group_id: Some("unknown".into()),
+            ..AppSettings::default()
+        };
 
         let settings = normalize_settings(settings);
 
@@ -854,16 +855,16 @@ mod tests {
 
     #[test]
     fn keeps_current_target_group_active() {
-        let mut settings = AppSettings::default();
-
-        settings.target_groups = vec![TargetGroup {
-            id: "work".into(),
-            name: "Work".into(),
-            paths: vec![],
-            active: false,
-        }];
-
-        settings.current_target_group_id = Some("work".into());
+        let settings = AppSettings {
+            target_groups: vec![TargetGroup {
+                id: "work".into(),
+                name: "Work".into(),
+                paths: vec![],
+                active: false,
+            }],
+            current_target_group_id: Some("work".into()),
+            ..AppSettings::default()
+        };
 
         let settings = normalize_settings(settings);
 

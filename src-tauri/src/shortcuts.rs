@@ -71,8 +71,6 @@ pub fn register_global_shortcuts(app: &AppHandle, settings: &AppSettings) -> Res
         );
 
         let app_handle = app.clone();
-        let capture_selected_text_on_activation = capture_selected_text_on_activation;
-
         global_shortcut
             .on_shortcut(parsed, move |_app, pressed_shortcut, event| {
                 if pressed_shortcut == &parsed && event.state() == ShortcutState::Pressed {
@@ -611,8 +609,10 @@ mod tests {
 
     #[test]
     fn get_toggle_main_window_shortcuts_returns_default_when_missing() {
-        let mut settings = AppSettings::default();
-        settings.keybindings = HashMap::new();
+        let settings = AppSettings {
+            keybindings: HashMap::new(),
+            ..AppSettings::default()
+        };
 
         assert_eq!(
             get_toggle_main_window_shortcuts(&settings),

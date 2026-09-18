@@ -273,14 +273,15 @@ pub async fn switch_next_target_group(
 ) -> Result<AppSettings, String> {
     debug!("switching to next target group");
 
-    runtime.switch_next_target_group().await.map(|settings| {
-        info!(
-            current_target_group_id = ?settings.current_target_group_id,
-            "switched to next target group"
-        );
-
-        settings
-    })
+    runtime
+        .switch_next_target_group()
+        .await
+        .inspect(|settings| {
+            info!(
+                current_target_group_id = ?settings.current_target_group_id,
+                "switched to next target group"
+            );
+        })
 }
 
 /// Switches to a specific target group by ID.
@@ -307,14 +308,15 @@ pub async fn switch_target_group(
         "switching target group"
     );
 
-    runtime.switch_target_group(group_id).await.map(|settings| {
-        info!(
-            current_target_group_id = ?settings.current_target_group_id,
-            "switched target group"
-        );
-
-        settings
-    })
+    runtime
+        .switch_target_group(group_id)
+        .await
+        .inspect(|settings| {
+            info!(
+                current_target_group_id = ?settings.current_target_group_id,
+                "switched target group"
+            );
+        })
 }
 
 #[cfg(test)]

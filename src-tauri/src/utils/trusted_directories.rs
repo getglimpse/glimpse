@@ -56,10 +56,10 @@ use std::path::{Path, PathBuf};
 /// Parameters:
 ///
 /// - `resolved_path`
-///     Canonical executable path.
+///   Canonical executable path.
 ///
 /// - `trusted_directories`
-///     User configured list of allowed directories.
+///   User configured list of allowed directories.
 ///
 /// Returns:
 ///

@@ -4,6 +4,22 @@ Glimpse can be extended with local and remote plugins.
 
 Plugins can add searchable pages, actions, and file viewers. For example, a plugin can provide a calculator page, a converter page, or a previewer for a file type that Glimpse does not handle by default.
 
+## Plugin Types
+
+Glimpse plugins fall into three main types based on what they do:
+
+| Type | What it does | Examples |
+| --- | --- | --- |
+| Tool | Opens a searchable page and runs an operation from text or form input | Numeric calculations, date calculations, text processing |
+| Converter | Converts selected or dropped files and saves the results as files | Markdown-to-HTML conversion, text file normalization |
+| Viewer | Shows a file type that Glimpse does not handle by default in the Preview panel | CSV, PDF, and Office document previews |
+
+A Tool page can use a Playground for a single text input or a Form for several fields. A Converter uses a page designed for selecting or dropping files. A Viewer runs in the Preview panel instead of a plugin page.
+
+A plugin can combine more than one capability. For example, a Viewer can provide file previews while also including a page for its settings and usage information.
+
+Local and remote describe where a plugin is installed from, not what the plugin does. Local plugins are installed from a folder or zip archive, while remote plugins are installed from Plugin Store.
+
 ## Opening Plugin Page
 
 Open Plugin Page from the search bar:

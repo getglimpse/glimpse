@@ -127,7 +127,7 @@ fn split_frontmatter(content: &str) -> Option<(&str, &str)> {
 }
 
 fn is_closing_delimiter_line(line: &str) -> bool {
-    let line = line.trim_end_matches(|ch| ch == '\r' || ch == '\n');
+    let line = line.trim_end_matches(['\r', '\n']);
 
     !line.starts_with(' ') && !line.starts_with('\t') && line.trim_end() == "---"
 }

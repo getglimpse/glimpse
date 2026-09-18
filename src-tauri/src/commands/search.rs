@@ -42,13 +42,11 @@ pub async fn search_items(
     query: String,
     dictionary_id: Option<String>,
     limit: Option<usize>,
-    global: Option<bool>,
     unstar_only: Option<bool>,
     hidden_only: Option<bool>,
     reverse_order: Option<bool>,
     engine: State<'_, Arc<ActiveSearchEngine>>,
 ) -> Result<Vec<SearchResult>, String> {
-    let _ = global;
     let req = build_search_request(
         query,
         dictionary_id,
@@ -161,7 +159,7 @@ fn resolve_markdown_link_with_settings(
     let source_dir = source_path
         .parent()
         .ok_or_else(|| "markdown source has no parent directory".to_string())?;
-    let source_groups = target_groups_containing_path(&settings, &source_path);
+    let source_groups = target_groups_containing_path(settings, &source_path);
 
     if source_groups.is_empty() {
         return Err(format!(
@@ -190,7 +188,7 @@ fn resolve_markdown_link_with_settings(
             ));
         }
 
-        let results = items_by_source_path_candidates(&conn, &canonical)?;
+        let results = items_by_source_path_candidates(conn, &canonical)?;
 
         if let Some(result) = results.into_iter().next() {
             return Ok(MarkdownLinkResolution {

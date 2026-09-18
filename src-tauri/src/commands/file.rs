@@ -18,7 +18,7 @@
 //! - `store::file`
 
 use serde::Deserialize;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tauri::State;
 
@@ -218,7 +218,7 @@ pub async fn update_markdown_file_title(
         title,
     )?;
 
-    if old_path != PathBuf::from(&next_path) {
+    if old_path != Path::new(&next_path) {
         runtime.delete_file_from_index(old_path).await?;
     }
 
@@ -242,7 +242,7 @@ pub async fn update_text_file_title(
         title,
     )?;
 
-    if old_path != PathBuf::from(&next_path) {
+    if old_path != Path::new(&next_path) {
         runtime.delete_file_from_index(old_path).await?;
     }
 

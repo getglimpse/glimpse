@@ -96,32 +96,32 @@ pub fn run_item_command(
         None => {
             let error = format!("command not found: {program}");
 
-            log_command_failure(
-                &settings_path,
-                &item_id,
-                &command,
-                None,
-                &command_args,
-                CommandExecutionStatus::Failed,
-                CommandExecutionStage::Resolve,
-                &error,
-            );
+            log_command_failure(CommandFailure {
+                settings_path: &settings_path,
+                item_id: &item_id,
+                command: &command,
+                resolved_path: None,
+                args: &command_args,
+                status: CommandExecutionStatus::Failed,
+                stage: CommandExecutionStage::Resolve,
+                error: &error,
+            });
 
             return Err(error);
         }
     };
 
     if let Err(error) = validate_command_path(&resolved_path) {
-        log_command_failure(
-            &settings_path,
-            &item_id,
-            &command,
-            Some(&resolved_path),
-            &command_args,
-            CommandExecutionStatus::Failed,
-            CommandExecutionStage::Validate,
-            &error,
-        );
+        log_command_failure(CommandFailure {
+            settings_path: &settings_path,
+            item_id: &item_id,
+            command: &command,
+            resolved_path: Some(&resolved_path),
+            args: &command_args,
+            status: CommandExecutionStatus::Failed,
+            stage: CommandExecutionStage::Validate,
+            error: &error,
+        });
 
         return Err(error);
     }
@@ -130,32 +130,32 @@ pub fn run_item_command(
         if let Err(error) =
             check_trusted_directory(&resolved_path, &settings.commands.trusted_directories)
         {
-            log_command_failure(
-                &settings_path,
-                &item_id,
-                &command,
-                Some(&resolved_path),
-                &command_args,
-                CommandExecutionStatus::Blocked,
-                CommandExecutionStage::TrustedDirectory,
-                &error,
-            );
+            log_command_failure(CommandFailure {
+                settings_path: &settings_path,
+                item_id: &item_id,
+                command: &command,
+                resolved_path: Some(&resolved_path),
+                args: &command_args,
+                status: CommandExecutionStatus::Blocked,
+                stage: CommandExecutionStage::TrustedDirectory,
+                error: &error,
+            });
 
             return Err(error);
         }
     }
 
     if let Err(error) = check_command_policy(&program, &resolved_path, &settings.commands) {
-        log_command_failure(
-            &settings_path,
-            &item_id,
-            &command,
-            Some(&resolved_path),
-            &command_args,
-            CommandExecutionStatus::Blocked,
-            CommandExecutionStage::Policy,
-            &error,
-        );
+        log_command_failure(CommandFailure {
+            settings_path: &settings_path,
+            item_id: &item_id,
+            command: &command,
+            resolved_path: Some(&resolved_path),
+            args: &command_args,
+            status: CommandExecutionStatus::Blocked,
+            stage: CommandExecutionStage::Policy,
+            error: &error,
+        });
 
         return Err(error);
     }
@@ -207,32 +207,37 @@ fn parse_metadata_command(command: &str) -> Result<(String, Vec<String>), String
     Ok((program, parts.collect()))
 }
 
+/// Data required to record a failed or blocked command execution.
+struct CommandFailure<'a> {
+    settings_path: &'a Path,
+    item_id: &'a str,
+    command: &'a str,
+    resolved_path: Option<&'a Path>,
+    args: &'a [String],
+    status: CommandExecutionStatus,
+    stage: CommandExecutionStage,
+    error: &'a str,
+}
+
 /// Writes a failed or blocked command execution to the command log.
 ///
 /// Logging failures are intentionally ignored so that the original execution
 /// error can be returned to the caller unchanged.
-fn log_command_failure(
-    settings_path: &Path,
-    item_id: &str,
-    command: &str,
-    resolved_path: Option<&Path>,
-    args: &[String],
-    status: CommandExecutionStatus,
-    stage: CommandExecutionStage,
-    error: &str,
-) {
+fn log_command_failure(failure: CommandFailure<'_>) {
     let log_entry = CommandExecutionLog {
         timestamp: Utc::now(),
-        item_id: item_id.to_string(),
-        command: command.to_string(),
-        resolved_path: resolved_path.map(|path| path.to_string_lossy().to_string()),
-        args: args.to_vec(),
-        status,
-        stage,
-        error: Some(error.to_string()),
+        item_id: failure.item_id.to_string(),
+        command: failure.command.to_string(),
+        resolved_path: failure
+            .resolved_path
+            .map(|path| path.to_string_lossy().to_string()),
+        args: failure.args.to_vec(),
+        status: failure.status,
+        stage: failure.stage,
+        error: Some(failure.error.to_string()),
     };
 
-    let _ = append_command_execution_log(settings_path, &log_entry);
+    let _ = append_command_execution_log(failure.settings_path, &log_entry);
 }
 
 /// Returns whether a command string appears to be an explicit filesystem path.

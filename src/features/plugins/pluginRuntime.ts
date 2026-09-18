@@ -1,10 +1,4 @@
-import {
-  createElement,
-  useEffect,
-  useState,
-  type ComponentType,
-  type ReactNode,
-} from "react";
+import { createElement, useEffect, useState, type ReactNode } from "react";
 
 import { fileApi, type FileMetadata } from "@/api/file";
 import { pluginsApi } from "@/api/plugins";
@@ -29,10 +23,31 @@ import {
   getCurrentPluginLocale,
   type PluginI18nApi,
 } from "./pluginI18n";
+import { evaluateInProcessPluginModule } from "./pluginModuleEvaluator";
+import type {
+  PluginCapabilityContext,
+  PluginRuntimeLogLevel,
+  PluginSandbox,
+  PluginSandboxInitResult,
+  SandboxWorkerRequest,
+  SandboxWorkerRequestInput,
+  SandboxWorkerResponse,
+  SerializedPluginNode,
+} from "./pluginSandboxProtocol";
+import {
+  ALLOWED_HTML_ELEMENTS,
+  COMPONENT_PLUGIN_PROPS,
+  createSerializedPluginElement,
+  getAllowedPluginProps,
+  getPluginElementType,
+  isSerializedPluginElement,
+  normalizeInProcessAction,
+  serializeInProcessNode,
+} from "./pluginSerializedNodes";
+
+export type { PluginRuntimeLogLevel } from "./pluginSandboxProtocol";
 
 type PluginRuntimeStatus = "inactive" | "loading" | "active" | "error";
-
-export type PluginRuntimeLogLevel = "info" | "warn" | "error";
 
 export type PluginRuntimeLogEntry = {
   id: number;
@@ -93,113 +108,6 @@ export type LoadedPluginRuntime = {
   deactivate?: (context: PluginContext) => unknown;
   context: PluginContext;
   sandbox: PluginSandbox;
-};
-
-type SerializedPluginNode =
-  | null
-  | string
-  | number
-  | boolean
-  | SerializedPluginElement
-  | SerializedPluginNode[];
-
-type SerializedPluginElement = {
-  __glimpsePluginNode: true;
-  type: string;
-  props?: Record<string, unknown>;
-  children?: SerializedPluginNode[];
-};
-
-type PluginSandboxInitResult = {
-  actions?: string[];
-  pages?: string[];
-  viewers?: string[];
-};
-
-type PluginSandbox = {
-  init: (input: {
-    plugin: GlimpsePlugin;
-    mainSource: string;
-    pageSource?: string;
-  }) => Promise<PluginSandboxInitResult>;
-  invokeAction: (actionId: string, input?: unknown) => Promise<unknown>;
-  renderPage: (pageId: string) => Promise<SerializedPluginNode>;
-  renderViewer: (
-    viewerId: string,
-    sourcePath?: string | null,
-  ) => Promise<SerializedPluginNode>;
-  deactivate: () => Promise<void>;
-  terminate: () => void;
-};
-
-type SandboxWorkerRequest =
-  | {
-      id: number;
-      type: "init";
-      plugin: unknown;
-      mainSource: string;
-      pageSource?: string;
-      locale: string;
-    }
-  | {
-      id: number;
-      type: "invokeAction";
-      actionId: string;
-      input?: unknown;
-      locale: string;
-      capabilityToken?: string;
-    }
-  | {
-      id: number;
-      type: "renderPage";
-      pageId: string;
-      locale: string;
-      capabilityToken?: string;
-    }
-  | {
-      id: number;
-      type: "renderViewer";
-      viewerId: string;
-      sourcePath?: string | null;
-      locale: string;
-      capabilityToken?: string;
-    }
-  | { id: number; type: "deactivate"; locale: string };
-
-type SandboxWorkerRequestInput<T> = T extends unknown
-  ? Omit<T, "id" | "locale">
-  : never;
-
-type SandboxWorkerResponse =
-  | { id: number; ok: true; result: unknown }
-  | { id: number; ok: false; error: string }
-  | {
-      type: "hostRequest";
-      requestId: number;
-      request:
-        | {
-            kind: "readText";
-            sourcePath: string;
-            capabilityToken?: string;
-          }
-        | {
-            kind: "readBinary";
-            sourcePath: string;
-            capabilityToken?: string;
-          }
-        | {
-            kind: "getMetadata";
-            sourcePath: string;
-            capabilityToken?: string;
-          }
-        | { kind: "log"; level: PluginRuntimeLogLevel; values: unknown[] };
-    };
-
-type PluginCapabilityContext = {
-  token: string;
-  activeTabSourcePath?: string | null;
-  targetGroupId?: string | null;
-  targetGroupPaths: string[];
 };
 
 const PLUGIN_RUNTIME_CHANGED_EVENT = "glimpse:plugin-runtime-changed";
@@ -1650,349 +1558,6 @@ const escapeHtmlAttribute = (value: string): string =>
     .replace(/"/g, "&quot;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
-
-const getPluginElementType = (
-  type: string,
-  components: PluginComponents,
-): ComponentType<any> | keyof HTMLElementTagNameMap | undefined => {
-  if (Object.prototype.hasOwnProperty.call(components, type)) {
-    return components[type as keyof PluginComponents] as ComponentType<any>;
-  }
-
-  if (ALLOWED_HTML_ELEMENTS.has(type)) {
-    return type as keyof HTMLElementTagNameMap;
-  }
-
-  return undefined;
-};
-
-const ALLOWED_HTML_ELEMENTS = new Set([
-  "div",
-  "iframe",
-  "span",
-  "p",
-  "code",
-  "pre",
-]);
-const COMMON_PLUGIN_PROPS = new Set(["key", "className", "title"]);
-const COMPONENT_PLUGIN_PROPS: Record<string, string[]> = {
-  Stack: ["gap"],
-  Text: ["variant"],
-  Section: ["title"],
-  KeyValueList: ["rows"],
-  Button: ["action", "input", "variant", "disabled"],
-  Input: [
-    "action",
-    "defaultValue",
-    "placeholder",
-    "submitLabel",
-    "clearOnSubmit",
-  ],
-  Table: ["columns", "rows", "empty"],
-  Tabs: ["items"],
-  List: ["items", "ordered", "empty"],
-  Details: ["title", "defaultOpen"],
-  Markdown: ["content"],
-  DeferredFrame: [
-    "src",
-    "title",
-    "className",
-    "label",
-    "description",
-    "buttonLabel",
-  ],
-  FileOpenButton: ["sourcePath", "label", "variant"],
-  FileDropConverter: [
-    "action",
-    "accept",
-    "multiple",
-    "maxBytes",
-    "maxFiles",
-    "outputDirectoryPreference",
-    "title",
-    "description",
-    "chooseFileLabel",
-    "emptyLabel",
-    "successLabel",
-    "convertingLabel",
-    "resultsLabel",
-    "revealLabel",
-    "clearLabel",
-    "fileColumnLabel",
-    "sizeColumnLabel",
-    "pathColumnLabel",
-    "emptyResultsLabel",
-  ],
-  OutputDirectorySettings: [
-    "preference",
-    "label",
-    "placeholder",
-    "chooseDirectoryLabel",
-    "description",
-  ],
-  ActionPlayground: ["action", "placeholder", "examples", "submitLabel"],
-  ActionSettings: ["action", "copySearchResultLabel"],
-  CalculationPanel: ["action", "examples", "input", "result"],
-  iframe: ["src", "srcDoc", "srcDocBasePath", "sandbox", "title", "className"],
-};
-
-const getAllowedPluginProps = (type: string): Set<string> =>
-  new Set([...(COMPONENT_PLUGIN_PROPS[type] ?? []), ...COMMON_PLUGIN_PROPS]);
-
-const isSerializedPluginElement = (
-  value: unknown,
-): value is SerializedPluginElement =>
-  Boolean(value) &&
-  typeof value === "object" &&
-  (value as { __glimpsePluginNode?: unknown }).__glimpsePluginNode === true;
-
-const createSerializedPluginElement = (
-  type: unknown,
-  props?: Record<string, unknown> | null,
-  ...children: unknown[]
-): SerializedPluginElement => {
-  if (typeof type !== "string") {
-    throw new Error(
-      "Plugin elements must use Core components or allowed HTML tags",
-    );
-  }
-
-  if (
-    !Object.prototype.hasOwnProperty.call(COMPONENT_PLUGIN_PROPS, type) &&
-    !ALLOWED_HTML_ELEMENTS.has(type)
-  ) {
-    throw new Error(`Plugin element is not allowed: ${type}`);
-  }
-
-  return {
-    __glimpsePluginNode: true,
-    type,
-    props: serializeInProcessProps(props ?? {}),
-    children: children.flatMap((child) => normalizeInProcessChild(child)),
-  };
-};
-
-const normalizeInProcessAction = (
-  registration: unknown,
-): ((input?: unknown) => unknown | Promise<unknown>) => {
-  if (typeof registration === "function") {
-    return registration as (input?: unknown) => unknown | Promise<unknown>;
-  }
-
-  if (
-    registration &&
-    typeof registration === "object" &&
-    typeof (registration as { handler?: unknown }).handler === "function"
-  ) {
-    return (
-      registration as {
-        handler: (input?: unknown) => unknown | Promise<unknown>;
-      }
-    ).handler;
-  }
-
-  throw new Error(
-    "plugin action registration must be a function or handler object",
-  );
-};
-
-const normalizeInProcessChild = (value: unknown): SerializedPluginNode[] => {
-  if (Array.isArray(value)) {
-    return value.flatMap((entry) => normalizeInProcessChild(entry));
-  }
-
-  if (
-    value === null ||
-    value === undefined ||
-    typeof value === "string" ||
-    typeof value === "number" ||
-    typeof value === "boolean" ||
-    isSerializedPluginElement(value)
-  ) {
-    return [value ?? null];
-  }
-
-  return [String(value)];
-};
-
-const serializeInProcessProps = (
-  props: Record<string, unknown>,
-): Record<string, unknown> =>
-  Object.fromEntries(
-    Object.entries(props)
-      .filter(
-        ([, value]) => typeof value !== "function" && typeof value !== "symbol",
-      )
-      .map(([key, value]) => [key, serializeInProcessValue(value)]),
-  );
-
-const serializeInProcessValue = (value: unknown): unknown => {
-  if (
-    value === null ||
-    value === undefined ||
-    typeof value === "string" ||
-    typeof value === "number" ||
-    typeof value === "boolean" ||
-    isSerializedPluginElement(value)
-  ) {
-    return value ?? null;
-  }
-
-  if (Array.isArray(value)) {
-    return value.map(serializeInProcessValue);
-  }
-
-  if (typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>)
-        .filter(
-          ([, entryValue]) =>
-            typeof entryValue !== "function" && typeof entryValue !== "symbol",
-        )
-        .map(([key, entryValue]) => [key, serializeInProcessValue(entryValue)]),
-    );
-  }
-
-  return String(value);
-};
-
-const serializeInProcessNode = (value: unknown): SerializedPluginNode => {
-  if (Array.isArray(value)) {
-    return value.map(serializeInProcessNode);
-  }
-
-  if (
-    value === null ||
-    value === undefined ||
-    typeof value === "string" ||
-    typeof value === "number" ||
-    typeof value === "boolean" ||
-    isSerializedPluginElement(value)
-  ) {
-    return (value ?? null) as SerializedPluginNode;
-  }
-
-  return String(value);
-};
-
-const evaluateInProcessPluginModule = (
-  source: string,
-  pluginId: string,
-  entrypoint: "main" | "page",
-) => {
-  assertSupportedInProcessPluginModuleSource(source);
-
-  const exports: Record<string, unknown> = {};
-  const transformed = transformInProcessPluginModuleSource(source);
-  const runModule = new Function(
-    "exports",
-    "console",
-    "globalThis",
-    "window",
-    "document",
-    "localStorage",
-    "sessionStorage",
-    "indexedDB",
-    "fetch",
-    "WebSocket",
-    "Worker",
-    "importScripts",
-    "require",
-    "process",
-    "Function",
-    `"use strict";\n${transformed}\n//# sourceURL=glimpse-plugin-test://${pluginId}/${entrypoint}.js`,
-  );
-
-  runModule(
-    exports,
-    console,
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-  );
-
-  return exports as {
-    default?: unknown;
-    activate?: unknown;
-    deactivate?: unknown;
-  };
-};
-
-const transformInProcessPluginModuleSource = (source: string): string =>
-  source
-    .replace(/^\s*import\s+\{[^}]*\}\s+from\s+["']mathjs["'];?\s*$/gm, "")
-    .replace(
-      /export\s+default\s+(async\s+)?function\s*([A-Za-z_$][\w$]*)?\s*\(/g,
-      (_match, asyncKeyword: string | undefined, name: string | undefined) =>
-        `exports.default = ${asyncKeyword ?? ""}function${name ? ` ${name}` : ""}(`,
-    )
-    .replace(/export\s+default\s+/g, "exports.default = ")
-    .replace(
-      /export\s+(async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(/g,
-      (_match, asyncKeyword: string | undefined, name: string) =>
-        `exports.${name} = ${asyncKeyword ?? ""}function ${name}(`,
-    )
-    .replace(
-      /export\s+(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=/g,
-      (_match, name: string) => `exports.${name} =`,
-    )
-    .replace(/export\s+\{\s*([^}]+)\s*\};?/g, (_match, names: string) =>
-      names
-        .split(",")
-        .map((rawName) => {
-          const [localName, exportedName] = rawName.trim().split(/\s+as\s+/);
-
-          return `exports.${exportedName ?? localName} = ${localName};`;
-        })
-        .join("\n"),
-    );
-
-const assertSupportedInProcessPluginModuleSource = (source: string) => {
-  if (containsBareInProcessCall(source, "import")) {
-    throw new Error("dynamic import is not available in plugin main.js");
-  }
-
-  if (containsBareInProcessCall(source, "require")) {
-    throw new Error("require is not available in plugin main.js");
-  }
-
-  if (containsInProcessIdentifier(source, "eval")) {
-    throw new Error("eval is not available in plugin main.js");
-  }
-
-  if (containsInProcessFunctionConstructorAccess(source)) {
-    throw new Error(
-      "function constructors are not available in plugin main.js",
-    );
-  }
-};
-
-const containsBareInProcessCall = (source: string, name: string): boolean => {
-  const pattern = new RegExp(`(^|[^\\w$.])${name}\\s*\\(`);
-
-  return pattern.test(source);
-};
-
-const containsInProcessIdentifier = (source: string, name: string): boolean => {
-  const pattern = new RegExp(`(^|[^\\w$])${name}($|[^\\w$])`);
-
-  return pattern.test(source);
-};
-
-const containsInProcessFunctionConstructorAccess = (source: string): boolean =>
-  /(?:\.\s*constructor\b|\[\s*["']constructor["']\s*\]|["']constructor["'])/.test(
-    source,
-  );
 
 const assertPluginRegistrationId = (id: string, label: string) => {
   if (!id || !/^[A-Za-z0-9_.:-]+$/.test(id) || id.includes("..")) {

@@ -124,8 +124,7 @@ fn heading_boundary(
 ) -> Option<usize> {
     line_start_boundaries(text, start_byte, hard_end)
         .into_iter()
-        .filter(|boundary| *boundary >= min_end && is_markdown_heading_start(text, *boundary))
-        .last()
+        .rfind(|boundary| *boundary >= min_end && is_markdown_heading_start(text, *boundary))
 }
 
 fn paragraph_boundary(
@@ -157,7 +156,7 @@ fn sentence_boundary(
             let boundary = start_byte + relative + ch.len_utf8();
             (boundary >= min_end && boundary <= hard_end).then_some(boundary)
         })
-        .last()
+        .next_back()
 }
 
 fn is_sentence_terminal(ch: char) -> bool {
@@ -180,7 +179,7 @@ fn whitespace_boundary(
             let boundary = start_byte + relative + ch.len_utf8();
             (boundary >= min_end && boundary <= hard_end).then_some(boundary)
         })
-        .last()
+        .next_back()
 }
 
 fn boundary_after_patterns(

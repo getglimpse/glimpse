@@ -471,18 +471,13 @@ impl Default for IndexingSettings {
 ///
 /// - `Blacklist`
 ///   Block commands listed in `blacklist`.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum CommandPolicyMode {
     None,
     Whitelist,
+    #[default]
     Blacklist,
-}
-
-impl Default for CommandPolicyMode {
-    fn default() -> Self {
-        Self::Blacklist
-    }
 }
 
 /// Command execution security settings.

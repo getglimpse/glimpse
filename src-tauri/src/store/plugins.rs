@@ -8,12 +8,10 @@
 
 use std::collections::HashSet;
 use std::fs::{self, File};
-use std::io::{self, Read, Write};
+use std::io::{self, Read};
 use std::path::{Component, Path, PathBuf};
-use std::time::Duration;
 
 use chrono::Utc;
-use reqwest::{redirect::Policy, Client};
 use sha2::{Digest, Sha256};
 use url::Url;
 use uuid::Uuid;
@@ -29,6 +27,21 @@ use crate::models::plugins::{
 use crate::models::settings::{PluginInstallProvenance, PluginInstallSource, PluginTrustRecord};
 use crate::store::settings::{load_settings, save_settings};
 
+mod remote;
+mod validation;
+
+#[cfg(test)]
+use remote::verify_sha256_digest;
+use remote::{
+    download_plugin_archive, validate_plugin_archive_download_url, validate_plugin_registry_url,
+    validate_sha256_digest,
+};
+use validation::{
+    is_valid_contribution_id, is_valid_file_extension, is_valid_locale_code, is_valid_plugin_id,
+    validate_non_empty, validate_optional_manifest_url, validate_relative_child_path,
+    validate_supported_api_version, validate_version,
+};
+
 const SUPPORTED_PLUGIN_API_VERSION: &str = "0.2.0";
 const DEFAULT_PLUGIN_API_VERSION: &str = SUPPORTED_PLUGIN_API_VERSION;
 const PLUGIN_ARCHIVE_EXTENSION: &str = ".glimpse-plugin.zip";
@@ -39,8 +52,6 @@ const PLUGIN_ARCHIVE_MAX_ENTRIES: usize = 256;
 const PLUGIN_ARCHIVE_MAX_PATH_CHARS: usize = 240;
 const PLUGIN_ARCHIVE_MAX_DEPTH: usize = 8;
 const PLUGIN_ARCHIVE_MAX_COMPRESSION_RATIO: u64 = 100;
-const PLUGIN_ARCHIVE_DOWNLOAD_TIMEOUT_SECS: u64 = 30;
-const PLUGIN_ARCHIVE_DOWNLOAD_REDIRECT_LIMIT: usize = 5;
 const PLUGIN_README_MAX_BYTES: u64 = 100 * 1024;
 const OFFICIAL_PLUGIN_REGISTRY_URL: &str =
     "https://raw.githubusercontent.com/getglimpse/plugins/main/registry.json";
@@ -402,167 +413,6 @@ async fn install_plugin_from_url_inner(
     Ok(result)
 }
 
-async fn download_plugin_archive(
-    download_url: &Url,
-    expected_sha256: &str,
-    archive_path: &Path,
-) -> Result<String, String> {
-    let client = Client::builder()
-        .timeout(Duration::from_secs(PLUGIN_ARCHIVE_DOWNLOAD_TIMEOUT_SECS))
-        .redirect(Policy::custom(|attempt| {
-            if attempt.previous().len() >= PLUGIN_ARCHIVE_DOWNLOAD_REDIRECT_LIMIT {
-                return attempt.error("plugin archive download redirected too many times");
-            }
-
-            if attempt.url().scheme() != "https" {
-                return attempt.error("plugin archive redirect target must use https");
-            }
-
-            attempt.follow()
-        }))
-        .build()
-        .map_err(|error| format!("failed to create plugin download client: {error}"))?;
-    let mut response = client
-        .get(download_url.clone())
-        .send()
-        .await
-        .map_err(|error| format!("failed to download plugin archive: {error}"))?;
-
-    if !response.status().is_success() {
-        return Err(format!(
-            "plugin archive download failed with HTTP status {}",
-            response.status()
-        ));
-    }
-
-    if response.url().scheme() != "https" {
-        return Err(format!(
-            "plugin archive redirect target must use https: {}",
-            response.url()
-        ));
-    }
-
-    if let Some(content_length) = response.content_length() {
-        if content_length > PLUGIN_ARCHIVE_MAX_BYTES {
-            return Err(format!(
-                "plugin archive download is too large: {content_length} bytes; limit is {PLUGIN_ARCHIVE_MAX_BYTES} bytes"
-            ));
-        }
-    }
-
-    let mut file = File::create(archive_path).map_err(|error| {
-        format!(
-            "failed to create plugin archive download file: {}: {error}",
-            archive_path.display()
-        )
-    })?;
-    let mut hasher = Sha256::new();
-    let mut downloaded_bytes = 0_u64;
-
-    while let Some(chunk) = response
-        .chunk()
-        .await
-        .map_err(|error| format!("failed while reading plugin archive download: {error}"))?
-    {
-        downloaded_bytes = downloaded_bytes
-            .checked_add(chunk.len() as u64)
-            .ok_or_else(|| "plugin archive download size overflowed".to_string())?;
-
-        if downloaded_bytes > PLUGIN_ARCHIVE_MAX_BYTES {
-            return Err(format!(
-                "plugin archive download is too large: {downloaded_bytes} bytes; limit is {PLUGIN_ARCHIVE_MAX_BYTES} bytes"
-            ));
-        }
-
-        hasher.update(&chunk);
-        file.write_all(&chunk).map_err(|error| {
-            format!(
-                "failed to write plugin archive download: {}: {error}",
-                archive_path.display()
-            )
-        })?;
-    }
-
-    file.flush().map_err(|error| {
-        format!(
-            "failed to flush plugin archive download: {}: {error}",
-            archive_path.display()
-        )
-    })?;
-
-    let actual_sha256 = format!("{:x}", hasher.finalize());
-
-    verify_sha256_digest(&actual_sha256, expected_sha256)?;
-
-    Ok(actual_sha256)
-}
-
-fn validate_plugin_archive_download_url(download_url: &str) -> Result<Url, String> {
-    let download_url = download_url.trim();
-
-    if download_url.is_empty() {
-        return Err("plugin archive download URL is required".to_string());
-    }
-
-    let parsed = Url::parse(download_url)
-        .map_err(|error| format!("plugin archive download URL is invalid: {error}"))?;
-
-    if parsed.scheme() != "https" {
-        return Err("plugin archive download URL must use https".to_string());
-    }
-
-    if !parsed.path().ends_with(PLUGIN_ARCHIVE_EXTENSION) {
-        return Err(format!(
-            "plugin archive download URL must end with {PLUGIN_ARCHIVE_EXTENSION}"
-        ));
-    }
-
-    Ok(parsed)
-}
-
-fn validate_plugin_registry_url(value: &str) -> Result<String, String> {
-    let value = value.trim();
-
-    if value.is_empty() {
-        return Err("plugin registry URL is empty".to_string());
-    }
-
-    let url =
-        Url::parse(value).map_err(|error| format!("plugin registry URL is invalid: {error}"))?;
-
-    if url.scheme() != "https" {
-        return Err("plugin registry URL must use https".to_string());
-    }
-
-    let normalized = url.to_string();
-
-    if normalized != OFFICIAL_PLUGIN_REGISTRY_URL {
-        return Err("plugin registry URL must be the official Glimpse plugin registry".to_string());
-    }
-
-    Ok(normalized)
-}
-
-fn validate_sha256_digest(value: &str) -> Result<String, String> {
-    let value = value.trim();
-
-    if value.len() != 64 || !value.chars().all(|character| character.is_ascii_hexdigit()) {
-        return Err("plugin archive sha256 must be a 64 character hex digest".to_string());
-    }
-
-    Ok(value.to_ascii_lowercase())
-}
-
-fn verify_sha256_digest(actual_sha256: &str, expected_sha256: &str) -> Result<(), String> {
-    if actual_sha256 != expected_sha256 {
-        return Err(format!(
-            "plugin archive checksum mismatch: expected {expected_sha256}, got {actual_sha256}"
-        ));
-    }
-
-    Ok(())
-}
-
 fn install_plugin_from_archive_inner(
     app_data_dir: &Path,
     settings_path: &Path,
@@ -707,7 +557,7 @@ fn extract_plugin_archive(archive_path: &Path, unpacked_root: &Path) -> Result<P
 fn validate_plugin_archive_entries<R: Read + io::Seek>(
     archive: &mut ZipArchive<R>,
 ) -> Result<Option<PathBuf>, String> {
-    if archive.len() == 0 {
+    if archive.is_empty() {
         return Err("plugin archive is empty".to_string());
     }
 
@@ -2525,137 +2375,6 @@ fn i18n_locale_map(
         .get("translations")
         .and_then(serde_json::Value::as_object)
         .or(Some(object))
-}
-
-fn is_valid_locale_code(locale: &str) -> bool {
-    !locale.is_empty()
-        && locale
-            .chars()
-            .all(|character| character.is_ascii_alphanumeric() || matches!(character, '-' | '_'))
-}
-
-fn validate_non_empty(label: &str, value: &str) -> Result<(), String> {
-    if value.trim().is_empty() {
-        return Err(format!("{label} is required"));
-    }
-
-    Ok(())
-}
-
-fn validate_optional_manifest_url(label: &str, value: Option<&str>) -> Result<(), String> {
-    let Some(value) = value else {
-        return Ok(());
-    };
-    let value = value.trim();
-
-    if value.is_empty() {
-        return Err(format!("{label} must not be empty"));
-    }
-
-    if !(value.starts_with("https://") || value.starts_with("http://")) {
-        return Err(format!("{label} must be an http or https URL"));
-    }
-
-    Ok(())
-}
-
-fn is_valid_file_extension(extension: &str) -> bool {
-    let normalized = extension.trim_start_matches('.');
-
-    !normalized.is_empty()
-        && normalized
-            .chars()
-            .all(|character| character.is_ascii_alphanumeric())
-}
-
-fn validate_version(label: &str, value: &str) -> Result<(), String> {
-    parse_version_triplet(value)
-        .map(|_| ())
-        .map_err(|error| format!("{label} {error}"))
-}
-
-fn validate_supported_api_version(api_version: &str) -> Result<(), String> {
-    let requested = parse_version_triplet(api_version)?;
-    let supported = parse_version_triplet(SUPPORTED_PLUGIN_API_VERSION)?;
-
-    if requested.0 != supported.0 {
-        return Err(format!(
-            "unsupported plugin apiVersion {api_version}; supported version is {SUPPORTED_PLUGIN_API_VERSION}"
-        ));
-    }
-
-    if requested > supported {
-        return Err(format!(
-            "plugin apiVersion {api_version} is newer than supported {SUPPORTED_PLUGIN_API_VERSION}"
-        ));
-    }
-
-    Ok(())
-}
-
-fn parse_version_triplet(value: &str) -> Result<(u64, u64, u64), String> {
-    let mut parts = value.split('.');
-    let major = parse_version_part(value, parts.next())?;
-    let minor = parse_version_part(value, parts.next())?;
-    let patch = parse_version_part(value, parts.next())?;
-
-    if parts.next().is_some() {
-        return Err(format!("must be a semantic version triplet: {value}"));
-    }
-
-    Ok((major, minor, patch))
-}
-
-fn parse_version_part(full_value: &str, part: Option<&str>) -> Result<u64, String> {
-    let Some(part) = part else {
-        return Err(format!("must be a semantic version triplet: {full_value}"));
-    };
-
-    if part.is_empty() || !part.chars().all(|character| character.is_ascii_digit()) {
-        return Err(format!("must be a semantic version triplet: {full_value}"));
-    }
-
-    part.parse::<u64>()
-        .map_err(|_| format!("must be a semantic version triplet: {full_value}"))
-}
-
-fn validate_relative_child_path(label: &str, value: &str) -> Result<(), String> {
-    validate_non_empty(label, value)?;
-
-    let path = Path::new(value);
-
-    if path.is_absolute() {
-        return Err(format!("{label} must be relative to the plugin root"));
-    }
-
-    if path
-        .components()
-        .any(|component| matches!(component, std::path::Component::ParentDir))
-    {
-        return Err(format!(
-            "{label} must not contain parent directory segments"
-        ));
-    }
-
-    Ok(())
-}
-
-fn is_valid_plugin_id(plugin_id: &str) -> bool {
-    let mut characters = plugin_id.chars();
-
-    matches!(characters.next(), Some(character) if character.is_ascii_lowercase() || character.is_ascii_digit())
-        && characters.all(|character| {
-            character.is_ascii_lowercase()
-                || character.is_ascii_digit()
-                || matches!(character, '-' | '_' | '.')
-        })
-}
-
-fn is_valid_contribution_id(id: &str) -> bool {
-    !id.is_empty()
-        && id.chars().all(|character| {
-            character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '.' | ':')
-        })
 }
 
 #[cfg(test)]

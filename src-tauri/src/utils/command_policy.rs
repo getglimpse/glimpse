@@ -173,13 +173,12 @@ fn normalize_command_name(value: &str) -> String {
 
     #[cfg(windows)]
     {
-        return name
-            .trim()
+        name.trim()
             .trim_end_matches(".exe")
             .trim_end_matches(".cmd")
             .trim_end_matches(".bat")
             .trim_end_matches(".com")
-            .to_lowercase();
+            .to_lowercase()
     }
 
     #[cfg(not(windows))]

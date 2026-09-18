@@ -128,7 +128,7 @@ mod tests {
         .unwrap();
 
         commit_index_mutation(&state, |writer, fields| {
-            delete_ids(writer, fields, &[item.id.clone()])
+            delete_ids(writer, fields, std::slice::from_ref(&item.id))
         })
         .unwrap();
 

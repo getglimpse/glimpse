@@ -1,5 +1,4 @@
 import {
-  useCallback,
   useEffect,
   useId,
   useRef,
@@ -22,250 +21,48 @@ import remarkGfm from "remark-gfm";
 
 import { openerApi } from "@/api/opener";
 import {
-  getRemotePluginInstallErrorMessage,
-  isRegistryEntryApiSupported,
-  OFFICIAL_PLUGIN_REGISTRY_URL,
-  validatePluginRegistry,
-} from "@/features/plugins/remotePluginRegistry";
-import {
-  getPluginDiscoveryErrors,
-  getPlugins,
-  installPluginFromUrl,
-  loadPlugins,
-  setPluginEnabled,
-  setPluginTrusted,
-  subscribeToPluginChanges,
-  uninstallPlugin,
-} from "@/features/plugins/pluginRegistry";
+  createRemotePluginViews,
+  formatRemoteDownloadCount,
+  formatRemoteRelativeDate,
+  getRemotePluginReadmeUrl,
+  remotePluginMatchesSearch,
+  resolvePluginReadmeLink,
+  type RemotePluginInstallKind,
+  type RemotePluginInstallState,
+  type RemotePluginManagementState,
+} from "@/features/plugins/remotePluginViewModel";
+import { useRemotePluginCatalog } from "@/features/plugins/useRemotePluginCatalog";
 import { useI18nContext } from "@/i18n/I18nProvider";
 import type { TranslationFunctions } from "@/i18n/i18n-types";
 import type { PluginRegistryEntry, PluginRegistryItem } from "@/types";
 
-const remotePluginMatchesSearch = (
-  plugin: PluginRegistryEntry,
-  normalizedQuery: string,
-) =>
-  [
-    plugin.name,
-    plugin.id,
-    plugin.version,
-    `v${plugin.version}`,
-    plugin.description ?? "",
-    plugin.author ?? "",
-    plugin.category ?? "",
-    plugin.releaseDate ?? "",
-    plugin.readmeUrl ?? "",
-    plugin.sourceUrl ?? "",
-    plugin.repositoryUrl ?? "",
-    plugin.homepageUrl ?? "",
-  ]
-    .join(" ")
-    .toLowerCase()
-    .includes(normalizedQuery);
-
 const REMOTE_PLUGIN_README_MAX_LENGTH = 100_000;
-
-type RemotePluginInstallState = "downloading" | "installing" | "failed";
-type RemotePluginInstallKind =
-  | "not-installed"
-  | "installed"
-  | "update-available"
-  | "unsupported";
-type RemotePluginManagementState = "enabling" | "disabling" | "uninstalling";
-
-const compareVersionTriplets = (left: string, right: string): number => {
-  const leftParts = left.split(".").map((part) => Number(part));
-  const rightParts = right.split(".").map((part) => Number(part));
-
-  for (let index = 0; index < 3; index += 1) {
-    const leftPart = leftParts[index] ?? 0;
-    const rightPart = rightParts[index] ?? 0;
-
-    if (leftPart !== rightPart) {
-      return leftPart > rightPart ? 1 : -1;
-    }
-  }
-
-  return 0;
-};
-
-const getRemotePluginInstallKind = (
-  entry: PluginRegistryEntry,
-  installedPlugin: PluginRegistryItem | undefined,
-): RemotePluginInstallKind => {
-  if (!isRegistryEntryApiSupported(entry)) {
-    return "unsupported";
-  }
-
-  if (!installedPlugin) {
-    return "not-installed";
-  }
-
-  if (compareVersionTriplets(entry.version, installedPlugin.version) > 0) {
-    return "update-available";
-  }
-
-  return "installed";
-};
-
-const sha256DigestPattern = /^[a-f0-9]{64}$/i;
-
-const isRemoteManagedInstalledPlugin = (
-  entry: PluginRegistryEntry,
-  installedPlugin: PluginRegistryItem,
-) => {
-  const provenance = installedPlugin.trustStatus?.provenance;
-
-  if (
-    !provenance ||
-    provenance.installSource !== "remote" ||
-    provenance.registryUrl !== OFFICIAL_PLUGIN_REGISTRY_URL
-  ) {
-    return false;
-  }
-
-  const registrySha256 = provenance.registrySha256?.toLowerCase();
-  const installedPackageSha256 =
-    provenance.installedPackageSha256?.toLowerCase();
-
-  if (
-    !registrySha256 ||
-    !installedPackageSha256 ||
-    !sha256DigestPattern.test(registrySha256) ||
-    registrySha256 !== installedPackageSha256 ||
-    !isOfficialPluginDownloadUrlForVersion(
-      provenance.downloadUrl,
-      entry.id,
-      installedPlugin.version,
-    )
-  ) {
-    return false;
-  }
-
-  if (installedPlugin.version !== entry.version) {
-    return true;
-  }
-
-  return (
-    provenance.downloadUrl === entry.downloadUrl &&
-    registrySha256 === entry.sha256.toLowerCase()
-  );
-};
-
-const isOfficialPluginDownloadUrlForVersion = (
-  downloadUrl: string | null | undefined,
-  pluginId: string,
-  version: string,
-) => {
-  if (!downloadUrl) {
-    return false;
-  }
-
-  try {
-    const url = new URL(downloadUrl);
-
-    if (!isGitHubUrl(url)) {
-      return false;
-    }
-
-    const [owner, repo, releases, download, tag, fileName] = url.pathname
-      .split("/")
-      .filter(Boolean);
-
-    return (
-      owner === "getglimpse" &&
-      repo === "plugins" &&
-      releases === "releases" &&
-      download === "download" &&
-      tag === `${pluginId}-v${version}` &&
-      fileName === `${pluginId}-${version}.glimpse-plugin.zip`
-    );
-  } catch {
-    return false;
-  }
-};
 
 export const RemotePluginPage = () => {
   const { LL, locale } = useI18nContext();
   const panelRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
-  const [plugins, setPlugins] = useState<PluginRegistryItem[]>(() =>
-    getPlugins(),
-  );
-  const [discoveryErrors, setDiscoveryErrors] = useState(() =>
-    getPluginDiscoveryErrors(),
-  );
   const [pluginSearchQuery, setPluginSearchQuery] = useState("");
   const [selectedRemotePluginId, setSelectedRemotePluginId] = useState<
     string | null
   >(null);
   const [remoteLayoutWide, setRemoteLayoutWide] = useState(false);
   const [remoteDetailDialogOpen, setRemoteDetailDialogOpen] = useState(false);
-  const [remotePlugins, setRemotePlugins] = useState<PluginRegistryEntry[]>([]);
-  const [remoteRegistryLoading, setRemoteRegistryLoading] = useState(false);
-  const [remoteRegistryError, setRemoteRegistryError] = useState<string | null>(
-    null,
-  );
-  const [remoteInstallStates, setRemoteInstallStates] = useState<
-    Partial<Record<string, RemotePluginInstallState>>
-  >({});
-  const [remoteInstallErrors, setRemoteInstallErrors] = useState<
-    Partial<Record<string, string>>
-  >({});
-  const [remoteManagementStates, setRemoteManagementStates] = useState<
-    Partial<Record<string, RemotePluginManagementState>>
-  >({});
-  const [remoteManagementMessage, setRemoteManagementMessage] = useState<
-    string | null
-  >(null);
-
-  const loadRemoteRegistry = useCallback(async () => {
-    setRemoteRegistryLoading(true);
-    setRemoteRegistryError(null);
-
-    try {
-      const response = await fetch(OFFICIAL_PLUGIN_REGISTRY_URL, {
-        cache: "no-store",
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      const result = validatePluginRegistry(await response.json());
-
-      if (!result.ok) {
-        throw new Error(result.errors.join("\n"));
-      }
-
-      setRemotePlugins(result.registry.plugins);
-    } catch (error) {
-      setRemotePlugins([]);
-      setRemoteRegistryError(String(error));
-    } finally {
-      setRemoteRegistryLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void loadPlugins()
-      .then(() => {
-        setPlugins(getPlugins());
-        setDiscoveryErrors(getPluginDiscoveryErrors());
-      })
-      .catch((error) => {
-        console.warn("Failed to load installed plugins for store:", error);
-      });
-
-    return subscribeToPluginChanges(() => {
-      setPlugins(getPlugins());
-      setDiscoveryErrors(getPluginDiscoveryErrors());
-    });
-  }, []);
-
-  useEffect(() => {
-    void loadRemoteRegistry();
-  }, [loadRemoteRegistry]);
+  const {
+    plugins,
+    discoveryErrors,
+    remotePlugins,
+    remoteRegistryLoading,
+    remoteRegistryError,
+    remoteInstallStates,
+    remoteInstallErrors,
+    remoteManagementStates,
+    remoteManagementMessage,
+    loadRemoteRegistry,
+    installRemotePlugin,
+    setRemotePluginEnabled,
+    uninstallRemotePlugin,
+  } = useRemotePluginCatalog(LL);
 
   useEffect(() => {
     const element = contentRef.current;
@@ -309,182 +106,8 @@ export const RemotePluginPage = () => {
     }
   }, [remoteLayoutWide]);
 
-  const handleRemoteInstall = (entry: PluginRegistryEntry) => {
-    const installedPlugin = plugins.find((plugin) => plugin.id === entry.id);
-    const installKind = getRemotePluginInstallKind(entry, installedPlugin);
-
-    if (installKind === "installed" || installKind === "unsupported") {
-      return;
-    }
-
-    setRemoteInstallStates((states) => ({
-      ...states,
-      [entry.id]: "downloading",
-    }));
-    setRemoteInstallErrors((errors) => {
-      const nextErrors = { ...errors };
-
-      delete nextErrors[entry.id];
-
-      return nextErrors;
-    });
-    setRemoteManagementMessage(null);
-
-    const installPhaseTimer = window.setTimeout(() => {
-      setRemoteInstallStates((states) =>
-        states[entry.id] === "downloading"
-          ? { ...states, [entry.id]: "installing" }
-          : states,
-      );
-    }, 400);
-
-    void installPluginFromUrl(
-      entry.downloadUrl,
-      entry.sha256,
-      installKind === "update-available",
-      OFFICIAL_PLUGIN_REGISTRY_URL,
-    )
-      .then((result) => {
-        setPlugins(getPlugins());
-        setDiscoveryErrors(getPluginDiscoveryErrors());
-        setRemoteManagementMessage(
-          LL.pluginPage.remote.installSuccess({
-            pluginId: result.pluginId,
-          }),
-        );
-      })
-      .catch((error) => {
-        const message = getRemotePluginInstallErrorMessage(error);
-
-        setRemoteInstallErrors((errors) => ({
-          ...errors,
-          [entry.id]: message,
-        }));
-        setRemoteManagementMessage(
-          LL.pluginPage.remote.installFailed({ error: message }),
-        );
-      })
-      .finally(() => {
-        window.clearTimeout(installPhaseTimer);
-        setRemoteInstallStates((states) => {
-          const nextStates = { ...states };
-
-          delete nextStates[entry.id];
-
-          return nextStates;
-        });
-      });
-  };
-
-  const handleRemotePluginEnabledChange = (
-    plugin: PluginRegistryItem,
-    enabled: boolean,
-  ) => {
-    const nextState: RemotePluginManagementState = enabled
-      ? "enabling"
-      : "disabling";
-
-    setRemoteManagementStates((states) => ({
-      ...states,
-      [plugin.id]: nextState,
-    }));
-    setRemoteManagementMessage(null);
-
-    const updatePluginState = async () => {
-      if (enabled && !plugin.trusted) {
-        await setPluginTrusted(plugin.id, true);
-      }
-
-      setPluginEnabled(plugin.id, enabled);
-    };
-
-    void updatePluginState()
-      .then(() => {
-        setPlugins(getPlugins());
-        setDiscoveryErrors(getPluginDiscoveryErrors());
-      })
-      .catch((error) => {
-        setRemoteManagementMessage(
-          enabled
-            ? LL.pluginPage.remote.enableFailed({ error: String(error) })
-            : LL.pluginPage.remote.disableFailed({ error: String(error) }),
-        );
-      })
-      .finally(() => {
-        setRemoteManagementStates((states) => {
-          const nextStates = { ...states };
-
-          delete nextStates[plugin.id];
-
-          return nextStates;
-        });
-      });
-  };
-
-  const handleRemotePluginUninstall = (plugin: PluginRegistryItem) => {
-    const confirmed = window.confirm(
-      LL.pluginPage.pluginRow.uninstallConfirm({
-        name: plugin.name,
-      }),
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    setRemoteManagementStates((states) => ({
-      ...states,
-      [plugin.id]: "uninstalling",
-    }));
-    setRemoteManagementMessage(null);
-
-    void uninstallPlugin(plugin.id)
-      .then(() => {
-        setPlugins(getPlugins());
-        setDiscoveryErrors(getPluginDiscoveryErrors());
-        setRemoteManagementMessage(
-          LL.pluginPage.pluginRow.uninstallSuccess({
-            pluginId: plugin.id,
-          }),
-        );
-      })
-      .catch((error) => {
-        setRemoteManagementMessage(
-          LL.pluginPage.remote.uninstallFailed({ error: String(error) }),
-        );
-      })
-      .finally(() => {
-        setRemoteManagementStates((states) => {
-          const nextStates = { ...states };
-
-          delete nextStates[plugin.id];
-
-          return nextStates;
-        });
-      });
-  };
-
   const normalizedPluginSearchQuery = pluginSearchQuery.trim().toLowerCase();
-  const installedPluginsById = new Map(
-    plugins.map((plugin) => [plugin.id, plugin]),
-  );
-  const remotePluginViews = remotePlugins.map((entry) => {
-    const installedPlugin = installedPluginsById.get(entry.id);
-    const remoteManagedInstalledPlugin =
-      installedPlugin && isRemoteManagedInstalledPlugin(entry, installedPlugin)
-        ? installedPlugin
-        : undefined;
-
-    return {
-      entry,
-      installedPlugin: remoteManagedInstalledPlugin,
-      conflictingInstalledPlugin:
-        installedPlugin && !remoteManagedInstalledPlugin
-          ? installedPlugin
-          : undefined,
-      installKind: getRemotePluginInstallKind(entry, installedPlugin),
-    };
-  });
+  const remotePluginViews = createRemotePluginViews(remotePlugins, plugins);
   const filteredRemotePluginViews =
     normalizedPluginSearchQuery.length > 0
       ? remotePluginViews.filter(({ entry }) =>
@@ -649,10 +272,10 @@ export const RemotePluginPage = () => {
                     LL={LL}
                     locale={locale}
                     onInstall={() => {
-                      handleRemoteInstall(selectedRemotePluginView.entry);
+                      installRemotePlugin(selectedRemotePluginView.entry);
                     }}
-                    onEnabledChange={handleRemotePluginEnabledChange}
-                    onUninstall={handleRemotePluginUninstall}
+                    onEnabledChange={setRemotePluginEnabled}
+                    onUninstall={uninstallRemotePlugin}
                     surface="inline"
                   />
                 )}
@@ -681,10 +304,10 @@ export const RemotePluginPage = () => {
             LL={LL}
             locale={locale}
             onInstall={() => {
-              handleRemoteInstall(selectedRemotePluginView.entry);
+              installRemotePlugin(selectedRemotePluginView.entry);
             }}
-            onEnabledChange={handleRemotePluginEnabledChange}
-            onUninstall={handleRemotePluginUninstall}
+            onEnabledChange={setRemotePluginEnabled}
+            onUninstall={uninstallRemotePlugin}
             onClose={() => {
               setRemoteDetailDialogOpen(false);
             }}
@@ -1289,49 +912,6 @@ const RemotePluginMetadataLine = ({
   </div>
 );
 
-const getRemotePluginReadmeUrl = (entry: PluginRegistryEntry) =>
-  entry.readmeUrl ??
-  getRemotePluginReadmeUrlFromRepositoryUrl(entry.repositoryUrl, entry.id);
-
-const getRemotePluginReadmeUrlFromRepositoryUrl = (
-  repositoryUrl: string | undefined,
-  pluginId: string,
-) => {
-  if (!repositoryUrl) {
-    return undefined;
-  }
-
-  try {
-    const url = new URL(repositoryUrl);
-    const [owner, repo] = getGitHubRepositoryPath(url);
-
-    if (owner !== "getglimpse" || repo !== "plugins") {
-      return undefined;
-    }
-
-    return `https://raw.githubusercontent.com/getglimpse/plugins/main/${pluginId}/README.md`;
-  } catch {
-    return undefined;
-  }
-};
-
-const getGitHubRepositoryPath = (url: URL) => {
-  if (!isGitHubUrl(url)) {
-    return [];
-  }
-
-  return url.pathname.split("/").filter(Boolean);
-};
-
-const isGitHubUrl = (url: URL) => {
-  const host = url.hostname.toLowerCase();
-
-  return (
-    url.protocol === "https:" &&
-    (host === "github.com" || host === "www.github.com")
-  );
-};
-
 const PluginReadmeMarkdown = ({
   content,
   baseUrl,
@@ -1389,56 +969,6 @@ const PluginReadmeMarkdown = ({
     </ReactMarkdown>
   </div>
 );
-
-const formatRemoteDownloadCount = (downloadCount: number, locale: string) =>
-  new Intl.NumberFormat(locale, {
-    maximumFractionDigits: 1,
-    notation: "compact",
-  }).format(downloadCount);
-
-const formatRemoteRelativeDate = (date: string, locale: string) => {
-  const timestamp = Date.parse(`${date}T00:00:00Z`);
-
-  if (!Number.isFinite(timestamp)) {
-    return date;
-  }
-
-  const diffInSeconds = Math.round((timestamp - Date.now()) / 1000);
-  const units: Array<[Intl.RelativeTimeFormatUnit, number]> = [
-    ["year", 60 * 60 * 24 * 365],
-    ["month", 60 * 60 * 24 * 30],
-    ["week", 60 * 60 * 24 * 7],
-    ["day", 60 * 60 * 24],
-    ["hour", 60 * 60],
-    ["minute", 60],
-  ];
-  const formatter = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
-
-  for (const [unit, seconds] of units) {
-    if (Math.abs(diffInSeconds) >= seconds || unit === "minute") {
-      return formatter.format(Math.round(diffInSeconds / seconds), unit);
-    }
-  }
-
-  return formatter.format(0, "minute");
-};
-
-const resolvePluginReadmeLink = (
-  href: string | undefined,
-  baseUrl: string | undefined,
-) => {
-  if (!href) {
-    return null;
-  }
-
-  try {
-    const url = baseUrl ? new URL(href, baseUrl) : new URL(href);
-
-    return url.protocol === "https:" ? url.toString() : null;
-  } catch {
-    return null;
-  }
-};
 
 const openRemotePluginLink = (url: string) => {
   void openerApi.openExternalUrl(url).catch((openError) => {
