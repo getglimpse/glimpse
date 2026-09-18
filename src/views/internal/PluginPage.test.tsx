@@ -11,8 +11,8 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { I18nProvider } from "@/i18n/I18nProvider";
-import { OFFICIAL_PLUGIN_REGISTRY_URL } from "@/features/plugins/remotePluginRegistry";
-import { OPEN_LOCAL_PLUGIN_INSTALL_EVENT } from "@/features/plugins/pluginPageEvents";
+import { OFFICIAL_PLUGIN_REGISTRY_URL } from "@/features/plugins/remote/registry";
+import { OPEN_LOCAL_PLUGIN_INSTALL_EVENT } from "@/features/plugins/events/page";
 import type {
   GlimpsePlugin,
   PluginInstallResult,
@@ -64,7 +64,7 @@ const openerMocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("@/features/plugins/pluginRegistry", () => ({
+vi.mock("@/features/plugins/registry", () => ({
   getPluginDiscoveryErrors: pluginRegistryMocks.getPluginDiscoveryErrors,
   getPlugins: pluginRegistryMocks.getPlugins,
   installPluginFromArchive: pluginRegistryMocks.installPluginFromArchive,

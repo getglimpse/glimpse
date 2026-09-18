@@ -3,7 +3,7 @@ import { Globe, FileText, FileCode, Settings, Star, Plug } from "lucide-react";
 import { useI18nContext } from "@/i18n/I18nProvider";
 import type { TranslationFunctions } from "@/i18n/i18n-types";
 import { getInternalPageTitle } from "@/utils/internalPageTitle";
-import { isPluginInternalPage } from "@/features/plugins/pluginRegistry";
+import { isPluginInternalPage } from "@/features/plugins/registry";
 
 import { IndexItem, SearchSnippet } from "@/types";
 

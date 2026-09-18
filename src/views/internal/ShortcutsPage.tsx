@@ -6,7 +6,7 @@ import { settingsApi } from "@/api/settings";
 import {
   getInternalPageContributions,
   subscribeToPluginChanges,
-} from "@/features/plugins/pluginRegistry";
+} from "@/features/plugins/registry";
 import { useI18nContext } from "@/i18n/I18nProvider";
 import type { TranslationFunctions } from "@/i18n/i18n-types";
 import {

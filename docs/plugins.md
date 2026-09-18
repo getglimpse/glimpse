@@ -8,13 +8,15 @@ Plugins can add searchable pages, actions, and file viewers. For example, a plug
 
 Glimpse plugins fall into three main types based on what they do:
 
-| Type | What it does | Examples |
-| --- | --- | --- |
-| Tool | Opens a searchable page and runs an operation from text or form input | Numeric calculations, date calculations, text processing |
-| Converter | Converts selected or dropped files and saves the results as files | Markdown-to-HTML conversion, text file normalization |
-| Viewer | Shows a file type that Glimpse does not handle by default in the Preview panel | CSV, PDF, and Office document previews |
+| Type      | What it does                                                                   | Examples                                                 |
+| --------- | ------------------------------------------------------------------------------ | -------------------------------------------------------- |
+| Tool      | Opens a searchable page and runs an operation from text or form input          | Numeric calculations, date calculations, text processing |
+| Converter | Converts selected or dropped files and saves the results as files              | Markdown-to-HTML conversion, text file normalization     |
+| Viewer    | Shows a file type that Glimpse does not handle by default in the Preview panel | CSV, PDF, and Office document previews                   |
 
 A Tool page can use a Playground for a single text input or a Form for several fields. A Converter uses a page designed for selecting or dropping files. A Viewer runs in the Preview panel instead of a plugin page.
+
+A Converter's Settings tab lets you switch between Manual and Immediate execution, and saves the choice for each Converter tab. The default Manual mode stages selected or dropped files so you can review them before clicking Run. Immediate mode processes the next selected or dropped files right away. A Converter normally creates new output files. When it supports replacing its inputs, a segmented control in the upper-right corner of the drop area lets you choose between creating new files and overwriting the originals. For safety, overwrite is available only in Manual mode for files dropped from the file system.
 
 A plugin can combine more than one capability. For example, a Viewer can provide file previews while also including a page for its settings and usage information.
 

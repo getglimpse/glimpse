@@ -1,5 +1,5 @@
 import { TranslationFunctions } from "@/i18n/i18n-types";
-import { getInternalPageContribution } from "@/features/plugins/pluginRegistry";
+import { getInternalPageContribution } from "@/features/plugins/registry";
 
 type HelpCommand = {
   command: string;

@@ -23,7 +23,7 @@ const testPlugin = (id = "runtime-plugin"): GlimpsePlugin => ({
 const loadRuntimeModule = async () => {
   vi.resetModules();
 
-  return import("./pluginRuntime");
+  return import(".");
 };
 
 const mockPluginApi = (
@@ -195,7 +195,7 @@ afterEach(() => {
 describe("pluginRuntime", () => {
   it("activates main.js, registers actions, pages, viewers, and injects styles", async () => {
     const runtimeModule = await loadRuntimeModule();
-    const i18nModule = await import("./pluginI18n");
+    const i18nModule = await import("../registry/i18n");
     const plugin: GlimpsePlugin = {
       ...testPlugin(),
       i18n: {

@@ -30,8 +30,8 @@ import {
   type RemotePluginInstallKind,
   type RemotePluginInstallState,
   type RemotePluginManagementState,
-} from "@/features/plugins/remotePluginViewModel";
-import { useRemotePluginCatalog } from "@/features/plugins/useRemotePluginCatalog";
+} from "@/features/plugins/remote/viewModel";
+import { useRemotePluginCatalog } from "@/features/plugins/remote/useCatalog";
 import { useI18nContext } from "@/i18n/I18nProvider";
 import type { TranslationFunctions } from "@/i18n/i18n-types";
 import type { PluginRegistryEntry, PluginRegistryItem } from "@/types";

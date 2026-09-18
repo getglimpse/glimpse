@@ -1,7 +1,7 @@
 // utils/internalPageTitle.ts
 import type { TranslationFunctions } from "@/i18n/i18n-types";
 import type { IndexItem } from "@/types";
-import { getInternalPageContribution } from "@/features/plugins/pluginRegistry";
+import { getInternalPageContribution } from "@/features/plugins/registry";
 
 export const getInternalPageTitle = (
   page: Extract<IndexItem["preview"], { type: "internal" }>["page"],

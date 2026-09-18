@@ -1,7 +1,7 @@
 import {
   isRegistryEntryApiSupported,
   OFFICIAL_PLUGIN_REGISTRY_URL,
-} from "./remotePluginRegistry";
+} from "./registry";
 import type { PluginRegistryEntry, PluginRegistryItem } from "@/types";
 
 export type RemotePluginInstallState = "downloading" | "installing" | "failed";

@@ -8,7 +8,7 @@ import {
   getRemotePluginInstallErrorMessage,
   isRegistryEntryApiSupported,
   validatePluginRegistry,
-} from "./remotePluginRegistry";
+} from "./registry";
 
 const digest =
   "f8e403e2374041ab56e8c44469fb639c45643237c7c543fd9efedab9b69c41b7";

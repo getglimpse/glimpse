@@ -56,6 +56,13 @@ pub struct WritePluginTextOutputPayload {
     pub body: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OverwritePluginTextInputPayload {
+    pub file_path: String,
+    pub body: String,
+}
+
 #[tauri::command]
 pub fn read_text_file(
     settings_path: State<SharedSettingsPath>,
@@ -201,6 +208,13 @@ pub fn write_plugin_text_output(payload: WritePluginTextOutputPayload) -> Result
         payload.file_name,
         payload.body,
     )
+}
+
+#[tauri::command]
+pub fn overwrite_plugin_text_input(
+    payload: OverwritePluginTextInputPayload,
+) -> Result<String, String> {
+    crate::store::file::overwrite_text_file_from_path(payload.file_path, payload.body)
 }
 
 #[tauri::command]

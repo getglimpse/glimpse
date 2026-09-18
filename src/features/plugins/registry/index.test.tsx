@@ -81,7 +81,7 @@ const registryPlugin = (
 const loadRegistryModule = async () => {
   vi.resetModules();
 
-  return import("./pluginRegistry");
+  return import(".");
 };
 
 beforeEach(() => {

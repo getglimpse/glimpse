@@ -6,10 +6,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { PluginInternalPageManifest } from "@/types";
 
-import { PluginInternalPageView } from "./PluginInternalPageView";
-import { getPluginRuntime } from "./pluginRuntime";
+import { PluginInternalPageView } from "./InternalPage";
+import { getPluginRuntime } from "../runtime";
 
-vi.mock("./pluginRuntime", () => ({
+vi.mock("../runtime", () => ({
   getPluginRuntime: vi.fn(() => undefined),
   getPluginRuntimeSnapshot: vi.fn(() => ({
     pluginId: "test-plugin",
@@ -52,9 +52,7 @@ describe("PluginInternalPageView", () => {
       container.querySelector("[data-glimpse-plugin-page='test-plugin']")
         ?.className,
     ).toContain("overflow-hidden");
-    expect(
-      screen.queryByRole("heading", { name: "Test Plugin" }),
-    ).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Test Plugin" })).toBeNull();
     expect(screen.getByRole("heading", { name: "Overview" })).toBeTruthy();
     expect(screen.getByText("Selectable plugin page text")).toBeTruthy();
   });
@@ -148,6 +146,9 @@ describe("PluginInternalPageView", () => {
           description,
           emptyLabel,
           chooseFileLabel,
+          runLabel,
+          createModeLabel,
+          overwriteModeLabel,
           resultsLabel,
           revealLabel,
           clearLabel,
@@ -159,6 +160,9 @@ describe("PluginInternalPageView", () => {
           description?: ReactNode;
           emptyLabel?: ReactNode;
           chooseFileLabel?: ReactNode;
+          runLabel?: ReactNode;
+          createModeLabel?: ReactNode;
+          overwriteModeLabel?: ReactNode;
           resultsLabel?: ReactNode;
           revealLabel?: ReactNode;
           clearLabel?: ReactNode;
@@ -171,6 +175,9 @@ describe("PluginInternalPageView", () => {
             <div>{description}</div>
             <div>{emptyLabel}</div>
             <div>{chooseFileLabel}</div>
+            <div>{runLabel}</div>
+            <div>{createModeLabel}</div>
+            <div>{overwriteModeLabel}</div>
             <div>{resultsLabel}</div>
             <div>{revealLabel}</div>
             <div>{clearLabel}</div>
@@ -221,6 +228,13 @@ describe("PluginInternalPageView", () => {
             description: "日本語の説明",
             emptyLabel: "ここにファイルをドロップ",
             chooseFileLabel: "ファイルを選択",
+            execution: "manual",
+            outputModes: ["create", "overwrite"],
+            runLabel: "実行",
+            manualExecutionLabel: "手動",
+            immediateExecutionLabel: "即時",
+            createModeLabel: "新規作成",
+            overwriteModeLabel: "上書き",
             resultsLabel: "結果",
             revealLabel: "表示",
             clearLabel: "クリア",
@@ -233,16 +247,17 @@ describe("PluginInternalPageView", () => {
       },
     };
 
-    render(
-      <PluginInternalPageView
-        page={page}
-        pluginId="converter-plugin"
-      />,
-    );
+    render(<PluginInternalPageView page={page} pluginId="converter-plugin" />);
 
     expect(screen.getByText("日本語の説明")).toBeTruthy();
     expect(screen.getByText("ここにファイルをドロップ")).toBeTruthy();
     expect(screen.getByText("ファイルを選択")).toBeTruthy();
+    expect(screen.getByText("実行")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Settings" })).toBeTruthy();
+    expect(screen.getByText("手動")).toBeTruthy();
+    expect(screen.getByText("即時")).toBeTruthy();
+    expect(screen.getByText("新規作成")).toBeTruthy();
+    expect(screen.getByText("上書き")).toBeTruthy();
     expect(screen.getByText("結果")).toBeTruthy();
     expect(screen.getByText("表示")).toBeTruthy();
     expect(screen.getByText("クリア")).toBeTruthy();

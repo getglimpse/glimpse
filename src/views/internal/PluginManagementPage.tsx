@@ -15,7 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
-import { OPEN_LOCAL_PLUGIN_INSTALL_EVENT } from "@/features/plugins/pluginPageEvents";
+import { OPEN_LOCAL_PLUGIN_INSTALL_EVENT } from "@/features/plugins/events/page";
 import {
   getPluginDiscoveryErrors,
   getPlugins,
@@ -27,7 +27,7 @@ import {
   setPluginTrusted,
   subscribeToPluginChanges,
   uninstallPlugin,
-} from "@/features/plugins/pluginRegistry";
+} from "@/features/plugins/registry";
 import { useI18nContext } from "@/i18n/I18nProvider";
 import type { TranslationFunctions } from "@/i18n/i18n-types";
 import type { PluginRegistryItem } from "@/types";

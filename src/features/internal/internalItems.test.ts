@@ -24,7 +24,7 @@ const item = (
   },
 });
 
-vi.mock("@/features/plugins/pluginRegistry", () => ({
+vi.mock("@/features/plugins/registry", () => ({
   getPluginInternalItems: () => [
     item("internal://plugin:test-plugin", "Test Plugin"),
     item("internal://plugin:title-match", "Needle Title", {
@@ -50,9 +50,9 @@ describe("internalItems", () => {
   it("keeps plugin actions out of the Internal item list", async () => {
     const { searchInternalItems } = await import("./internalItems");
 
-    expect(searchInternalItems(":").map((result) => result.item.title)).toContain(
-      "Test Plugin",
-    );
+    expect(
+      searchInternalItems(":").map((result) => result.item.title),
+    ).toContain("Test Plugin");
     expect(
       searchInternalItems(":").map((result) => result.item.title),
     ).not.toContain("Say Hello");
@@ -61,9 +61,9 @@ describe("internalItems", () => {
   it("keeps slash search scoped to plugin playground pages", async () => {
     const { searchInternalItems } = await import("./internalItems");
 
-    expect(searchInternalItems("/").map((result) => result.item.title)).toEqual([
-      "Playground Plugin",
-    ]);
+    expect(searchInternalItems("/").map((result) => result.item.title)).toEqual(
+      ["Playground Plugin"],
+    );
   });
 
   it("ranks internal results by title, aliases, then tags", async () => {

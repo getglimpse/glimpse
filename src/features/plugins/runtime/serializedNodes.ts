@@ -1,10 +1,10 @@
 import type { ComponentType } from "react";
 
-import type { PluginComponents } from "./pluginComponents";
+import type { PluginComponents } from "../components";
 import type {
   SerializedPluginElement,
   SerializedPluginNode,
-} from "./pluginSandboxProtocol";
+} from "./sandboxProtocol";
 
 export const ALLOWED_HTML_ELEMENTS = new Set([
   "div",
@@ -50,6 +50,8 @@ export const COMPONENT_PLUGIN_PROPS: Record<string, string[]> = {
     "multiple",
     "maxBytes",
     "maxFiles",
+    "execution",
+    "outputModes",
     "outputDirectoryPreference",
     "title",
     "description",
@@ -57,6 +59,9 @@ export const COMPONENT_PLUGIN_PROPS: Record<string, string[]> = {
     "emptyLabel",
     "successLabel",
     "convertingLabel",
+    "runLabel",
+    "createModeLabel",
+    "overwriteModeLabel",
     "resultsLabel",
     "revealLabel",
     "clearLabel",

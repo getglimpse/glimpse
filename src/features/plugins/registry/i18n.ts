@@ -188,6 +188,44 @@ export const localizeInternalPage = (
                       tab.convertingLabelFallback ??
                       "Converting",
                   ),
+                  runLabel: translateDeclaredString(
+                    plugin,
+                    tab.runLabelKey,
+                    tab.runLabelFallback,
+                    tab.runLabel ?? tab.runLabelFallback ?? "Run",
+                  ),
+                  manualExecutionLabel: translateDeclaredString(
+                    plugin,
+                    tab.manualExecutionLabelKey,
+                    tab.manualExecutionLabelFallback,
+                    tab.manualExecutionLabel ??
+                      tab.manualExecutionLabelFallback ??
+                      "Manual",
+                  ),
+                  immediateExecutionLabel: translateDeclaredString(
+                    plugin,
+                    tab.immediateExecutionLabelKey,
+                    tab.immediateExecutionLabelFallback,
+                    tab.immediateExecutionLabel ??
+                      tab.immediateExecutionLabelFallback ??
+                      "Immediate",
+                  ),
+                  createModeLabel: translateDeclaredString(
+                    plugin,
+                    tab.createModeLabelKey,
+                    tab.createModeLabelFallback,
+                    tab.createModeLabel ??
+                      tab.createModeLabelFallback ??
+                      "Create new",
+                  ),
+                  overwriteModeLabel: translateDeclaredString(
+                    plugin,
+                    tab.overwriteModeLabelKey,
+                    tab.overwriteModeLabelFallback,
+                    tab.overwriteModeLabel ??
+                      tab.overwriteModeLabelFallback ??
+                      "Overwrite",
+                  ),
                   resultsLabel: translateDeclaredString(
                     plugin,
                     tab.resultsLabelKey,
@@ -210,19 +248,25 @@ export const localizeInternalPage = (
                     plugin,
                     tab.fileColumnLabelKey,
                     tab.fileColumnLabelFallback,
-                    tab.fileColumnLabel ?? tab.fileColumnLabelFallback ?? "File",
+                    tab.fileColumnLabel ??
+                      tab.fileColumnLabelFallback ??
+                      "File",
                   ),
                   sizeColumnLabel: translateDeclaredString(
                     plugin,
                     tab.sizeColumnLabelKey,
                     tab.sizeColumnLabelFallback,
-                    tab.sizeColumnLabel ?? tab.sizeColumnLabelFallback ?? "Size",
+                    tab.sizeColumnLabel ??
+                      tab.sizeColumnLabelFallback ??
+                      "Size",
                   ),
                   pathColumnLabel: translateDeclaredString(
                     plugin,
                     tab.pathColumnLabelKey,
                     tab.pathColumnLabelFallback,
-                    tab.pathColumnLabel ?? tab.pathColumnLabelFallback ?? "Path",
+                    tab.pathColumnLabel ??
+                      tab.pathColumnLabelFallback ??
+                      "Path",
                   ),
                   emptyResultsLabel: translateDeclaredString(
                     plugin,
@@ -262,7 +306,9 @@ export const localizeInternalPage = (
                         plugin,
                         option.labelKey,
                         option.labelFallback,
-                        option.label ?? option.labelFallback ?? String(option.value),
+                        option.label ??
+                          option.labelFallback ??
+                          String(option.value),
                       ),
                     })),
                   })),
@@ -419,9 +465,9 @@ const pageKeyFactory =
     const pageKeys = getPageKeys(plugin, page);
 
     return fields.flatMap((field) =>
-      pageKeys.map((pageKey) => `pages.${pageKey}.${field}`).concat(
-        `internalPages.${page.id}.${field}`,
-      ),
+      pageKeys
+        .map((pageKey) => `pages.${pageKey}.${field}`)
+        .concat(`internalPages.${page.id}.${field}`),
     );
   };
 

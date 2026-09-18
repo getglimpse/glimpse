@@ -437,6 +437,23 @@ pub fn write_text_file_in_directory(
     Ok(file_path.to_string_lossy().to_string())
 }
 
+pub fn overwrite_text_file_from_path(file_path: String, body: String) -> Result<String, String> {
+    if body.len() > MAX_PLUGIN_TEXT_OUTPUT_BYTES {
+        return Err(format!(
+            "plugin output is too large: {} bytes exceeds {} bytes",
+            body.len(),
+            MAX_PLUGIN_TEXT_OUTPUT_BYTES
+        ));
+    }
+
+    let path = canonicalize_existing_file(file_path)?;
+
+    fs::write(&path, body)
+        .map_err(|error| format!("failed to overwrite file: {}: {error}", path.display()))?;
+
+    Ok(path.to_string_lossy().to_string())
+}
+
 /// Updates only the title / filename of an existing Markdown file.
 ///
 /// This function does not update file contents.
@@ -1818,5 +1835,25 @@ mod tests {
 
         fs::remove_dir_all(target_dir).ok();
         fs::remove_dir_all(settings_dir).ok();
+    }
+
+    #[test]
+    fn overwrite_text_file_from_path_replaces_existing_content() {
+        let target_dir = unique_test_dir("plugin-overwrite");
+        fs::create_dir_all(&target_dir).unwrap();
+
+        let file_path = target_dir.join("data.json");
+        fs::write(&file_path, "{\n  \"ok\": true\n}\n").unwrap();
+
+        let overwritten_path = overwrite_text_file_from_path(
+            file_path.to_string_lossy().to_string(),
+            "{\"ok\":true}\n".to_string(),
+        )
+        .unwrap();
+
+        assert_same_path(PathBuf::from(overwritten_path), &file_path);
+        assert_eq!(fs::read_to_string(&file_path).unwrap(), "{\"ok\":true}\n");
+
+        fs::remove_dir_all(target_dir).ok();
     }
 }

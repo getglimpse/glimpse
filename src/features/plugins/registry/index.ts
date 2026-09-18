@@ -8,15 +8,15 @@ import {
   reloadPluginRuntime,
   subscribeToPluginRuntimeChanges,
   syncPluginRuntimes,
-} from "@/features/plugins/pluginRuntime";
-import { invokePluginAction } from "@/features/plugins/pluginComponents";
+} from "@/features/plugins/runtime";
+import { invokePluginAction } from "@/features/plugins/components";
 import {
   localizeAction,
   localizeInternalPage,
   localizePlugin,
   localizeViewer,
   setCurrentPluginLocale,
-} from "@/features/plugins/pluginI18n";
+} from "@/features/plugins/registry/i18n";
 import type {
   GlimpsePlugin,
   IndexItem,
@@ -30,7 +30,7 @@ import type {
   PluginViewerManifest,
 } from "@/types";
 
-import { PluginInternalPageView } from "./PluginInternalPageView";
+import { PluginInternalPageView } from "../pages/InternalPage";
 
 let plugins: GlimpsePlugin[] = [];
 let discoveryErrors: PluginDiscoveryError[] = [];
@@ -61,16 +61,16 @@ const getStoredEnabledState = (): PluginEnabledState => {
 };
 
 const saveEnabledState = (state: PluginEnabledState) => {
-  window.localStorage.setItem(
-    PLUGIN_STATE_STORAGE_KEY,
-    JSON.stringify(state),
-  );
+  window.localStorage.setItem(PLUGIN_STATE_STORAGE_KEY, JSON.stringify(state));
 };
 
 export const isPluginEnabled = (plugin: GlimpsePlugin): boolean => {
   const state = getStoredEnabledState();
 
-  return isPluginTrusted(plugin) && (state[plugin.id] ?? plugin.enabledByDefault ?? true);
+  return (
+    isPluginTrusted(plugin) &&
+    (state[plugin.id] ?? plugin.enabledByDefault ?? true)
+  );
 };
 
 export const isPluginTrusted = (plugin: GlimpsePlugin): boolean =>
@@ -110,10 +110,7 @@ export const loadPlugins = async (): Promise<GlimpsePlugin[]> => {
   return loadPluginsPromise;
 };
 
-export const setPluginEnabled = (
-  pluginId: string,
-  enabled: boolean,
-) => {
+export const setPluginEnabled = (pluginId: string, enabled: boolean) => {
   const state = getStoredEnabledState();
   const plugin = plugins.find((candidate) => candidate.id === pluginId);
 
@@ -125,10 +122,7 @@ export const setPluginEnabled = (
   });
 };
 
-export const setPluginTrusted = async (
-  pluginId: string,
-  trusted: boolean,
-) => {
+export const setPluginTrusted = async (pluginId: string, trusted: boolean) => {
   const status = await pluginsApi.setTrust(pluginId, trusted);
   pluginTrustStatuses = {
     ...pluginTrustStatuses,
@@ -236,10 +230,10 @@ const loadPluginTrustStatuses = async (
   manifests: GlimpsePlugin[],
 ): Promise<Record<string, PluginTrustStatus>> => {
   const entries = await Promise.allSettled(
-    manifests.map(async (plugin) => [
-      plugin.id,
-      await pluginsApi.getTrustStatus(plugin.id),
-    ] as const),
+    manifests.map(
+      async (plugin) =>
+        [plugin.id, await pluginsApi.getTrustStatus(plugin.id)] as const,
+    ),
   );
 
   return Object.fromEntries(
@@ -249,9 +243,7 @@ const loadPluginTrustStatuses = async (
   );
 };
 
-export const subscribeToPluginChanges = (
-  listener: () => void,
-) => {
+export const subscribeToPluginChanges = (listener: () => void) => {
   window.addEventListener(PLUGIN_STATE_CHANGED_EVENT, listener);
   const unsubscribeRuntime = subscribeToPluginRuntimeChanges(listener);
 
@@ -276,7 +268,9 @@ const dispatchPluginStateChanged = () => {
 };
 
 const getEnabledPlugins = (): GlimpsePlugin[] =>
-  plugins.filter((plugin) => isPluginTrusted(plugin) && isPluginEnabled(plugin));
+  plugins.filter(
+    (plugin) => isPluginTrusted(plugin) && isPluginEnabled(plugin),
+  );
 
 const toInternalPageContribution = (
   plugin: GlimpsePlugin,
@@ -288,12 +282,13 @@ const toInternalPageContribution = (
   return {
     ...localizedPage,
     pluginId: plugin.id,
-    render: (options) => createElement(PluginInternalPageView, {
-      active: options?.active,
-      page: localizedPage,
-      plugin: localizedPlugin,
-      pluginId: plugin.id,
-    }),
+    render: (options) =>
+      createElement(PluginInternalPageView, {
+        active: options?.active,
+        page: localizedPage,
+        plugin: localizedPlugin,
+        pluginId: plugin.id,
+      }),
   };
 };
 
@@ -480,18 +475,19 @@ export const executePluginAction = async ({
 const createPluginActionPreview = (
   plugin: GlimpsePlugin,
   action: PluginActionManifest,
-) => [
-  `# ${action.title}`,
-  "",
-  action.description ?? `Plugin action from ${plugin.name}.`,
-  "",
-  "```text",
-  `: ${action.id} > input`,
-  "```",
-  "",
-  `Plugin: \`${plugin.id}\``,
-  `Action: \`${action.id}\``,
-].join("\n");
+) =>
+  [
+    `# ${action.title}`,
+    "",
+    action.description ?? `Plugin action from ${plugin.name}.`,
+    "",
+    "```text",
+    `: ${action.id} > input`,
+    "```",
+    "",
+    `Plugin: \`${plugin.id}\``,
+    `Action: \`${action.id}\``,
+  ].join("\n");
 
 const getSourcePathExtension = (sourcePath?: string | null): string | null => {
   if (!sourcePath) {

@@ -2,7 +2,7 @@ import { IndexItem, SearchResult } from "@/types";
 import {
   getPluginInternalItems,
   getPluginPlaygroundInternalItems,
-} from "@/features/plugins/pluginRegistry";
+} from "@/features/plugins/registry";
 
 const INTERNAL_ITEMS: IndexItem[] = [
   {

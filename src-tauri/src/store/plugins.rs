@@ -2249,6 +2249,51 @@ fn validate_page_definition(page: &serde_json::Value, plugin_id: &str) -> Result
                 return Err(format!("invalid page tab action id: {action}"));
             }
         }
+
+        if tab_type == "converter" {
+            if let Some(execution) = tab_object.get("execution") {
+                let execution = execution.as_str().ok_or_else(|| {
+                    format!("page converter tab {tab_id} execution must be a string")
+                })?;
+
+                if !matches!(execution, "manual" | "immediate") {
+                    return Err(format!(
+                        "page converter tab {tab_id} has unsupported execution: {execution}"
+                    ));
+                }
+            }
+
+            if let Some(output_modes) = tab_object.get("outputModes") {
+                let output_modes = output_modes.as_array().ok_or_else(|| {
+                    format!("page converter tab {tab_id} outputModes must be an array")
+                })?;
+                let mut seen_output_modes = std::collections::HashSet::new();
+
+                for output_mode in output_modes {
+                    let output_mode = output_mode.as_str().ok_or_else(|| {
+                        format!("page converter tab {tab_id} outputModes entries must be strings")
+                    })?;
+
+                    if !matches!(output_mode, "create" | "overwrite") {
+                        return Err(format!(
+                            "page converter tab {tab_id} has unsupported output mode: {output_mode}"
+                        ));
+                    }
+
+                    if !seen_output_modes.insert(output_mode) {
+                        return Err(format!(
+                            "page converter tab {tab_id} has duplicate output mode: {output_mode}"
+                        ));
+                    }
+                }
+
+                if !seen_output_modes.contains("create") {
+                    return Err(format!(
+                        "page converter tab {tab_id} outputModes must include create"
+                    ));
+                }
+            }
+        }
     }
 
     Ok(())
@@ -4053,5 +4098,52 @@ mod tests {
         assert!(plugins_dir.join("safe-plugin").is_dir());
 
         fs::remove_dir_all(app_data_dir).ok();
+    }
+
+    #[test]
+    fn page_converter_accepts_manual_execution_and_overwrite_mode() {
+        let page = serde_json::json!({
+            "id": "plugin:converter-plugin",
+            "tabs": [{
+                "id": "convert",
+                "type": "converter",
+                "action": "convert",
+                "execution": "manual",
+                "outputModes": ["create", "overwrite"]
+            }]
+        });
+
+        validate_page_definition(&page, "converter-plugin").unwrap();
+    }
+
+    #[test]
+    fn page_converter_rejects_unsupported_execution_and_output_modes() {
+        let invalid_execution = serde_json::json!({
+            "id": "plugin:converter-plugin",
+            "tabs": [{
+                "id": "convert",
+                "type": "converter",
+                "action": "convert",
+                "execution": "automatic"
+            }]
+        });
+        let missing_create = serde_json::json!({
+            "id": "plugin:converter-plugin",
+            "tabs": [{
+                "id": "convert",
+                "type": "converter",
+                "action": "convert",
+                "outputModes": ["overwrite"]
+            }]
+        });
+
+        assert_error_contains(
+            validate_page_definition(&invalid_execution, "converter-plugin"),
+            "unsupported execution",
+        );
+        assert_error_contains(
+            validate_page_definition(&missing_create, "converter-plugin"),
+            "outputModes must include create",
+        );
     }
 }

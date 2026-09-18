@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { IndexItem } from "@/types";
 import type { TranslationFunctions } from "@/i18n/i18n-types";
-import { subscribeToPluginPlaygroundExecutions } from "@/features/plugins/pluginPlaygroundEvents";
+import { subscribeToPluginPlaygroundExecutions } from "@/features/plugins/events/playground";
 
 import { createAppShortcuts } from "./createAppShortcuts";
 
@@ -58,7 +58,7 @@ vi.mock("@/api/settings", () => ({
   settingsApi: settingsMocks.settingsApi,
 }));
 
-vi.mock("@/features/plugins/pluginRegistry", () => ({
+vi.mock("@/features/plugins/registry", () => ({
   executePluginAction: pluginRegistryMocks.executePluginAction,
   getInternalPageContribution: pluginRegistryMocks.getInternalPageContribution,
   isPluginInternalPage: pluginRegistryMocks.isPluginInternalPage,

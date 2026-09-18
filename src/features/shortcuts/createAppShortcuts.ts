@@ -24,13 +24,13 @@ import type { TranslationFunctions } from "@/i18n/i18n-types";
 
 import { toast } from "@/utils/toast";
 import { copyText } from "@/utils/clipboard";
-import { publishPluginPlaygroundExecution } from "@/features/plugins/pluginPlaygroundEvents";
+import { publishPluginPlaygroundExecution } from "@/features/plugins/events/playground";
 import {
   executePluginAction,
   getInternalPageContribution,
   isPluginInternalPage,
-} from "@/features/plugins/pluginRegistry";
-import { readPluginCopySuccessfulSearchResultEnabled } from "@/features/plugins/pluginSettings";
+} from "@/features/plugins/registry";
+import { readPluginCopySuccessfulSearchResultEnabled } from "@/features/plugins/components/settings";
 
 const nextIndex = (current: number, length: number) =>
   length === 0 ? current : (current + 1) % length;

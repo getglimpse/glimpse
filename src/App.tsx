@@ -31,7 +31,7 @@ import {
   getPluginInternalItem,
   loadPlugins,
   setPluginLocale,
-} from "@/features/plugins/pluginRegistry";
+} from "@/features/plugins/registry";
 import { useSearchController } from "@/features/search/useSearchController";
 import { createAppShortcuts } from "@/features/shortcuts/createAppShortcuts";
 import { openMarkdownLink } from "@/features/preview/markdownLinkNavigation";

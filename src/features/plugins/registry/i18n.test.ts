@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import type { GlimpsePlugin, PluginInternalPageManifest } from "@/types";
 
-import { localizeInternalPage, setCurrentPluginLocale } from "./pluginI18n";
+import { localizeInternalPage, setCurrentPluginLocale } from "./i18n";
 
 afterEach(() => {
   setCurrentPluginLocale("en");
@@ -22,6 +22,11 @@ describe("pluginI18n", () => {
           "pages.converter.drop.empty": "ここにファイルをドロップ",
           "pages.converter.drop.chooseFile": "ファイルを選択",
           "pages.converter.drop.converting": "変換中",
+          "pages.converter.actions.run": "実行",
+          "pages.converter.execution.manual": "手動",
+          "pages.converter.execution.immediate": "即時",
+          "pages.converter.actions.create": "新規作成",
+          "pages.converter.actions.overwrite": "上書き",
           "pages.converter.results.title": "結果",
           "pages.converter.results.reveal": "表示",
           "pages.converter.results.clear": "クリア",
@@ -52,6 +57,16 @@ describe("pluginI18n", () => {
             chooseFileLabelFallback: "Choose Files",
             convertingLabelKey: "pages.converter.drop.converting",
             convertingLabelFallback: "Converting",
+            runLabelKey: "pages.converter.actions.run",
+            runLabelFallback: "Run",
+            manualExecutionLabelKey: "pages.converter.execution.manual",
+            manualExecutionLabelFallback: "Manual",
+            immediateExecutionLabelKey: "pages.converter.execution.immediate",
+            immediateExecutionLabelFallback: "Immediate",
+            createModeLabelKey: "pages.converter.actions.create",
+            createModeLabelFallback: "Create new",
+            overwriteModeLabelKey: "pages.converter.actions.overwrite",
+            overwriteModeLabelFallback: "Overwrite",
             resultsLabelKey: "pages.converter.results.title",
             resultsLabelFallback: "Results",
             revealLabelKey: "pages.converter.results.reveal",
@@ -73,10 +88,7 @@ describe("pluginI18n", () => {
 
     setCurrentPluginLocale("ja");
 
-    const [tab] = localizeInternalPage(
-      plugin,
-      page,
-    ).pageDefinition?.tabs ?? [];
+    const [tab] = localizeInternalPage(plugin, page).pageDefinition?.tabs ?? [];
 
     expect(tab).toMatchObject({
       title: "Converter",
@@ -84,6 +96,11 @@ describe("pluginI18n", () => {
       emptyLabel: "ここにファイルをドロップ",
       chooseFileLabel: "ファイルを選択",
       convertingLabel: "変換中",
+      runLabel: "実行",
+      manualExecutionLabel: "手動",
+      immediateExecutionLabel: "即時",
+      createModeLabel: "新規作成",
+      overwriteModeLabel: "上書き",
       resultsLabel: "結果",
       revealLabel: "表示",
       clearLabel: "クリア",

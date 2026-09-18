@@ -34,6 +34,11 @@ export type WritePluginTextOutputPayload = {
   body: string;
 };
 
+export type OverwritePluginTextInputPayload = {
+  filePath: string;
+  body: string;
+};
+
 export type FileMetadata = {
   sizeBytes: number;
 };
@@ -172,6 +177,9 @@ export const fileApi = {
 
   writePluginTextOutput: (payload: WritePluginTextOutputPayload) =>
     invoke<string>("write_plugin_text_output", { payload }),
+
+  overwritePluginTextInput: (payload: OverwritePluginTextInputPayload) =>
+    invoke<string>("overwrite_plugin_text_input", { payload }),
 
   /**
    * Creates a new Markdown file.

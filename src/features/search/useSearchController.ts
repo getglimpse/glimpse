@@ -9,7 +9,7 @@ import {
 
 import { searchApi } from "@/api/search";
 import { searchInternalItems } from "@/features/internal/internalItems";
-import { subscribeToPluginChanges } from "@/features/plugins/pluginRegistry";
+import { subscribeToPluginChanges } from "@/features/plugins/registry";
 import type { GjsonEditorDocument, Preview, SearchResult } from "@/types";
 import { perf } from "@/utils/debugPerf";
 import { toast } from "@/utils/toast";

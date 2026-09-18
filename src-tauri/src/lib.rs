@@ -119,6 +119,7 @@ pub fn run() {
             commands::file::create_text_file_at_path,
             commands::file::get_default_download_directory,
             commands::file::write_plugin_text_output,
+            commands::file::overwrite_plugin_text_input,
             commands::file::update_markdown_file_title,
             commands::file::update_text_file_title,
             commands::file::update_markdown_file_body,

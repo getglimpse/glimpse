@@ -17,13 +17,13 @@ import {
   type PluginPageRenderer,
   type PluginViewerRenderer,
   invokePluginAction,
-} from "./pluginComponents";
+} from "../components";
 import {
   createPluginI18nApi,
   getCurrentPluginLocale,
   type PluginI18nApi,
-} from "./pluginI18n";
-import { evaluateInProcessPluginModule } from "./pluginModuleEvaluator";
+} from "../registry/i18n";
+import { evaluateInProcessPluginModule } from "./moduleEvaluator";
 import type {
   PluginCapabilityContext,
   PluginRuntimeLogLevel,
@@ -33,7 +33,7 @@ import type {
   SandboxWorkerRequestInput,
   SandboxWorkerResponse,
   SerializedPluginNode,
-} from "./pluginSandboxProtocol";
+} from "./sandboxProtocol";
 import {
   ALLOWED_HTML_ELEMENTS,
   COMPONENT_PLUGIN_PROPS,
@@ -43,9 +43,9 @@ import {
   isSerializedPluginElement,
   normalizeInProcessAction,
   serializeInProcessNode,
-} from "./pluginSerializedNodes";
+} from "./serializedNodes";
 
-export type { PluginRuntimeLogLevel } from "./pluginSandboxProtocol";
+export type { PluginRuntimeLogLevel } from "./sandboxProtocol";
 
 type PluginRuntimeStatus = "inactive" | "loading" | "active" | "error";
 
@@ -438,10 +438,10 @@ const createPluginSandbox = (plugin: GlimpsePlugin): PluginSandbox => {
     throw new Error("Plugin sandbox worker is not available in this runtime");
   }
 
-  const worker = new Worker(
-    new URL("./pluginSandboxWorker.ts", import.meta.url),
-    { type: "module", name: `glimpse-plugin:${pluginId}` },
-  );
+  const worker = new Worker(new URL("./sandboxWorker.ts", import.meta.url), {
+    type: "module",
+    name: `glimpse-plugin:${pluginId}`,
+  });
   const pendingRequests = new Map<
     number,
     {

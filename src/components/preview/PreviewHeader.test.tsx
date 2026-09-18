@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { I18nProvider } from "@/i18n/I18nProvider";
 import type { IndexItem } from "@/types";
-import { OPEN_LOCAL_PLUGIN_INSTALL_EVENT } from "@/features/plugins/pluginPageEvents";
+import { OPEN_LOCAL_PLUGIN_INSTALL_EVENT } from "@/features/plugins/events/page";
 
 import { PreviewHeader } from "./PreviewHeader";
 

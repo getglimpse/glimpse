@@ -12,21 +12,24 @@ import type {
   PluginFormField,
   PluginFormFieldOption,
   PluginFormTab,
+  PluginConverterTab,
   PluginInternalPageManifest,
   PluginPageTab,
   PluginStaticPageSection,
 } from "@/types";
 
 import {
+  ConverterExecutionSettings,
   invokePluginAction,
   PluginPageActivityProvider,
-} from "./pluginComponents";
+} from "../components";
+import { getConverterExecutionPreference } from "../components/converterExecution";
 import {
   getPluginRuntime,
   getPluginRuntimeSnapshot,
   type PluginRuntimeSnapshot,
   subscribeToPluginRuntimeChanges,
-} from "./pluginRuntime";
+} from "../runtime";
 
 export const PluginInternalPageView = ({
   active = true,
@@ -98,7 +101,9 @@ const renderPluginPage = (
 
   if (!pageRenderer && page.pageDefinition) {
     return {
-      dynamicPage: <StandardPluginPage page={page} plugin={plugin} runtime={runtime} />,
+      dynamicPage: (
+        <StandardPluginPage page={page} plugin={plugin} runtime={runtime} />
+      ),
       renderError: undefined,
     };
   }
@@ -144,19 +149,26 @@ const StandardPluginPage = ({
     (tab) => !["info", "settings"].includes(tab.id),
   );
   const settings = Object.entries(plugin?.settings ?? {});
+  const converterTabs = tabs.filter(
+    (tab): tab is PluginConverterTab => tab.type === "converter",
+  );
   const items = [
     ...tabs.map((tab) => ({
       id: tab.id,
       title: getStandardTabTitle(tab),
       content: <StandardPluginTab tab={tab} runtime={runtime} />,
     })),
-    ...(settings.length > 0
+    ...(settings.length > 0 || converterTabs.length > 0
       ? [
           {
             id: "settings",
             title: "Settings",
             content: (
-              <StandardPluginSettings plugin={plugin} runtime={runtime} />
+              <StandardPluginSettings
+                converterTabs={converterTabs}
+                plugin={plugin}
+                runtime={runtime}
+              />
             ),
           },
         ]
@@ -187,9 +199,7 @@ const StandardPluginTab = ({
       <ActionPlayground
         action={tab.action}
         placeholder={
-          tab.inputPlaceholder ??
-          tab.inputPlaceholderFallback ??
-          "Enter input"
+          tab.inputPlaceholder ?? tab.inputPlaceholderFallback ?? "Enter input"
         }
         examples={tab.examples}
         submitLabel={tab.submitLabel}
@@ -203,14 +213,13 @@ const StandardPluginTab = ({
     return (
       <FileDropConverter
         action={tab.action}
-        accept={
-          Array.isArray(tab.accept)
-            ? tab.accept.join(",")
-            : tab.accept
-        }
+        accept={Array.isArray(tab.accept) ? tab.accept.join(",") : tab.accept}
         multiple={tab.multiple}
         maxBytes={tab.maxBytes}
         maxFiles={tab.maxFiles}
+        execution={tab.execution}
+        executionPreference={getConverterExecutionPreference(tab.id)}
+        outputModes={tab.outputModes}
         outputDirectoryPreference={
           tab.outputDirectorySetting ?? "outputDirectory"
         }
@@ -219,6 +228,9 @@ const StandardPluginTab = ({
         chooseFileLabel={tab.chooseFileLabel}
         emptyLabel={tab.emptyLabel}
         convertingLabel={tab.convertingLabel}
+        runLabel={tab.runLabel}
+        createModeLabel={tab.createModeLabel}
+        overwriteModeLabel={tab.overwriteModeLabel}
         resultsLabel={tab.resultsLabel}
         revealLabel={tab.revealLabel}
         clearLabel={tab.clearLabel}
@@ -237,21 +249,34 @@ const getStandardTabTitle = (tab: PluginPageTab): string =>
   tab.title ?? tab.titleFallback ?? tab.id;
 
 const StandardPluginSettings = ({
+  converterTabs,
   plugin,
   runtime,
 }: {
+  converterTabs: PluginConverterTab[];
   plugin?: GlimpsePlugin;
   runtime: NonNullable<ReturnType<typeof getPluginRuntime>>;
 }) => {
   const settings = Object.entries(plugin?.settings ?? {});
   const OutputDirectorySettings = runtime.components.OutputDirectorySettings;
 
-  if (settings.length === 0) {
+  if (settings.length === 0 && converterTabs.length === 0) {
     return null;
   }
 
   return (
     <div className="space-y-4 py-3">
+      {converterTabs.map((tab) => (
+        <ConverterExecutionSettings
+          key={`converter:${tab.id}`}
+          pluginId={runtime.pluginId}
+          preference={getConverterExecutionPreference(tab.id)}
+          title={getStandardTabTitle(tab)}
+          defaultExecution={tab.execution ?? "manual"}
+          manualLabel={tab.manualExecutionLabel}
+          immediateLabel={tab.immediateExecutionLabel}
+        />
+      ))}
       {settings.map(([key, schema]) => {
         const setting = readSettingSchema(schema);
 
@@ -269,10 +294,7 @@ const StandardPluginSettings = ({
 
         return (
           <InfoSection key={key} title={setting.label ?? key}>
-            <StaticRow
-              label="Type"
-              value={setting.type || "string"}
-            />
+            <StaticRow label="Type" value={setting.type || "string"} />
             {setting.description && (
               <StaticRow label="Description" value={setting.description} />
             )}
@@ -341,7 +363,9 @@ const StandardPluginInfo = ({
   return (
     <div className="space-y-5 py-3 pr-3 sm:pr-4">
       {plugin?.description && (
-        <p className="text-sm leading-6 text-text-muted">{plugin.description}</p>
+        <p className="text-sm leading-6 text-text-muted">
+          {plugin.description}
+        </p>
       )}
 
       <InfoSection title="Overview">
@@ -425,11 +449,17 @@ const StandardPluginForm = ({
     setError(null);
 
     try {
-      const output = await invokePluginAction(runtime.actions, tab.action, values);
+      const output = await invokePluginAction(
+        runtime.actions,
+        tab.action,
+        values,
+      );
       setResult(formatPluginFormResult(output));
     } catch (submitError) {
       setError(
-        submitError instanceof Error ? submitError.message : String(submitError),
+        submitError instanceof Error
+          ? submitError.message
+          : String(submitError),
       );
     } finally {
       setRunning(false);
@@ -455,7 +485,9 @@ const StandardPluginForm = ({
         disabled={running}
         className="rounded border border-border-main bg-main-bg px-3 py-2 text-sm font-medium text-text-main hover:border-accent disabled:opacity-60"
       >
-        {running ? "Running" : tab.submitLabel ?? tab.submitLabelFallback ?? "Run"}
+        {running
+          ? "Running"
+          : (tab.submitLabel ?? tab.submitLabelFallback ?? "Run")}
       </button>
 
       {error && (
@@ -566,7 +598,9 @@ const PluginFormInput = ({
   if (field.type === "number" || field.control === "slider") {
     const inputType = field.control === "slider" ? "range" : "number";
     const numericValue =
-      typeof value === "number" ? value : Number(field.default ?? field.min ?? 0);
+      typeof value === "number"
+        ? value
+        : Number(field.default ?? field.min ?? 0);
 
     return (
       <div className="flex items-center gap-3">

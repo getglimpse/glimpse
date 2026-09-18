@@ -7,7 +7,7 @@ import {
   getRemotePluginInstallErrorMessage,
   OFFICIAL_PLUGIN_REGISTRY_URL,
   validatePluginRegistry,
-} from "./remotePluginRegistry";
+} from "./registry";
 import {
   getPluginDiscoveryErrors,
   getPlugins,
@@ -17,12 +17,12 @@ import {
   setPluginTrusted,
   subscribeToPluginChanges,
   uninstallPlugin,
-} from "./pluginRegistry";
+} from "../registry";
 import {
   getRemotePluginInstallKind,
   type RemotePluginInstallState,
   type RemotePluginManagementState,
-} from "./remotePluginViewModel";
+} from "./viewModel";
 
 export const useRemotePluginCatalog = (LL: TranslationFunctions) => {
   const [plugins, setPlugins] = useState<PluginRegistryItem[]>(() =>

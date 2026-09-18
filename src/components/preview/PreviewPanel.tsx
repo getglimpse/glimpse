@@ -42,8 +42,8 @@ import { copyPreviewContent } from "@/utils/clipboard";
 import {
   getInternalPageContribution,
   getPluginViewerContributionForSourcePath,
-} from "@/features/plugins/pluginRegistry";
-import { PluginViewerPreview } from "@/features/plugins/PluginViewerPreview";
+} from "@/features/plugins/registry";
+import { PluginViewerPreview } from "@/features/plugins/pages/ViewerPreview";
 import { useI18nContext } from "@/i18n/I18nProvider";
 import { toast } from "@/utils/toast";
 import { cn } from "@/lib/utils";

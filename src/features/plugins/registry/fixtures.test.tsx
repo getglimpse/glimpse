@@ -20,7 +20,7 @@ const mockedInvoke = vi.mocked(invoke);
 
 const fixturesRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
-  "../../../tests/fixtures/plugins",
+  "../../../../tests/fixtures/plugins",
 );
 const validFixtureIds = [
   "valid-basic-plugin",
@@ -30,7 +30,7 @@ const validFixtureIds = [
 const loadRegistryModule = async () => {
   vi.resetModules();
 
-  return import("./pluginRegistry");
+  return import(".");
 };
 
 const readFixtureFile = (pluginId: string, fileName: string): string =>

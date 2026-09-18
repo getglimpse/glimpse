@@ -9,15 +9,15 @@ import {
 
 import type { IndexItem } from "@/types";
 
-import { invokePluginAction } from "./pluginComponents";
-import { getPluginViewerContribution } from "./pluginRegistry";
+import { invokePluginAction } from "../components";
+import { getPluginViewerContribution } from "../registry";
 import {
   activatePluginRuntime,
   getPluginRuntime,
   getPluginRuntimeSnapshot,
   subscribeToPluginRuntimeChanges,
   type PluginRuntimeSnapshot,
-} from "./pluginRuntime";
+} from "../runtime";
 
 export const PluginViewerPreview = ({ item }: { item: IndexItem }) => {
   const [, forceRuntimeUpdate] = useState(0);

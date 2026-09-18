@@ -30,8 +30,8 @@ import {
 
 import { useI18nContext } from "@/i18n/I18nProvider";
 import { getInternalPageTitle } from "@/utils/internalPageTitle";
-import { isPluginInternalPage } from "@/features/plugins/pluginRegistry";
-import { openLocalPluginInstallDialog } from "@/features/plugins/pluginPageEvents";
+import { isPluginInternalPage } from "@/features/plugins/registry";
+import { openLocalPluginInstallDialog } from "@/features/plugins/events/page";
 import { hasHelpContent } from "@/utils/helpContent";
 import { toast } from "@/utils/toast";
 import { cn } from "@/lib/utils";
