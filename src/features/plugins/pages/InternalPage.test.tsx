@@ -228,11 +228,8 @@ describe("PluginInternalPageView", () => {
             description: "日本語の説明",
             emptyLabel: "ここにファイルをドロップ",
             chooseFileLabel: "ファイルを選択",
-            execution: "manual",
             outputModes: ["create", "overwrite"],
             runLabel: "実行",
-            manualExecutionLabel: "手動",
-            immediateExecutionLabel: "即時",
             createModeLabel: "新規作成",
             overwriteModeLabel: "上書き",
             resultsLabel: "結果",
@@ -253,9 +250,7 @@ describe("PluginInternalPageView", () => {
     expect(screen.getByText("ここにファイルをドロップ")).toBeTruthy();
     expect(screen.getByText("ファイルを選択")).toBeTruthy();
     expect(screen.getByText("実行")).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Settings" })).toBeTruthy();
-    expect(screen.getByText("手動")).toBeTruthy();
-    expect(screen.getByText("即時")).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Settings" })).toBeNull();
     expect(screen.getByText("新規作成")).toBeTruthy();
     expect(screen.getByText("上書き")).toBeTruthy();
     expect(screen.getByText("結果")).toBeTruthy();
@@ -267,7 +262,7 @@ describe("PluginInternalPageView", () => {
     expect(screen.getByText("出力はまだありません")).toBeTruthy();
   });
 
-  it("orders v0.2 generated tabs as execution, Settings, then Info", () => {
+  it("orders v0.2 generated tabs as Settings then Info", () => {
     vi.mocked(getPluginRuntime).mockReturnValue({
       pluginId: "settings-plugin",
       version: "0.2.0",

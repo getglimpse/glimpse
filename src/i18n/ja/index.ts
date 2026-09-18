@@ -299,7 +299,6 @@ const ja = {
       outputMode: "出力方法",
       create: "新規作成",
       overwrite: "上書き",
-      overwriteManualOnly: "上書きは手動実行の場合のみ使用できます",
       overwriteDroppedFilesOnly:
         "上書きにはファイルシステムからドロップしたファイルが必要です",
     },

@@ -953,10 +953,6 @@ type RootTranslation = {
        */
       overwrite: string;
       /**
-       * O​v​e​r​w​r​i​t​e​ ​i​s​ ​o​n​l​y​ ​a​v​a​i​l​a​b​l​e​ ​w​i​t​h​ ​m​a​n​u​a​l​ ​e​x​e​c​u​t​i​o​n
-       */
-      overwriteManualOnly: string;
-      /**
        * O​v​e​r​w​r​i​t​e​ ​r​e​q​u​i​r​e​s​ ​f​i​l​e​s​ ​d​r​o​p​p​e​d​ ​f​r​o​m​ ​t​h​e​ ​f​i​l​e​ ​s​y​s​t​e​m
        */
       overwriteDroppedFilesOnly: string;
@@ -3290,10 +3286,6 @@ export type TranslationFunctions = {
        * Overwrite
        */
       overwrite: () => LocalizedString;
-      /**
-       * Overwrite is only available with manual execution
-       */
-      overwriteManualOnly: () => LocalizedString;
       /**
        * Overwrite requires files dropped from the file system
        */

@@ -194,22 +194,6 @@ export const localizeInternalPage = (
                     tab.runLabelFallback,
                     tab.runLabel ?? tab.runLabelFallback ?? "Run",
                   ),
-                  manualExecutionLabel: translateDeclaredString(
-                    plugin,
-                    tab.manualExecutionLabelKey,
-                    tab.manualExecutionLabelFallback,
-                    tab.manualExecutionLabel ??
-                      tab.manualExecutionLabelFallback ??
-                      "Manual",
-                  ),
-                  immediateExecutionLabel: translateDeclaredString(
-                    plugin,
-                    tab.immediateExecutionLabelKey,
-                    tab.immediateExecutionLabelFallback,
-                    tab.immediateExecutionLabel ??
-                      tab.immediateExecutionLabelFallback ??
-                      "Immediate",
-                  ),
                   createModeLabel: translateOptionalDeclaredString(
                     plugin,
                     tab.createModeLabelKey,

@@ -31,7 +31,6 @@ import {
   type FileOpenButtonProps,
 } from "./viewer";
 
-export { ConverterExecutionSettings } from "./converter";
 export { PluginPageActivityProvider } from "./tool";
 export { invokePluginAction, normalizePluginAction } from "./actions";
 export type {

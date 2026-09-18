@@ -69,7 +69,6 @@ export type PluginConverterTab = PluginPageTabBase & {
   multiple?: boolean;
   maxBytes?: number;
   maxFiles?: number;
-  execution?: "manual" | "immediate";
   outputModes?: Array<"create" | "overwrite">;
   outputDirectorySetting?: string;
   description?: string;
@@ -87,12 +86,6 @@ export type PluginConverterTab = PluginPageTabBase & {
   runLabel?: string;
   runLabelKey?: string;
   runLabelFallback?: string;
-  manualExecutionLabel?: string;
-  manualExecutionLabelKey?: string;
-  manualExecutionLabelFallback?: string;
-  immediateExecutionLabel?: string;
-  immediateExecutionLabelKey?: string;
-  immediateExecutionLabelFallback?: string;
   createModeLabel?: string;
   createModeLabelKey?: string;
   createModeLabelFallback?: string;

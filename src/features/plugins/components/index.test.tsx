@@ -12,7 +12,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "@/i18n/I18nProvider";
 
 import {
-  ConverterExecutionSettings,
   createPluginComponents,
   PluginPageActivityProvider,
   type PluginActions,
@@ -730,80 +729,6 @@ describe("pluginComponents", () => {
       await screen.findByText("Only text and Markdown files are supported"),
     ).toBeTruthy();
     expect(fileMocks.fileApi.writePluginTextOutput).not.toHaveBeenCalled();
-  });
-
-  it("applies the persisted execution mode from Converter settings", async () => {
-    const convertFile = vi.fn(() => ({
-      fileName: "notes.converted.txt",
-      body: "IMMEDIATE\n",
-    }));
-    const { FileDropConverter } = createPluginComponents(
-      {
-        convertFile: { handler: convertFile },
-      },
-      "file-converter-plugin",
-    );
-
-    const preference = "converter.converter.execution";
-    const { container } = render(
-      <>
-        <ConverterExecutionSettings
-          pluginId="file-converter-plugin"
-          preference={preference}
-          title="Converter"
-        />
-        <FileDropConverter
-          action="convertFile"
-          executionPreference={preference}
-        />
-      </>,
-    );
-
-    await waitFor(() => {
-      expect(fileMocks.fileApi.getDefaultDownloadDirectory).toHaveBeenCalled();
-    });
-
-    expect(
-      screen
-        .getByRole("button", { name: "Manual" })
-        .getAttribute("aria-pressed"),
-    ).toBe("true");
-    fireEvent.click(screen.getByRole("button", { name: "Immediate" }));
-
-    await waitFor(() => {
-      expect(settingsMocks.settingsApi.set).toHaveBeenCalledWith({
-        plugins: {
-          "file-converter-plugin": {
-            preferences: {
-              [preference]: "immediate",
-            },
-          },
-        },
-      });
-    });
-
-    const dropZone = container.querySelector(
-      "[data-glimpse-plugin-file-drop-converter]",
-    );
-    fireEvent.drop(dropZone!, {
-      dataTransfer: {
-        files: [new File(["hello"], "notes.txt", { type: "text/plain" })],
-      },
-    });
-
-    await waitFor(() => {
-      expect(convertFile).toHaveBeenCalledTimes(1);
-      expect(fileMocks.fileApi.writePluginTextOutput).toHaveBeenCalledWith({
-        directory: "C:/Users/j/Downloads",
-        fileName: "notes.converted.txt",
-        body: "IMMEDIATE\n",
-      });
-    });
-    expect(
-      screen
-        .getByRole("button", { name: "Immediate" })
-        .getAttribute("aria-pressed"),
-    ).toBe("true");
   });
 
   it("accepts Markdown files in FileDropConverter", async () => {

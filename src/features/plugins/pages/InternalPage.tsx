@@ -12,18 +12,12 @@ import type {
   PluginFormField,
   PluginFormFieldOption,
   PluginFormTab,
-  PluginConverterTab,
   PluginInternalPageManifest,
   PluginPageTab,
   PluginStaticPageSection,
 } from "@/types";
 
-import {
-  ConverterExecutionSettings,
-  invokePluginAction,
-  PluginPageActivityProvider,
-} from "../components";
-import { getConverterExecutionPreference } from "../components/converterExecution";
+import { invokePluginAction, PluginPageActivityProvider } from "../components";
 import {
   getPluginRuntime,
   getPluginRuntimeSnapshot,
@@ -149,26 +143,19 @@ const StandardPluginPage = ({
     (tab) => !["info", "settings"].includes(tab.id),
   );
   const settings = Object.entries(plugin?.settings ?? {});
-  const converterTabs = tabs.filter(
-    (tab): tab is PluginConverterTab => tab.type === "converter",
-  );
   const items = [
     ...tabs.map((tab) => ({
       id: tab.id,
       title: getStandardTabTitle(tab),
       content: <StandardPluginTab tab={tab} runtime={runtime} />,
     })),
-    ...(settings.length > 0 || converterTabs.length > 0
+    ...(settings.length > 0
       ? [
           {
             id: "settings",
             title: "Settings",
             content: (
-              <StandardPluginSettings
-                converterTabs={converterTabs}
-                plugin={plugin}
-                runtime={runtime}
-              />
+              <StandardPluginSettings plugin={plugin} runtime={runtime} />
             ),
           },
         ]
@@ -217,8 +204,6 @@ const StandardPluginTab = ({
         multiple={tab.multiple}
         maxBytes={tab.maxBytes}
         maxFiles={tab.maxFiles}
-        execution={tab.execution}
-        executionPreference={getConverterExecutionPreference(tab.id)}
         outputModes={tab.outputModes}
         outputDirectoryPreference={
           tab.outputDirectorySetting ?? "outputDirectory"
@@ -249,34 +234,21 @@ const getStandardTabTitle = (tab: PluginPageTab): string =>
   tab.title ?? tab.titleFallback ?? tab.id;
 
 const StandardPluginSettings = ({
-  converterTabs,
   plugin,
   runtime,
 }: {
-  converterTabs: PluginConverterTab[];
   plugin?: GlimpsePlugin;
   runtime: NonNullable<ReturnType<typeof getPluginRuntime>>;
 }) => {
   const settings = Object.entries(plugin?.settings ?? {});
   const OutputDirectorySettings = runtime.components.OutputDirectorySettings;
 
-  if (settings.length === 0 && converterTabs.length === 0) {
+  if (settings.length === 0) {
     return null;
   }
 
   return (
     <div className="space-y-4 py-3">
-      {converterTabs.map((tab) => (
-        <ConverterExecutionSettings
-          key={`converter:${tab.id}`}
-          pluginId={runtime.pluginId}
-          preference={getConverterExecutionPreference(tab.id)}
-          title={getStandardTabTitle(tab)}
-          defaultExecution={tab.execution ?? "manual"}
-          manualLabel={tab.manualExecutionLabel}
-          immediateLabel={tab.immediateExecutionLabel}
-        />
-      ))}
       {settings.map(([key, schema]) => {
         const setting = readSettingSchema(schema);
 

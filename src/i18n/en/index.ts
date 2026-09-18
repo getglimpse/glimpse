@@ -295,7 +295,6 @@ const en = {
       outputMode: "Output mode",
       create: "Create new",
       overwrite: "Overwrite",
-      overwriteManualOnly: "Overwrite is only available with manual execution",
       overwriteDroppedFilesOnly:
         "Overwrite requires files dropped from the file system",
     },

@@ -2256,7 +2256,7 @@ fn validate_page_definition(page: &serde_json::Value, plugin_id: &str) -> Result
                     format!("page converter tab {tab_id} execution must be a string")
                 })?;
 
-                if !matches!(execution, "manual" | "immediate") {
+                if execution != "manual" {
                     return Err(format!(
                         "page converter tab {tab_id} has unsupported execution: {execution}"
                     ));
@@ -4124,7 +4124,7 @@ mod tests {
                 "id": "convert",
                 "type": "converter",
                 "action": "convert",
-                "execution": "automatic"
+                "execution": "immediate"
             }]
         });
         let missing_create = serde_json::json!({

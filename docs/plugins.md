@@ -16,7 +16,7 @@ Glimpse plugins fall into three main types based on what they do:
 
 A Tool page can use a Playground for a single text input or a Form for several fields. A Converter uses a page designed for selecting or dropping files. A Viewer runs in the Preview panel instead of a plugin page.
 
-A Converter's Settings tab lets you switch between Manual and Immediate execution, and saves the choice for each Converter tab. The default Manual mode stages selected or dropped files so you can review them before clicking Run. Immediate mode processes the next selected or dropped files right away. Glimpse provides every Converter tab with a segmented control in the upper-right corner of the drop area for choosing between creating new files and overwriting the originals. You can select overwrite before dropping a file. For safety, it can run only in Manual mode with files dropped from the file system.
+A Converter stages selected or dropped files so you can review the batch before clicking Run. Glimpse provides every Converter tab with a segmented control in the upper-right corner of the drop area for choosing between creating new files and overwriting the originals. You can select overwrite before dropping a file. For safety, overwrite can run only with files dropped from the file system.
 
 A plugin can combine more than one capability. For example, a Viewer can provide file previews while also including a page for its settings and usage information.
 

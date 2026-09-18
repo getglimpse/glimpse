@@ -50,7 +50,6 @@ export const COMPONENT_PLUGIN_PROPS: Record<string, string[]> = {
     "multiple",
     "maxBytes",
     "maxFiles",
-    "execution",
     "outputModes",
     "outputDirectoryPreference",
     "title",

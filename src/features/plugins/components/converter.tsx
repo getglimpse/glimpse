@@ -15,12 +15,6 @@ import { openerApi } from "@/api/opener";
 import { settingsApi } from "@/api/settings";
 import { useOptionalI18nContext } from "@/i18n/I18nProvider";
 
-import {
-  isPluginConverterExecutionMode,
-  publishPluginConverterExecution,
-  subscribeToPluginConverterExecution,
-  type PluginConverterExecutionMode,
-} from "./converterExecution";
 import { readPluginPreference, writePluginPreference } from "./settings";
 import { invokePluginAction, type PluginActions } from "./actions";
 import { getPluginButtonClassName } from "./styles";
@@ -32,8 +26,6 @@ export type FileDropConverterProps = {
   multiple?: boolean;
   maxBytes?: number;
   maxFiles?: number;
-  execution?: "manual" | "immediate";
-  executionPreference?: string;
   outputModes?: Array<"create" | "overwrite">;
   outputDirectoryPreference?: string;
   title?: ReactNode;
@@ -52,15 +44,6 @@ export type FileDropConverterProps = {
   sizeColumnLabel?: ReactNode;
   pathColumnLabel?: ReactNode;
   emptyResultsLabel?: ReactNode;
-};
-
-export type ConverterExecutionSettingsProps = {
-  pluginId: string;
-  preference: string;
-  title: ReactNode;
-  defaultExecution?: PluginConverterExecutionMode;
-  manualLabel?: ReactNode;
-  immediateLabel?: ReactNode;
 };
 
 export type OutputDirectorySettingsProps = {
@@ -97,8 +80,6 @@ export const FileDropConverter = ({
   multiple = false,
   maxBytes = DEFAULT_FILE_DROP_MAX_BYTES,
   maxFiles = 1,
-  execution = "manual",
-  executionPreference,
   outputModes = ["create", "overwrite"],
   outputDirectoryPreference = DEFAULT_OUTPUT_DIRECTORY_PREFERENCE,
   description = "Converted files are written to the configured output directory.",
@@ -131,9 +112,6 @@ export const FileDropConverter = ({
     "Overwrite";
   const outputModeLabel =
     i18n?.LL.pluginPage.converter.outputMode() ?? "Output mode";
-  const overwriteManualOnlyMessage =
-    i18n?.LL.pluginPage.converter.overwriteManualOnly() ??
-    "Overwrite is only available with manual execution";
   const overwriteDroppedFilesOnlyMessage =
     i18n?.LL.pluginPage.converter.overwriteDroppedFilesOnly() ??
     "Overwrite requires files dropped from the file system";
@@ -148,55 +126,7 @@ export const FileDropConverter = ({
   );
   const [outputMode, setOutputMode] =
     useState<FileDropConverterOutputMode>("create");
-  const [executionMode, setExecutionMode] = useState(execution);
   const overwriteAvailable = outputModes.includes("overwrite");
-
-  useEffect(() => {
-    setExecutionMode(execution);
-
-    if (!executionPreference) {
-      return;
-    }
-
-    let cancelled = false;
-    let receivedChange = false;
-    const unsubscribe = subscribeToPluginConverterExecution((change) => {
-      if (
-        change.pluginId === pluginId &&
-        change.preference === executionPreference
-      ) {
-        receivedChange = true;
-        setExecutionMode(change.execution);
-      }
-    });
-
-    void readPluginPreference(pluginId, executionPreference)
-      .then((saved) => {
-        if (
-          !cancelled &&
-          !receivedChange &&
-          isPluginConverterExecutionMode(saved)
-        ) {
-          setExecutionMode(saved);
-        }
-      })
-      .catch((error) => {
-        if (!cancelled) {
-          setMessage(error instanceof Error ? error.message : String(error));
-        }
-      });
-
-    return () => {
-      cancelled = true;
-      unsubscribe();
-    };
-  }, [execution, executionPreference, pluginId]);
-
-  useEffect(() => {
-    if (executionMode === "immediate") {
-      setOutputMode("create");
-    }
-  }, [executionMode]);
 
   useEffect(() => {
     let cancelled = false;
@@ -401,16 +331,8 @@ export const FileDropConverter = ({
     try {
       validateStagedInput(input);
       setStagedInput(input);
-      setOutputMode((current) =>
-        executionMode === "immediate" || input.kind === "files"
-          ? "create"
-          : current,
-      );
+      setOutputMode((current) => (input.kind === "files" ? "create" : current));
       setMessage(null);
-
-      if (executionMode === "immediate") {
-        void runInput(input, "create");
-      }
     } catch (error) {
       setStagedInput(null);
       setMessage(error instanceof Error ? error.message : String(error));
@@ -466,7 +388,6 @@ export const FileDropConverter = ({
     action,
     actions,
     directory,
-    executionMode,
     maxFiles,
     maxBytes,
     multiple,
@@ -512,8 +433,6 @@ export const FileDropConverter = ({
     stagedNames.length <= 1
       ? (stagedNames[0] ?? "")
       : `${stagedNames[0]} +${stagedNames.length - 1}`;
-  const overwriteSelectable = executionMode === "manual";
-
   return (
     <div className="space-y-4 py-3">
       {description && (
@@ -571,10 +490,7 @@ export const FileDropConverter = ({
                 event.stopPropagation();
                 setOutputMode("overwrite");
               }}
-              disabled={running || !overwriteSelectable}
-              title={
-                overwriteSelectable ? undefined : overwriteManualOnlyMessage
-              }
+              disabled={running}
               className={`border-l border-border-main px-3 py-1.5 text-xs transition-colors disabled:opacity-40 ${
                 outputMode === "overwrite"
                   ? "bg-red-500/15 text-red-300"
@@ -702,118 +618,6 @@ export const FileDropConverter = ({
         </div>
       </section>
     </div>
-  );
-};
-
-export const ConverterExecutionSettings = ({
-  pluginId,
-  preference,
-  title,
-  defaultExecution = "manual",
-  manualLabel = "Manual",
-  immediateLabel = "Immediate",
-}: ConverterExecutionSettingsProps) => {
-  const [execution, setExecution] =
-    useState<PluginConverterExecutionMode>(defaultExecution);
-  const [message, setMessage] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    setExecution(defaultExecution);
-    void readPluginPreference(pluginId, preference)
-      .then((saved) => {
-        if (!cancelled && isPluginConverterExecutionMode(saved)) {
-          setExecution(saved);
-        }
-      })
-      .catch((error) => {
-        if (!cancelled) {
-          setMessage(error instanceof Error ? error.message : String(error));
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [defaultExecution, pluginId, preference]);
-
-  const updateExecution = async (next: PluginConverterExecutionMode) => {
-    const previous = execution;
-
-    setExecution(next);
-    setMessage(null);
-    publishPluginConverterExecution({
-      pluginId,
-      preference,
-      execution: next,
-    });
-
-    try {
-      await writePluginPreference(pluginId, preference, next);
-      publishPluginConverterExecution({
-        pluginId,
-        preference,
-        execution: next,
-      });
-    } catch (error) {
-      setExecution(previous);
-      publishPluginConverterExecution({
-        pluginId,
-        preference,
-        execution: previous,
-      });
-      setMessage(error instanceof Error ? error.message : String(error));
-    }
-  };
-
-  return (
-    <section>
-      <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">
-        {title}
-      </h2>
-      <div className="border-y border-border-main/60">
-        <div className="flex flex-wrap items-center justify-between gap-3 py-3">
-          <div>
-            <div className="text-sm text-text-main">Execution</div>
-            <div className="mt-0.5 text-xs text-text-muted">
-              Choose when conversion starts after selecting or dropping files.
-            </div>
-          </div>
-          <div
-            role="group"
-            aria-label="Execution mode"
-            className="inline-flex overflow-hidden rounded-sm border border-border-main"
-          >
-            <button
-              type="button"
-              aria-pressed={execution === "manual"}
-              onClick={() => void updateExecution("manual")}
-              className={`px-3 py-1.5 text-xs transition-colors ${
-                execution === "manual"
-                  ? "bg-item-hover text-text-main"
-                  : "text-text-muted hover:text-text-main"
-              }`}
-            >
-              {manualLabel}
-            </button>
-            <button
-              type="button"
-              aria-pressed={execution === "immediate"}
-              onClick={() => void updateExecution("immediate")}
-              className={`border-l border-border-main px-3 py-1.5 text-xs transition-colors ${
-                execution === "immediate"
-                  ? "bg-item-hover text-text-main"
-                  : "text-text-muted hover:text-text-main"
-              }`}
-            >
-              {immediateLabel}
-            </button>
-          </div>
-        </div>
-        {message && <div className="pb-3 text-xs text-red-300">{message}</div>}
-      </div>
-    </section>
   );
 };
 
