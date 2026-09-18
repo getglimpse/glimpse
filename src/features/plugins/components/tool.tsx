@@ -26,11 +26,18 @@ export const PluginPageActivityProvider = ({
 }: {
   active: boolean;
   children?: ReactNode;
-}) => (
-  <PluginPageActivityContext.Provider value={active}>
-    {children}
-  </PluginPageActivityContext.Provider>
-);
+}) => {
+  const parentActive = useContext(PluginPageActivityContext);
+
+  return (
+    <PluginPageActivityContext.Provider value={parentActive && active}>
+      {children}
+    </PluginPageActivityContext.Provider>
+  );
+};
+
+export const usePluginPageActivity = () =>
+  useContext(PluginPageActivityContext);
 
 export type ActionPlaygroundPublicProps = {
   action: string;
@@ -90,7 +97,7 @@ export const ActionPlayground = ({
   actions,
   pluginId,
 }: ActionPlaygroundProps) => {
-  const pageActive = useContext(PluginPageActivityContext);
+  const pageActive = usePluginPageActivity();
   const [value, setValue] = useState("");
   const [running, setRunning] = useState(false);
   const [history, setHistory] = useState<PlaygroundHistoryItem[]>([]);

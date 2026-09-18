@@ -19,6 +19,7 @@ import {
   ActionPlayground,
   ActionSettings,
   CalculationPanel,
+  PluginPageActivityProvider,
   type ActionPlaygroundPublicProps,
   type ActionSettingsPublicProps,
   type CalculationPanelPublicProps,
@@ -432,8 +433,22 @@ const Tabs = ({ items }: TabsProps) => {
           </button>
         ))}
       </div>
-      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
-        {activeItem?.content}
+      <div className="min-h-0 min-w-0 flex-1">
+        {items.map((item) => {
+          const active = item.id === activeItem?.id;
+
+          return (
+            <PluginPageActivityProvider key={item.id} active={active}>
+              <div
+                hidden={!active}
+                aria-hidden={!active}
+                className="h-full min-h-0 min-w-0 overflow-y-auto overflow-x-hidden"
+              >
+                {item.content}
+              </div>
+            </PluginPageActivityProvider>
+          );
+        })}
       </div>
     </div>
   );

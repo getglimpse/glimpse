@@ -1,4 +1,10 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 import type { Locales, TranslationFunctions } from "./i18n-types";
 import { loadLocaleAsync } from "./i18n-util.async";
@@ -60,3 +66,5 @@ export const useI18nContext = () => {
 
   return context;
 };
+
+export const useOptionalI18nContext = () => useContext(I18nContext);

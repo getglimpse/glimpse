@@ -939,6 +939,28 @@ type RootTranslation = {
      * M​a​n​a​g​e​ ​i​n​s​t​a​l​l​e​d​ ​G​l​i​m​p​s​e​ ​p​l​u​g​i​n​s​ ​a​n​d​ ​t​h​e​i​r​ ​I​n​t​e​r​n​a​l​ ​P​a​g​e​ ​c​o​n​t​r​i​b​u​t​i​o​n​s​.
      */
     subtitle: string;
+    converter: {
+      /**
+       * O​u​t​p​u​t​ ​m​o​d​e
+       */
+      outputMode: string;
+      /**
+       * C​r​e​a​t​e​ ​n​e​w
+       */
+      create: string;
+      /**
+       * O​v​e​r​w​r​i​t​e
+       */
+      overwrite: string;
+      /**
+       * O​v​e​r​w​r​i​t​e​ ​i​s​ ​o​n​l​y​ ​a​v​a​i​l​a​b​l​e​ ​w​i​t​h​ ​m​a​n​u​a​l​ ​e​x​e​c​u​t​i​o​n
+       */
+      overwriteManualOnly: string;
+      /**
+       * O​v​e​r​w​r​i​t​e​ ​r​e​q​u​i​r​e​s​ ​f​i​l​e​s​ ​d​r​o​p​p​e​d​ ​f​r​o​m​ ​t​h​e​ ​f​i​l​e​ ​s​y​s​t​e​m
+       */
+      overwriteDroppedFilesOnly: string;
+    };
     sections: {
       /**
        * R​e​m​o​t​e​ ​P​l​u​g​i​n​s
@@ -3255,6 +3277,28 @@ export type TranslationFunctions = {
      * Manage installed Glimpse plugins and their Internal Page contributions.
      */
     subtitle: () => LocalizedString;
+    converter: {
+      /**
+       * Output mode
+       */
+      outputMode: () => LocalizedString;
+      /**
+       * Create new
+       */
+      create: () => LocalizedString;
+      /**
+       * Overwrite
+       */
+      overwrite: () => LocalizedString;
+      /**
+       * Overwrite is only available with manual execution
+       */
+      overwriteManualOnly: () => LocalizedString;
+      /**
+       * Overwrite requires files dropped from the file system
+       */
+      overwriteDroppedFilesOnly: () => LocalizedString;
+    };
     sections: {
       /**
        * Remote Plugins

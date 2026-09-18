@@ -210,21 +210,17 @@ export const localizeInternalPage = (
                       tab.immediateExecutionLabelFallback ??
                       "Immediate",
                   ),
-                  createModeLabel: translateDeclaredString(
+                  createModeLabel: translateOptionalDeclaredString(
                     plugin,
                     tab.createModeLabelKey,
                     tab.createModeLabelFallback,
-                    tab.createModeLabel ??
-                      tab.createModeLabelFallback ??
-                      "Create new",
+                    tab.createModeLabel,
                   ),
-                  overwriteModeLabel: translateDeclaredString(
+                  overwriteModeLabel: translateOptionalDeclaredString(
                     plugin,
                     tab.overwriteModeLabelKey,
                     tab.overwriteModeLabelFallback,
-                    tab.overwriteModeLabel ??
-                      tab.overwriteModeLabelFallback ??
-                      "Overwrite",
+                    tab.overwriteModeLabel,
                   ),
                   resultsLabel: translateDeclaredString(
                     plugin,
@@ -400,6 +396,24 @@ const translateDeclaredString = (
   }
 
   return translatePluginString(plugin, key, fallback ?? current);
+};
+
+const translateOptionalDeclaredString = (
+  plugin: GlimpsePlugin,
+  key: string | undefined,
+  fallback: string | undefined,
+  current: string | undefined,
+): string | undefined => {
+  if (!key && fallback === undefined && current === undefined) {
+    return undefined;
+  }
+
+  return translateDeclaredString(
+    plugin,
+    key,
+    fallback,
+    current ?? fallback ?? "",
+  );
 };
 
 const localizeHelpCommand = (

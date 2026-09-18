@@ -295,6 +295,14 @@ const ja = {
     title: "プラグイン管理",
     subtitle:
       "インストール済みの Glimpse プラグインと Internal Page contribution を管理します。",
+    converter: {
+      outputMode: "出力方法",
+      create: "新規作成",
+      overwrite: "上書き",
+      overwriteManualOnly: "上書きは手動実行の場合のみ使用できます",
+      overwriteDroppedFilesOnly:
+        "上書きにはファイルシステムからドロップしたファイルが必要です",
+    },
     sections: {
       remotePlugins: "リモートプラグイン",
       installedPlugins: "インストール済みプラグイン",

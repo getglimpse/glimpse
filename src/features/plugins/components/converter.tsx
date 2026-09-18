@@ -13,6 +13,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { fileApi } from "@/api/file";
 import { openerApi } from "@/api/opener";
 import { settingsApi } from "@/api/settings";
+import { useOptionalI18nContext } from "@/i18n/I18nProvider";
 
 import {
   isPluginConverterExecutionMode,
@@ -23,6 +24,7 @@ import {
 import { readPluginPreference, writePluginPreference } from "./settings";
 import { invokePluginAction, type PluginActions } from "./actions";
 import { getPluginButtonClassName } from "./styles";
+import { usePluginPageActivity } from "./tool";
 
 export type FileDropConverterProps = {
   action: string;
@@ -97,15 +99,15 @@ export const FileDropConverter = ({
   maxFiles = 1,
   execution = "manual",
   executionPreference,
-  outputModes = ["create"],
+  outputModes = ["create", "overwrite"],
   outputDirectoryPreference = DEFAULT_OUTPUT_DIRECTORY_PREFERENCE,
   description = "Converted files are written to the configured output directory.",
   chooseFileLabel = "Choose File",
   emptyLabel = "Drop a text file here",
   convertingLabel = "Converting",
   runLabel = "Run",
-  createModeLabel = "Create new",
-  overwriteModeLabel = "Overwrite",
+  createModeLabel,
+  overwriteModeLabel,
   resultsLabel = "Results",
   revealLabel = "Reveal",
   clearLabel = "Clear",
@@ -119,6 +121,22 @@ export const FileDropConverter = ({
   actions: PluginActions;
   pluginId: string;
 }) => {
+  const i18n = useOptionalI18nContext();
+  const pageActive = usePluginPageActivity();
+  const resolvedCreateModeLabel =
+    createModeLabel ?? i18n?.LL.pluginPage.converter.create() ?? "Create new";
+  const resolvedOverwriteModeLabel =
+    overwriteModeLabel ??
+    i18n?.LL.pluginPage.converter.overwrite() ??
+    "Overwrite";
+  const outputModeLabel =
+    i18n?.LL.pluginPage.converter.outputMode() ?? "Output mode";
+  const overwriteManualOnlyMessage =
+    i18n?.LL.pluginPage.converter.overwriteManualOnly() ??
+    "Overwrite is only available with manual execution";
+  const overwriteDroppedFilesOnlyMessage =
+    i18n?.LL.pluginPage.converter.overwriteDroppedFilesOnly() ??
+    "Overwrite requires files dropped from the file system";
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [running, setRunning] = useState(false);
@@ -287,9 +305,7 @@ export const FileDropConverter = ({
 
     if (mode === "overwrite") {
       if (input.kind !== "sourcePaths") {
-        throw new Error(
-          "Overwrite requires files dropped from the file system",
-        );
+        throw new Error(overwriteDroppedFilesOnlyMessage);
       }
 
       if (outputs.length !== input.sourcePaths.length) {
@@ -350,6 +366,11 @@ export const FileDropConverter = ({
       return;
     }
 
+    if (mode === "overwrite" && input.kind !== "sourcePaths") {
+      setMessage(overwriteDroppedFilesOnlyMessage);
+      return;
+    }
+
     setRunning(true);
     setMessage(null);
 
@@ -380,7 +401,11 @@ export const FileDropConverter = ({
     try {
       validateStagedInput(input);
       setStagedInput(input);
-      setOutputMode("create");
+      setOutputMode((current) =>
+        executionMode === "immediate" || input.kind === "files"
+          ? "create"
+          : current,
+      );
       setMessage(null);
 
       if (executionMode === "immediate") {
@@ -388,12 +413,16 @@ export const FileDropConverter = ({
       }
     } catch (error) {
       setStagedInput(null);
-      setOutputMode("create");
       setMessage(error instanceof Error ? error.message : String(error));
     }
   };
 
   useEffect(() => {
+    if (!pageActive) {
+      setDragActive(false);
+      return;
+    }
+
     let disposed = false;
     let unlisten: (() => void) | undefined;
 
@@ -441,6 +470,7 @@ export const FileDropConverter = ({
     maxFiles,
     maxBytes,
     multiple,
+    pageActive,
     running,
   ]);
 
@@ -482,10 +512,7 @@ export const FileDropConverter = ({
     stagedNames.length <= 1
       ? (stagedNames[0] ?? "")
       : `${stagedNames[0]} +${stagedNames.length - 1}`;
-  const canOverwrite =
-    overwriteAvailable &&
-    executionMode === "manual" &&
-    stagedInput?.kind === "sourcePaths";
+  const overwriteSelectable = executionMode === "manual";
 
   return (
     <div className="space-y-4 py-3">
@@ -518,7 +545,7 @@ export const FileDropConverter = ({
         {overwriteAvailable && (
           <div
             role="group"
-            aria-label="Output mode"
+            aria-label={outputModeLabel}
             className="absolute top-3 right-3 inline-flex overflow-hidden rounded-sm border border-border-main bg-main-bg"
           >
             <button
@@ -535,7 +562,7 @@ export const FileDropConverter = ({
                   : "text-text-muted hover:text-text-main"
               }`}
             >
-              {createModeLabel}
+              {resolvedCreateModeLabel}
             </button>
             <button
               type="button"
@@ -544,13 +571,9 @@ export const FileDropConverter = ({
                 event.stopPropagation();
                 setOutputMode("overwrite");
               }}
-              disabled={running || !canOverwrite}
+              disabled={running || !overwriteSelectable}
               title={
-                canOverwrite
-                  ? undefined
-                  : executionMode === "immediate"
-                    ? "Overwrite is only available with manual execution"
-                    : "Overwrite requires files dropped from the file system"
+                overwriteSelectable ? undefined : overwriteManualOnlyMessage
               }
               className={`border-l border-border-main px-3 py-1.5 text-xs transition-colors disabled:opacity-40 ${
                 outputMode === "overwrite"
@@ -558,7 +581,7 @@ export const FileDropConverter = ({
                   : "text-text-muted hover:text-red-300"
               }`}
             >
-              {overwriteModeLabel}
+              {resolvedOverwriteModeLabel}
             </button>
           </div>
         )}

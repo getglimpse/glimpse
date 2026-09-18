@@ -9,6 +9,8 @@ import {
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { I18nProvider } from "@/i18n/I18nProvider";
+
 import {
   ConverterExecutionSettings,
   createPluginComponents,
@@ -263,6 +265,54 @@ describe("pluginComponents", () => {
     expect(
       screen.getByText("Playground content").parentElement?.className,
     ).toContain("overflow-x-hidden");
+  });
+
+  it("preserves Converter input while switching page tabs", async () => {
+    const { FileDropConverter, Tabs } = createPluginComponents(
+      { convertFile: { handler: () => "converted" } },
+      "file-converter-plugin",
+    );
+    const { container } = render(
+      <Tabs
+        items={[
+          {
+            id: "converter",
+            title: "Converter",
+            content: <FileDropConverter action="convertFile" />,
+          },
+          {
+            id: "info",
+            title: "Info",
+            content: <div>Info content</div>,
+          },
+        ]}
+      />,
+    );
+    const dropZone = container.querySelector(
+      "[data-glimpse-plugin-file-drop-converter]",
+    );
+
+    fireEvent.drop(dropZone!, {
+      dataTransfer: {
+        files: [new File(["hello"], "notes.txt", { type: "text/plain" })],
+      },
+    });
+    expect(screen.getAllByText("notes.txt")).toHaveLength(2);
+
+    await waitFor(() => {
+      expect(windowMocks.dragDropHandlers).toHaveLength(1);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Info" }));
+    await waitFor(() => {
+      expect(windowMocks.dragDropHandlers).toHaveLength(0);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Converter" }));
+
+    expect(screen.getAllByText("notes.txt")).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "Run" })).toBeTruthy();
+    await waitFor(() => {
+      expect(windowMocks.dragDropHandlers).toHaveLength(1);
+    });
   });
 
   it("wraps long KeyValueList values inside the plugin page width", () => {
@@ -580,6 +630,11 @@ describe("pluginComponents", () => {
     const dropZone = container.querySelector(
       "[data-glimpse-plugin-file-drop-converter]",
     );
+    expect(
+      dropZone?.contains(screen.getByRole("group", { name: "Output mode" })),
+    ).toBe(true);
+    expect(screen.getByRole("button", { name: "Create new" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Overwrite" })).toBeTruthy();
     const file = new File(["hello"], "notes.txt", { type: "text/plain" });
 
     fireEvent.drop(dropZone!, {
@@ -624,6 +679,23 @@ describe("pluginComponents", () => {
     fireEvent.click(screen.getByRole("button", { name: "Clear" }));
 
     expect(screen.getByText("No output yet")).toBeTruthy();
+  });
+
+  it("uses Glimpse translations for the default converter output modes", async () => {
+    const { FileDropConverter } = createPluginComponents(
+      { convertFile: { handler: () => "converted" } },
+      "file-converter-plugin",
+    );
+
+    render(
+      <I18nProvider locale="ja">
+        <FileDropConverter action="convertFile" />
+      </I18nProvider>,
+    );
+
+    expect(await screen.findByRole("group", { name: "出力方法" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "新規作成" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "上書き" })).toBeTruthy();
   });
 
   it("rejects non-text files in FileDropConverter", async () => {
@@ -912,12 +984,7 @@ describe("pluginComponents", () => {
       "file-converter-plugin",
     );
 
-    const { container } = render(
-      <FileDropConverter
-        action="convertFile"
-        outputModes={["create", "overwrite"]}
-      />,
-    );
+    const { container } = render(<FileDropConverter action="convertFile" />);
 
     await waitFor(() => {
       expect(fileMocks.fileApi.getDefaultDownloadDirectory).toHaveBeenCalled();
@@ -930,6 +997,14 @@ describe("pluginComponents", () => {
       dropZone?.contains(screen.getByRole("group", { name: "Output mode" })),
     ).toBe(true);
 
+    const overwriteButton = screen.getByRole("button", { name: "Overwrite" });
+    expect((overwriteButton as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(overwriteButton);
+    expect(overwriteButton.getAttribute("aria-pressed")).toBe("true");
+
+    await waitFor(() => {
+      expect(windowMocks.dragDropHandlers.length).toBeGreaterThan(0);
+    });
     windowMocks.dragDropHandlers[0]?.({
       payload: {
         type: "drop",
@@ -937,15 +1012,10 @@ describe("pluginComponents", () => {
       },
     });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Overwrite" }));
-    expect(
-      screen
-        .getByRole("button", { name: "Overwrite" })
-        .getAttribute("aria-pressed"),
-    ).toBe("true");
+    expect(overwriteButton.getAttribute("aria-pressed")).toBe("true");
     expect(fileMocks.fileApi.overwritePluginTextInput).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Run" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Run" }));
 
     await waitFor(() => {
       expect(fileMocks.fileApi.overwritePluginTextInput).toHaveBeenCalledWith({

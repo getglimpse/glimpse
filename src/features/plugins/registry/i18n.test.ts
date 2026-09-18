@@ -9,6 +9,37 @@ afterEach(() => {
 });
 
 describe("pluginI18n", () => {
+  it("leaves app-owned converter mode labels to Glimpse", () => {
+    const plugin: GlimpsePlugin = {
+      id: "file-converter-plugin",
+      name: "File Converter",
+      version: "0.2.0",
+      apiVersion: "0.2.0",
+    };
+    const page: PluginInternalPageManifest = {
+      id: "plugin:file-converter-plugin",
+      title: "File Converter",
+      pageDefinition: {
+        id: "plugin:file-converter-plugin",
+        tabs: [
+          {
+            id: "converter",
+            type: "converter",
+            action: "convertFile",
+          },
+        ],
+      },
+    };
+
+    const [tab] = localizeInternalPage(plugin, page).pageDefinition?.tabs ?? [];
+
+    expect(tab).toMatchObject({
+      type: "converter",
+      createModeLabel: undefined,
+      overwriteModeLabel: undefined,
+    });
+  });
+
   it("localizes v0.2 converter tab labels", () => {
     const plugin: GlimpsePlugin = {
       id: "file-converter-plugin",
