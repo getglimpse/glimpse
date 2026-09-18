@@ -24,6 +24,7 @@ import type { TranslationFunctions } from "@/i18n/i18n-types";
 
 import { toast } from "@/utils/toast";
 import { copyText } from "@/utils/clipboard";
+import { publishPluginPlaygroundExecution } from "@/features/plugins/pluginPlaygroundEvents";
 import {
   executePluginAction,
   getInternalPageContribution,
@@ -195,6 +196,14 @@ export const createAppShortcuts = ({
               ? LL.appMessages.ranItem({ title: item.title })
               : String(result);
 
+          publishPluginPlaygroundExecution({
+            pluginId: contribution.pluginId,
+            actionId: pageAction.actionId,
+            input: commandArgs ?? "",
+            result: resultMessage,
+            source: "search",
+          });
+
           if (result !== undefined) {
             await copySuccessfulPluginActionResult({
               pluginId: contribution.pluginId,
@@ -217,6 +226,15 @@ export const createAppShortcuts = ({
           }
         } catch (error) {
           const resultMessage = String(error);
+
+          publishPluginPlaygroundExecution({
+            pluginId: contribution.pluginId,
+            actionId: pageAction.actionId,
+            input: commandArgs ?? "",
+            result: resultMessage,
+            error: true,
+            source: "search",
+          });
 
           toast.error(resultMessage);
           recordHistory({

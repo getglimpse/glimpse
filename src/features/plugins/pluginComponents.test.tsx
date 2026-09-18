@@ -9,7 +9,12 @@ import {
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createPluginComponents, type PluginActions } from "./pluginComponents";
+import {
+  createPluginComponents,
+  PluginPageActivityProvider,
+  type PluginActions,
+} from "./pluginComponents";
+import { publishPluginPlaygroundExecution } from "./pluginPlaygroundEvents";
 
 const clipboardMocks = vi.hoisted(() => ({
   copyText: vi.fn(),
@@ -342,6 +347,115 @@ describe("pluginComponents", () => {
       firstResult!.compareDocumentPosition(secondResult!) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+  });
+
+  it("adds matching search-bar executions to ActionPlayground history", async () => {
+    const { ActionPlayground } = createPluginComponents(
+      {},
+      "calculator-plugin",
+    );
+
+    render(
+      <ActionPlayground
+        action="calculate"
+        placeholder="Expression"
+        submitLabel="Run"
+      />,
+    );
+
+    publishPluginPlaygroundExecution({
+      pluginId: "other-plugin",
+      actionId: "calculate",
+      input: "1 + 1",
+      result: "2",
+      source: "search",
+    });
+    publishPluginPlaygroundExecution({
+      pluginId: "calculator-plugin",
+      actionId: "other-action",
+      input: "2 + 2",
+      result: "4",
+      source: "search",
+    });
+    publishPluginPlaygroundExecution({
+      pluginId: "calculator-plugin",
+      actionId: "calculate",
+      input: "3 + 3",
+      result: "6",
+      source: "search",
+    });
+
+    expect(await screen.findByText("3 + 3")).toBeTruthy();
+    expect(screen.getByText("6")).toBeTruthy();
+    expect(screen.queryByText("1 + 1")).toBeNull();
+    expect(screen.queryByText("2 + 2")).toBeNull();
+  });
+
+  it("adds failed search-bar executions to ActionPlayground history", async () => {
+    const { ActionPlayground } = createPluginComponents(
+      {},
+      "calculator-plugin",
+    );
+
+    render(
+      <ActionPlayground
+        action="calculate"
+        placeholder="Expression"
+        submitLabel="Run"
+      />,
+    );
+
+    publishPluginPlaygroundExecution({
+      pluginId: "calculator-plugin",
+      actionId: "calculate",
+      input: "invalid",
+      result: "Invalid expression",
+      error: true,
+      source: "search",
+    });
+
+    expect(await screen.findByText("invalid")).toBeTruthy();
+    expect(screen.getByText("Invalid expression")).toBeTruthy();
+    expect(screen.getByText("Error:")).toBeTruthy();
+  });
+
+  it("adds search-bar executions only to the active Playground instance", async () => {
+    const { ActionPlayground } = createPluginComponents(
+      {},
+      "calculator-plugin",
+    );
+
+    render(
+      <>
+        <PluginPageActivityProvider active>
+          <ActionPlayground
+            action="calculate"
+            placeholder="Active Playground"
+            submitLabel="Run active"
+          />
+        </PluginPageActivityProvider>
+        <PluginPageActivityProvider active={false}>
+          <ActionPlayground
+            action="calculate"
+            placeholder="Inactive Playground"
+            submitLabel="Run inactive"
+          />
+        </PluginPageActivityProvider>
+      </>,
+    );
+
+    publishPluginPlaygroundExecution({
+      pluginId: "calculator-plugin",
+      actionId: "calculate",
+      input: "4 + 4",
+      result: "8",
+      source: "search",
+    });
+
+    expect(await screen.findByText("4 + 4")).toBeTruthy();
+    expect(screen.getByText("8")).toBeTruthy();
+    expect(screen.queryByText("Active Playground")).toBeNull();
+    expect(screen.getByText("Inactive Playground")).toBeTruthy();
   });
 
   it("keeps ActionPlayground messages in a scroll view above the composer", () => {

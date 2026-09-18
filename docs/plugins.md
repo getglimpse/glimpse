@@ -81,6 +81,8 @@ Some plugin pages can receive arguments with `>`:
 numeric calculator > 1 + 2
 ```
 
+Input and results executed from the search bar are also added to the matching Playground in the open plugin. Use Command History to review results after leaving the page.
+
 Viewer plugins can also add previews for supported file types. When a trusted viewer matches the selected file, Glimpse can show that file in the Preview panel.
 
 ## Plugin Authors

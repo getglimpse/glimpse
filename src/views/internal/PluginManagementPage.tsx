@@ -49,6 +49,7 @@ const pluginMatchesSearch = (
 
 export const PluginManagementPage = () => {
   const { LL } = useI18nContext();
+  const contentRef = useRef<HTMLDivElement>(null);
   const [plugins, setPlugins] = useState<PluginRegistryItem[]>(() =>
     getPlugins(),
   );
@@ -71,6 +72,8 @@ export const PluginManagementPage = () => {
   );
   const [reloadingAll, setReloadingAll] = useState(false);
   const [pluginSearchQuery, setPluginSearchQuery] = useState("");
+  const [selectedPluginId, setSelectedPluginId] = useState<string | null>(null);
+  const [pluginLayoutWide, setPluginLayoutWide] = useState(false);
 
   useEffect(() => {
     void loadPlugins()
@@ -92,6 +95,42 @@ export const PluginManagementPage = () => {
   useEffect(() => {
     localInstallDialogOpenRef.current = localInstallDialogOpen;
   }, [localInstallDialogOpen]);
+
+  useEffect(() => {
+    const element = contentRef.current;
+
+    if (!element) {
+      return;
+    }
+
+    const updateLayout = () => {
+      setPluginLayoutWide(element.clientWidth >= 760);
+    };
+
+    updateLayout();
+
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", updateLayout);
+
+      return () => {
+        window.removeEventListener("resize", updateLayout);
+      };
+    }
+
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+
+      setPluginLayoutWide(
+        (entry?.contentRect.width ?? element.clientWidth) >= 760,
+      );
+    });
+
+    observer.observe(element);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
 
   useEffect(() => {
     const openLocalInstallDialog = () => {
@@ -238,6 +277,65 @@ export const PluginManagementPage = () => {
       });
   };
 
+  const handleEnabledChange = (
+    plugin: PluginRegistryItem,
+    enabled: boolean,
+  ) => {
+    setTrustingPluginId(plugin.id);
+    const updatePluginState = enabled
+      ? setPluginTrusted(plugin.id, true).then(() => {
+          setPluginEnabled(plugin.id, true);
+        })
+      : setPluginTrusted(plugin.id, false);
+
+    void updatePluginState
+      .then(() => {
+        setPlugins(getPlugins());
+        setDiscoveryErrors(getPluginDiscoveryErrors());
+      })
+      .catch((error) => {
+        console.error("Failed to update plugin state:", error);
+      })
+      .finally(() => {
+        setTrustingPluginId(null);
+      });
+  };
+
+  const handleUninstall = (plugin: PluginRegistryItem) => {
+    const confirmed = window.confirm(
+      LL.pluginPage.pluginRow.uninstallConfirm({
+        name: plugin.name,
+      }),
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setUninstallingPluginId(plugin.id);
+    setManagementMessage(null);
+    void uninstallPlugin(plugin.id)
+      .then(() => {
+        setPlugins(getPlugins());
+        setDiscoveryErrors(getPluginDiscoveryErrors());
+        setManagementMessage(
+          LL.pluginPage.pluginRow.uninstallSuccess({
+            pluginId: plugin.id,
+          }),
+        );
+      })
+      .catch((error) => {
+        setManagementMessage(
+          LL.pluginPage.pluginRow.uninstallFailed({
+            error: String(error),
+          }),
+        );
+      })
+      .finally(() => {
+        setUninstallingPluginId(null);
+      });
+  };
+
   const renderSelectedInstallPaths = () => {
     if (installSourcePaths.length === 0) {
       return null;
@@ -264,122 +362,136 @@ export const PluginManagementPage = () => {
           pluginMatchesSearch(plugin, normalizedPluginSearchQuery),
         )
       : plugins;
+  const selectedPlugin =
+    filteredPlugins.find((plugin) => plugin.id === selectedPluginId) ??
+    filteredPlugins[0] ??
+    null;
   const pluginSearchPlaceholder = LL.pluginPage.installed.searchPlaceholder();
 
   return (
-    <div className="h-full w-full overflow-y-auto p-6 text-sm text-text-main">
-      <div className="@container mx-auto max-w-5xl">
-        <Section>
-          <div className="space-y-4 py-3">
-            <PluginSearchControls
-              placeholder={pluginSearchPlaceholder}
-              value={pluginSearchQuery}
-              onChange={setPluginSearchQuery}
-              actions={
-                <InstalledPluginSearchActions
-                  LL={LL}
-                  reloadingAll={reloadingAll}
-                  onReloadAll={handleReloadAll}
-                />
-              }
-            />
+    <div
+      className={`h-full w-full px-4 py-3 text-sm text-text-main sm:px-6 ${
+        pluginLayoutWide
+          ? "flex min-h-0 flex-col overflow-hidden"
+          : "overflow-y-auto"
+      }`}
+    >
+      <div
+        ref={contentRef}
+        className={`@container mx-auto max-w-5xl ${
+          pluginLayoutWide ? "flex min-h-0 w-full flex-1 flex-col" : ""
+        }`}
+      >
+        <Section
+          className={
+            pluginLayoutWide ? "mb-0 flex min-h-0 flex-1 flex-col" : undefined
+          }
+          contentClassName={
+            pluginLayoutWide ? "flex min-h-0 flex-1 flex-col" : undefined
+          }
+        >
+          <div
+            data-testid="installed-plugin-layout"
+            className={`grid gap-3 py-0 ${
+              selectedPlugin
+                ? "@min-[760px]:grid-cols-[minmax(200px,320px)_minmax(0,1fr)] @min-[1024px]:grid-cols-[minmax(220px,360px)_minmax(0,1fr)]"
+                : ""
+            } ${pluginLayoutWide ? "min-h-0 flex-1" : ""}`}
+          >
+            <div className="space-y-3 @min-[760px]:flex @min-[760px]:min-h-0 @min-[760px]:flex-col">
+              <PluginSearchControls
+                placeholder={pluginSearchPlaceholder}
+                value={pluginSearchQuery}
+                onChange={setPluginSearchQuery}
+                actions={
+                  <InstalledPluginSearchActions
+                    LL={LL}
+                    reloadingAll={reloadingAll}
+                    onReloadAll={handleReloadAll}
+                  />
+                }
+              />
 
-            {loadError && (
-              <div className="rounded-md border border-red-500/40 bg-main-bg p-3 text-red-400">
-                {LL.pluginPage.installed.loadError({ error: loadError })}
-              </div>
-            )}
-
-            {discoveryErrors.length > 0 && (
-              <div className="space-y-2 rounded-md border border-red-500/40 bg-main-bg p-3 text-xs text-red-400">
-                {discoveryErrors.map((error) => (
-                  <div key={`${error.path}:${error.error}`}>
-                    <div className="font-mono text-text-muted">
-                      {error.path}
-                    </div>
-                    <div>{error.error}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {!loadError && plugins.length === 0 && (
-              <div className="rounded-md border border-border-main bg-main-bg p-3 text-text-muted">
-                {LL.pluginPage.installed.empty()}
-              </div>
-            )}
-
-            {!loadError &&
-              plugins.length > 0 &&
-              filteredPlugins.length === 0 && (
-                <div className="rounded-md border border-border-main bg-main-bg p-3 text-text-muted">
-                  {LL.pluginPage.installed.noSearchResults()}
+              {loadError && (
+                <div className="rounded-md border border-red-500/40 bg-main-bg p-3 text-red-400">
+                  {LL.pluginPage.installed.loadError({ error: loadError })}
                 </div>
               )}
 
-            {filteredPlugins.map((plugin) => (
-              <PluginCard
-                key={plugin.id}
-                plugin={plugin}
-                trusting={trustingPluginId === plugin.id}
-                uninstalling={uninstallingPluginId === plugin.id}
+              {discoveryErrors.length > 0 && (
+                <div className="space-y-2 rounded-md border border-red-500/40 bg-main-bg p-3 text-xs text-red-400">
+                  {discoveryErrors.map((error) => (
+                    <div key={`${error.path}:${error.error}`}>
+                      <div className="font-mono text-text-muted">
+                        {error.path}
+                      </div>
+                      <div>{error.error}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {!loadError && plugins.length === 0 && (
+                <div className="rounded-md border border-border-main bg-main-bg p-3 text-text-muted">
+                  {LL.pluginPage.installed.empty()}
+                </div>
+              )}
+
+              {!loadError &&
+                plugins.length > 0 &&
+                filteredPlugins.length === 0 && (
+                  <div className="rounded-md border border-border-main bg-main-bg p-3 text-text-muted">
+                    {LL.pluginPage.installed.noSearchResults()}
+                  </div>
+                )}
+
+              {pluginLayoutWide && filteredPlugins.length > 0 && (
+                <div className="overflow-hidden rounded-md border border-border-main bg-main-bg @min-[760px]:min-h-0 @min-[760px]:flex-1 @min-[760px]:overflow-y-auto">
+                  {filteredPlugins.map((plugin) => (
+                    <InstalledPluginRow
+                      key={plugin.id}
+                      plugin={plugin}
+                      selected={plugin.id === selectedPlugin?.id}
+                      onSelect={() => {
+                        setSelectedPluginId(plugin.id);
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {!pluginLayoutWide &&
+                filteredPlugins.map((plugin) => (
+                  <PluginCard
+                    key={plugin.id}
+                    plugin={plugin}
+                    trusting={trustingPluginId === plugin.id}
+                    uninstalling={uninstallingPluginId === plugin.id}
+                    LL={LL}
+                    onEnabledChange={(enabled) => {
+                      handleEnabledChange(plugin, enabled);
+                    }}
+                    onUninstall={() => {
+                      handleUninstall(plugin);
+                    }}
+                  />
+                ))}
+            </div>
+
+            {pluginLayoutWide && selectedPlugin && (
+              <InstalledPluginDetail
+                plugin={selectedPlugin}
+                trusting={trustingPluginId === selectedPlugin.id}
+                uninstalling={uninstallingPluginId === selectedPlugin.id}
                 LL={LL}
                 onEnabledChange={(enabled) => {
-                  setTrustingPluginId(plugin.id);
-                  const updatePluginState = enabled
-                    ? setPluginTrusted(plugin.id, true).then(() => {
-                        setPluginEnabled(plugin.id, true);
-                      })
-                    : setPluginTrusted(plugin.id, false);
-
-                  void updatePluginState
-                    .then(() => {
-                      setPlugins(getPlugins());
-                      setDiscoveryErrors(getPluginDiscoveryErrors());
-                    })
-                    .catch((error) => {
-                      console.error("Failed to update plugin state:", error);
-                    })
-                    .finally(() => {
-                      setTrustingPluginId(null);
-                    });
+                  handleEnabledChange(selectedPlugin, enabled);
                 }}
                 onUninstall={() => {
-                  const confirmed = window.confirm(
-                    LL.pluginPage.pluginRow.uninstallConfirm({
-                      name: plugin.name,
-                    }),
-                  );
-
-                  if (!confirmed) {
-                    return;
-                  }
-
-                  setUninstallingPluginId(plugin.id);
-                  setManagementMessage(null);
-                  void uninstallPlugin(plugin.id)
-                    .then(() => {
-                      setPlugins(getPlugins());
-                      setDiscoveryErrors(getPluginDiscoveryErrors());
-                      setManagementMessage(
-                        LL.pluginPage.pluginRow.uninstallSuccess({
-                          pluginId: plugin.id,
-                        }),
-                      );
-                    })
-                    .catch((error) => {
-                      setManagementMessage(
-                        LL.pluginPage.pluginRow.uninstallFailed({
-                          error: String(error),
-                        }),
-                      );
-                    })
-                    .finally(() => {
-                      setUninstallingPluginId(null);
-                    });
+                  handleUninstall(selectedPlugin);
                 }}
               />
-            ))}
+            )}
           </div>
         </Section>
 
@@ -573,6 +685,182 @@ const LocalPluginInstallDialog = ({
   </Dialog>
 );
 
+const InstalledPluginRow = ({
+  plugin,
+  selected,
+  onSelect,
+}: {
+  plugin: PluginRegistryItem;
+  selected: boolean;
+  onSelect: () => void;
+}) => (
+  <article
+    role="button"
+    tabIndex={0}
+    aria-label={plugin.name}
+    aria-pressed={selected}
+    onClick={onSelect}
+    onKeyDown={(event) => {
+      if (event.key !== "Enter" && event.key !== " ") {
+        return;
+      }
+
+      event.preventDefault();
+      onSelect();
+    }}
+    className={`border-b border-border-main/60 px-3 py-3 outline-none last:border-b-0 hover:bg-item-hover focus:bg-item-hover ${
+      selected ? "bg-item-hover" : ""
+    }`}
+  >
+    <div className="min-w-0 space-y-1">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="min-w-0 font-medium text-text-main">
+          {plugin.name}
+        </span>
+        <span className="text-xs text-text-muted">v{plugin.version}</span>
+        <span
+          className={`rounded border px-1.5 py-0.5 text-[11px] ${
+            plugin.enabled
+              ? "border-accent/50 text-accent"
+              : "border-border-main text-text-muted"
+          }`}
+        >
+          {plugin.enabled ? "ON" : "OFF"}
+        </span>
+      </div>
+
+      <code className="block truncate text-xs text-text-muted">
+        {plugin.id}
+      </code>
+
+      {plugin.description && (
+        <p className="line-clamp-1 text-sm text-text-muted">
+          {plugin.description}
+        </p>
+      )}
+    </div>
+  </article>
+);
+
+const InstalledPluginDetail = ({
+  plugin,
+  trusting,
+  uninstalling,
+  LL,
+  onEnabledChange,
+  onUninstall,
+}: {
+  plugin: PluginRegistryItem;
+  trusting: boolean;
+  uninstalling: boolean;
+  LL: TranslationFunctions;
+  onEnabledChange: (enabled: boolean) => void;
+  onUninstall: () => void;
+}) => {
+  const readmeState = usePluginReadme(plugin.id, LL);
+  const hasReadmeContent = readmeState.content.trim().length > 0;
+
+  return (
+    <aside
+      data-testid="installed-plugin-detail"
+      className="min-w-0 rounded-md border border-border-main bg-main-bg p-4 @min-[760px]:h-full @min-[760px]:min-h-0 @min-[760px]:overflow-y-auto"
+    >
+      <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-start gap-x-2 gap-y-1">
+            <h2 className="min-w-0 text-base font-medium text-text-main">
+              {plugin.name}
+            </h2>
+            <code className="break-all rounded border border-border-main px-1.5 py-0.5 text-xs text-text-muted">
+              {plugin.id}
+            </code>
+            <span className="text-xs text-text-muted">v{plugin.version}</span>
+          </div>
+
+          {plugin.description && (
+            <p className="mt-1 text-text-muted">{plugin.description}</p>
+          )}
+        </div>
+
+        <PluginManagementActions
+          plugin={plugin}
+          trusting={trusting}
+          uninstalling={uninstalling}
+          LL={LL}
+          onEnabledChange={onEnabledChange}
+          onUninstall={onUninstall}
+        />
+      </div>
+
+      {(readmeState.loading || readmeState.error || hasReadmeContent) && (
+        <section className="mt-4 border-t border-border-main/70 pt-3">
+          <h3 className="text-xs font-medium text-text-main">
+            {LL.pluginPage.installed.readme()}
+          </h3>
+
+          {readmeState.loading && (
+            <div className="mt-3 text-xs text-text-muted">
+              {LL.pluginPage.installed.readmeLoading()}
+            </div>
+          )}
+
+          {readmeState.error && (
+            <div className="mt-3 text-xs text-red-300">{readmeState.error}</div>
+          )}
+
+          {hasReadmeContent && (
+            <PluginReadmeMarkdown content={readmeState.content} />
+          )}
+        </section>
+      )}
+    </aside>
+  );
+};
+
+const PluginManagementActions = ({
+  plugin,
+  trusting,
+  uninstalling,
+  LL,
+  onEnabledChange,
+  onUninstall,
+}: {
+  plugin: PluginRegistryItem;
+  trusting: boolean;
+  uninstalling: boolean;
+  LL: TranslationFunctions;
+  onEnabledChange: (enabled: boolean) => void;
+  onUninstall: () => void;
+}) => (
+  <div className="flex flex-wrap items-center gap-3 justify-self-start sm:justify-end">
+    <label className="flex items-center gap-2">
+      <span className="text-xs text-text-muted">
+        {plugin.enabled
+          ? LL.pluginPage.pluginRow.on()
+          : LL.pluginPage.pluginRow.off()}
+      </span>
+      <Switch
+        checked={plugin.enabled}
+        onCheckedChange={onEnabledChange}
+        disabled={trusting}
+        aria-label={LL.pluginPage.pluginRow.toggleLabel({
+          name: plugin.name,
+        })}
+      />
+    </label>
+    <button
+      type="button"
+      onClick={onUninstall}
+      disabled={uninstalling}
+      aria-label={LL.pluginPage.pluginRow.uninstall()}
+      title={LL.pluginPage.pluginRow.uninstall()}
+      className="inline-flex size-8 items-center justify-center rounded border border-red-500/40 text-red-300 hover:text-red-200 disabled:opacity-50"
+    >
+      <Trash2 size={15} aria-hidden="true" />
+    </button>
+  </div>
+);
+
 const PluginCard = ({
   plugin,
   trusting,
@@ -588,6 +876,66 @@ const PluginCard = ({
   onEnabledChange: (enabled: boolean) => void;
   onUninstall: () => void;
 }) => {
+  const readmeState = usePluginReadme(plugin.id, LL);
+  const hasReadmeContent = readmeState.content.trim().length > 0;
+
+  return (
+    <article className="rounded-md border border-border-main bg-main-bg p-4">
+      <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-start gap-x-2 gap-y-1">
+            <span className="min-w-0 text-base font-medium text-text-main">
+              {plugin.name}
+            </span>
+            <code className="break-all rounded border border-border-main px-1.5 py-0.5 text-xs text-text-muted">
+              {plugin.id}
+            </code>
+            <span className="text-xs text-text-muted">v{plugin.version}</span>
+          </div>
+
+          {plugin.description && (
+            <p className="mt-1 truncate text-text-muted">
+              {plugin.description}
+            </p>
+          )}
+        </div>
+
+        <PluginManagementActions
+          plugin={plugin}
+          trusting={trusting}
+          uninstalling={uninstalling}
+          LL={LL}
+          onEnabledChange={onEnabledChange}
+          onUninstall={onUninstall}
+        />
+      </div>
+
+      {(readmeState.loading || readmeState.error || hasReadmeContent) && (
+        <details className="mt-4 border-t border-border-main/70 pt-3">
+          <summary className="cursor-pointer text-xs font-medium text-text-main marker:text-text-muted">
+            {LL.pluginPage.installed.readme()}
+          </summary>
+
+          {readmeState.loading && (
+            <div className="mt-3 text-xs text-text-muted">
+              {LL.pluginPage.installed.readmeLoading()}
+            </div>
+          )}
+
+          {readmeState.error && (
+            <div className="mt-3 text-xs text-red-300">{readmeState.error}</div>
+          )}
+
+          {hasReadmeContent && (
+            <PluginReadmeMarkdown content={readmeState.content} />
+          )}
+        </details>
+      )}
+    </article>
+  );
+};
+
+const usePluginReadme = (pluginId: string, LL: TranslationFunctions) => {
   const [readmeState, setReadmeState] = useState<{
     content: string;
     error: string | null;
@@ -604,7 +952,7 @@ const PluginCard = ({
     setReadmeState({ content: "", error: null, loading: true });
 
     void pluginsApi
-      .getReadmeSource(plugin.id)
+      .getReadmeSource(pluginId)
       .then((readme) => {
         if (!cancelled) {
           setReadmeState({
@@ -633,83 +981,9 @@ const PluginCard = ({
     return () => {
       cancelled = true;
     };
-  }, [LL, plugin.id]);
+  }, [LL, pluginId]);
 
-  const hasReadmeContent = readmeState.content.trim().length > 0;
-
-  return (
-    <article className="rounded-md border border-border-main bg-main-bg p-4">
-      <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-start gap-x-2 gap-y-1">
-            <span className="min-w-0 text-base font-medium text-text-main">
-              {plugin.name}
-            </span>
-            <code className="break-all rounded border border-border-main px-1.5 py-0.5 text-xs text-text-muted">
-              {plugin.id}
-            </code>
-            <span className="text-xs text-text-muted">v{plugin.version}</span>
-          </div>
-
-          {plugin.description && (
-            <p className="mt-1 truncate text-text-muted">
-              {plugin.description}
-            </p>
-          )}
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3 justify-self-start sm:justify-end">
-          <label className="flex items-center gap-2">
-            <span className="text-xs text-text-muted">
-              {plugin.enabled
-                ? LL.pluginPage.pluginRow.on()
-                : LL.pluginPage.pluginRow.off()}
-            </span>
-            <Switch
-              checked={plugin.enabled}
-              onCheckedChange={onEnabledChange}
-              disabled={trusting}
-              aria-label={LL.pluginPage.pluginRow.toggleLabel({
-                name: plugin.name,
-              })}
-            />
-          </label>
-          <button
-            type="button"
-            onClick={onUninstall}
-            disabled={uninstalling}
-            aria-label={LL.pluginPage.pluginRow.uninstall()}
-            title={LL.pluginPage.pluginRow.uninstall()}
-            className="inline-flex size-8 items-center justify-center rounded border border-red-500/40 text-red-300 hover:text-red-200 disabled:opacity-50"
-          >
-            <Trash2 size={15} aria-hidden="true" />
-          </button>
-        </div>
-      </div>
-
-      {(readmeState.loading || readmeState.error || hasReadmeContent) && (
-        <details className="mt-4 border-t border-border-main/70 pt-3">
-          <summary className="cursor-pointer text-xs font-medium text-text-main marker:text-text-muted">
-            {LL.pluginPage.installed.readme()}
-          </summary>
-
-          {readmeState.loading && (
-            <div className="mt-3 text-xs text-text-muted">
-              {LL.pluginPage.installed.readmeLoading()}
-            </div>
-          )}
-
-          {readmeState.error && (
-            <div className="mt-3 text-xs text-red-300">{readmeState.error}</div>
-          )}
-
-          {hasReadmeContent && (
-            <PluginReadmeMarkdown content={readmeState.content} />
-          )}
-        </details>
-      )}
-    </article>
-  );
+  return readmeState;
 };
 
 const isPluginReadmeMissing = (message: string) =>

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { IndexItem } from "@/types";
 import type { TranslationFunctions } from "@/i18n/i18n-types";
+import { subscribeToPluginPlaygroundExecutions } from "@/features/plugins/pluginPlaygroundEvents";
 
 import { createAppShortcuts } from "./createAppShortcuts";
 
@@ -182,6 +183,66 @@ describe("createAppShortcuts", () => {
     expect(toastMocks.toast.success).toHaveBeenCalledWith("2026-08-31", {
       copy: true,
     });
+  });
+
+  it("publishes plugin page action results for the matching Playground", async () => {
+    pluginRegistryMocks.executePluginAction.mockResolvedValue("2026-08-31");
+    pluginRegistryMocks.getInternalPageContribution.mockReturnValue({
+      pluginId: "date-calculator-plugin",
+      pageAction: {
+        actionId: "calculate",
+      },
+    });
+    settingsMocks.settingsApi.get.mockResolvedValue({ plugins: {} });
+    const listener = vi.fn();
+    const unsubscribe = subscribeToPluginPlaygroundExecutions(listener);
+
+    try {
+      createShortcuts().openActiveItem();
+
+      await vi.waitFor(() => {
+        expect(listener).toHaveBeenCalledWith({
+          pluginId: "date-calculator-plugin",
+          actionId: "calculate",
+          input: "eom(today)",
+          result: "2026-08-31",
+          source: "search",
+        });
+      });
+    } finally {
+      unsubscribe();
+    }
+  });
+
+  it("publishes failed plugin page actions for the matching Playground", async () => {
+    pluginRegistryMocks.executePluginAction.mockRejectedValue(
+      new Error("Invalid date expression"),
+    );
+    pluginRegistryMocks.getInternalPageContribution.mockReturnValue({
+      pluginId: "date-calculator-plugin",
+      pageAction: {
+        actionId: "calculate",
+      },
+    });
+    const listener = vi.fn();
+    const unsubscribe = subscribeToPluginPlaygroundExecutions(listener);
+
+    try {
+      createShortcuts().openActiveItem();
+
+      await vi.waitFor(() => {
+        expect(listener).toHaveBeenCalledWith({
+          pluginId: "date-calculator-plugin",
+          actionId: "calculate",
+          input: "eom(today)",
+          result: "Error: Invalid date expression",
+          error: true,
+          source: "search",
+        });
+      });
+    } finally {
+      unsubscribe();
+    }
   });
 
   it("does not copy plugin page action results when disabled", async () => {

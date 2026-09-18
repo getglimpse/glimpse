@@ -288,7 +288,8 @@ const toInternalPageContribution = (
   return {
     ...localizedPage,
     pluginId: plugin.id,
-    render: () => createElement(PluginInternalPageView, {
+    render: (options) => createElement(PluginInternalPageView, {
+      active: options?.active,
       page: localizedPage,
       plugin: localizedPlugin,
       pluginId: plugin.id,

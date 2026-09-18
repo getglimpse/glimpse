@@ -76,6 +76,8 @@ registry は、ダウンロード先と期待する checksum を Glimpse に伝�
 numeric calculator > 1 + 2
 ```
 
+検索バーから実行した入力と結果は、開いているプラグインの対応する Playground にも追加されます。ページを離れた後も確認したい実行結果は Command History から確認できます。
+
 Viewer plugin は、対応するファイル形式のプレビューも追加できます。信頼済み viewer が選択中のファイルに一致する場合、Glimpse は Preview パネルでそのファイルを表示できます。
 
 ## プラグインを作る場合

@@ -1,6 +1,8 @@
 import {
+  createContext,
   useEffect,
   useId,
+  useContext,
   useRef,
   useState,
   type ChangeEvent,
@@ -19,12 +21,27 @@ import { settingsApi } from "@/api/settings";
 import { Switch } from "@/components/ui/switch";
 import { copyText } from "@/utils/clipboard";
 
+import { subscribeToPluginPlaygroundExecutions } from "./pluginPlaygroundEvents";
 import {
   readPluginCopySuccessfulSearchResultEnabled,
   readPluginPreference,
   writePluginCopySuccessfulSearchResultEnabled,
   writePluginPreference,
 } from "./pluginSettings";
+
+const PluginPageActivityContext = createContext(true);
+
+export const PluginPageActivityProvider = ({
+  active,
+  children,
+}: {
+  active: boolean;
+  children?: ReactNode;
+}) => (
+  <PluginPageActivityContext.Provider value={active}>
+    {children}
+  </PluginPageActivityContext.Provider>
+);
 
 export type PluginActionHandler = (
   input?: unknown,
@@ -234,6 +251,7 @@ type ActionPlaygroundPublicProps = {
 
 type ActionPlaygroundProps = ActionPlaygroundPublicProps & {
   actions: PluginActions;
+  pluginId: string;
 };
 
 type ActionSettingsPublicProps = {
@@ -298,7 +316,7 @@ export const createPluginComponents = (
     <OutputDirectorySettings {...props} pluginId={pluginId} />
   ),
   ActionPlayground: (props) => (
-    <ActionPlayground {...props} actions={actions} />
+    <ActionPlayground {...props} actions={actions} pluginId={pluginId} />
   ),
   ActionSettings: (props) => <ActionSettings {...props} pluginId={pluginId} />,
   CalculationPanel: (props) => (
@@ -1374,7 +1392,9 @@ const ActionPlayground = ({
   examples,
   submitLabel = "Run",
   actions,
+  pluginId,
 }: ActionPlaygroundProps) => {
+  const pageActive = useContext(PluginPageActivityContext);
   const [value, setValue] = useState("");
   const [running, setRunning] = useState(false);
   const [history, setHistory] = useState<PlaygroundHistoryItem[]>([]);
@@ -1386,6 +1406,30 @@ const ActionPlayground = ({
   useEffect(() => {
     historyEndRef.current?.scrollIntoView?.({ block: "end" });
   }, [history.length]);
+
+  useEffect(
+    () =>
+      subscribeToPluginPlaygroundExecutions((execution) => {
+        if (
+          !pageActive ||
+          execution.pluginId !== pluginId ||
+          execution.actionId !== action
+        ) {
+          return;
+        }
+
+        setHistory((previous) => [
+          ...previous,
+          {
+            id: nextHistoryId.current++,
+            input: execution.input,
+            result: execution.result,
+            error: execution.error,
+          },
+        ]);
+      }),
+    [action, pageActive, pluginId],
+  );
 
   const run = async () => {
     if (running) {

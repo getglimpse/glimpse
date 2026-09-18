@@ -319,7 +319,7 @@ export type RemotePluginInstallResult = PluginInstallResult & {
 
 export type InternalPageContribution = PluginInternalPageManifest & {
   pluginId: string;
-  render: () => ReactNode;
+  render: (options?: { active?: boolean }) => ReactNode;
 };
 
 export type GlimpsePlugin = {

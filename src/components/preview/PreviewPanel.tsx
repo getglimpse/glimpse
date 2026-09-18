@@ -386,7 +386,7 @@ export const PreviewPanel = forwardRef<PreviewPanelHandle, Props>(
               );
 
               if (contribution) {
-                return contribution.render();
+                return contribution.render({ active });
               }
             }
           }

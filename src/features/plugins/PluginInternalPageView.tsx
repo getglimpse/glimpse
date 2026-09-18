@@ -17,7 +17,10 @@ import type {
   PluginStaticPageSection,
 } from "@/types";
 
-import { invokePluginAction } from "./pluginComponents";
+import {
+  invokePluginAction,
+  PluginPageActivityProvider,
+} from "./pluginComponents";
 import {
   getPluginRuntime,
   getPluginRuntimeSnapshot,
@@ -26,10 +29,12 @@ import {
 } from "./pluginRuntime";
 
 export const PluginInternalPageView = ({
+  active = true,
   page,
   plugin,
   pluginId,
 }: {
+  active?: boolean;
   page: PluginInternalPageManifest;
   plugin?: GlimpsePlugin;
   pluginId: string;
@@ -48,33 +53,35 @@ export const PluginInternalPageView = ({
   );
 
   return (
-    <div
-      className="h-full w-full overflow-hidden px-6 pt-3 pb-6 text-sm text-text-main select-text"
-      data-glimpse-plugin-page={pluginId}
-    >
-      <div className="mx-auto flex h-full min-h-0 max-w-3xl flex-col">
-        {page.staticPage?.subtitle && !dynamicPage && (
-          <p className="mb-6 shrink-0 text-sm text-text-muted">
-            {page.staticPage.subtitle}
-          </p>
-        )}
+    <PluginPageActivityProvider active={active}>
+      <div
+        className="h-full w-full overflow-hidden px-6 pt-3 pb-6 text-sm text-text-main select-text"
+        data-glimpse-plugin-page={pluginId}
+      >
+        <div className="mx-auto flex h-full min-h-0 max-w-3xl flex-col">
+          {page.staticPage?.subtitle && !dynamicPage && (
+            <p className="mb-6 shrink-0 text-sm text-text-muted">
+              {page.staticPage.subtitle}
+            </p>
+          )}
 
-        <div
-          className={`min-h-0 flex-1 ${
-            dynamicPage ? "overflow-hidden" : "overflow-y-auto"
-          }`}
-        >
-          <PluginPageBody
-            dynamicPage={dynamicPage}
-            page={page}
-            status={runtimeSnapshot.status}
-            error={runtimeSnapshot.error}
-            renderError={renderError}
-            runtimeUpdatedAt={runtimeSnapshot.updatedAt}
-          />
+          <div
+            className={`min-h-0 flex-1 ${
+              dynamicPage ? "overflow-hidden" : "overflow-y-auto"
+            }`}
+          >
+            <PluginPageBody
+              dynamicPage={dynamicPage}
+              page={page}
+              status={runtimeSnapshot.status}
+              error={runtimeSnapshot.error}
+              renderError={renderError}
+              runtimeUpdatedAt={runtimeSnapshot.updatedAt}
+            />
+          </div>
         </div>
       </div>
-    </div>
+    </PluginPageActivityProvider>
   );
 };
 

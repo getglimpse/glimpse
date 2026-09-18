@@ -305,6 +305,50 @@ describe("PluginPage installed plugins", () => {
       screen.getByPlaceholderText("Local plugin folder path, one per line"),
     ).toBeTruthy();
   });
+
+  it("shows a selectable plugin list and README detail at wide widths", async () => {
+    const clientWidthSpy = vi
+      .spyOn(HTMLElement.prototype, "clientWidth", "get")
+      .mockReturnValue(800);
+
+    pluginRegistryMocks.setPlugins([
+      installedPlugin("installed-plugin-with-readme", "0.2.0", {
+        name: "Installed Plugin With README",
+      }),
+      installedPlugin("installed-plugin-without-readme", "0.2.0", {
+        name: "Installed Plugin Without README",
+      }),
+    ]);
+
+    try {
+      renderPluginPage();
+
+      const firstPlugin = await screen.findByRole("button", {
+        name: "Installed Plugin With README",
+      });
+      const secondPlugin = screen.getByRole("button", {
+        name: "Installed Plugin Without README",
+      });
+
+      expect(firstPlugin.getAttribute("aria-pressed")).toBe("true");
+      expect(
+        screen
+          .getByTestId("installed-plugin-layout")
+          .className.includes("grid-cols"),
+      ).toBe(true);
+      expect(screen.getByTestId("installed-plugin-detail")).toBeTruthy();
+      expect(await screen.findByText("Installed README")).toBeTruthy();
+
+      fireEvent.click(secondPlugin);
+
+      expect(secondPlugin.getAttribute("aria-pressed")).toBe("true");
+      await waitFor(() => {
+        expect(screen.queryByText("Installed README")).toBeNull();
+      });
+    } finally {
+      clientWidthSpy.mockRestore();
+    }
+  });
 });
 
 describe("PluginPage remote plugins", () => {
