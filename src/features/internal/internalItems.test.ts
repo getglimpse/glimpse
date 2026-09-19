@@ -25,8 +25,8 @@ const item = (
   },
 });
 
-vi.mock("@/features/plugins/registry", () => ({
-  getPluginInternalItems: () => [
+vi.mock("@/features/plugins/registry", () => {
+  const pluginItems = [
     item("internal://plugin:tool-plugin", "Tool Plugin", {
       tags: ["internal", "plugin", "tool"],
     }),
@@ -46,11 +46,15 @@ vi.mock("@/features/plugins/registry", () => ({
     item("internal://plugin:tag-match", "Tag Match", {
       tags: ["internal", "needle"],
     }),
-  ],
-  getPluginActionItems: () => [
-    item("plugin-action://test-plugin/sayHello", "Say Hello"),
-  ],
-}));
+  ];
+
+  return {
+    getPluginInternalItems: () => pluginItems,
+    getPluginActionItems: () => [
+      item("plugin-action://test-plugin/sayHello", "Say Hello"),
+    ],
+  };
+});
 
 describe("internalItems", () => {
   it("keeps plugin actions out of the Internal item list", async () => {
@@ -66,17 +70,17 @@ describe("internalItems", () => {
 
   it("keeps slash search scoped to all plugin pages", async () => {
     const { searchInternalItems } = await import("./internalItems");
+    const pluginResults = searchInternalItems("/");
 
-    expect(searchInternalItems("/").map((result) => result.item.title)).toEqual(
-      [
-        "Tool Plugin",
-        "Converter Plugin",
-        "Viewer Plugin",
-        "Needle Title",
-        "Alias Match",
-        "Tag Match",
-      ],
-    );
+    expect(pluginResults.map((result) => result.item.title)).toEqual([
+      "Tool Plugin",
+      "Converter Plugin",
+      "Viewer Plugin",
+      "Needle Title",
+      "Alias Match",
+      "Tag Match",
+    ]);
+    expect(searchInternalItems("/")).toBe(pluginResults);
   });
 
   it("keeps plugin results visible for an empty tag token", async () => {

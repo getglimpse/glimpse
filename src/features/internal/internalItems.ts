@@ -214,7 +214,19 @@ export const TAG_CLOUD_ITEM = INTERNAL_ITEMS.find(
   (item) => item.id === "internal://tag-cloud",
 )!;
 
-const getInternalItems = () => [...INTERNAL_ITEMS, ...getPluginInternalItems()];
+let cachedPluginItems: IndexItem[] | null = null;
+let cachedInternalItems: IndexItem[] = INTERNAL_ITEMS;
+
+const getInternalItems = () => {
+  const pluginItems = getPluginInternalItems();
+
+  if (pluginItems !== cachedPluginItems) {
+    cachedPluginItems = pluginItems;
+    cachedInternalItems = [...INTERNAL_ITEMS, ...pluginItems];
+  }
+
+  return cachedInternalItems;
+};
 
 type InternalSearchScope = "all" | "plugins";
 
@@ -237,22 +249,42 @@ const getItemsForScope = (scope: InternalSearchScope): IndexItem[] => {
   }
 };
 
-const getInternalSearchScore = (item: IndexItem, normalized: string) => {
-  const normalizedTitle = item.title.toLowerCase();
-  const normalizedAliases = item.metadata.aliases.map((alias) =>
-    alias.toLowerCase(),
-  );
-  const normalizedTags = item.metadata.tags.map((tag) => tag.toLowerCase());
+type NormalizedInternalItem = {
+  title: string;
+  aliases: string[];
+  tags: string[];
+};
 
-  if (normalizedTitle.includes(normalized)) {
+const normalizedItemCache = new WeakMap<IndexItem, NormalizedInternalItem>();
+const emptySearchResultsCache = new WeakMap<IndexItem[], SearchResult[]>();
+
+const getNormalizedInternalItem = (item: IndexItem) => {
+  const cached = normalizedItemCache.get(item);
+
+  if (cached) return cached;
+
+  const normalized = {
+    title: item.title.toLowerCase(),
+    aliases: item.metadata.aliases.map((alias) => alias.toLowerCase()),
+    tags: item.metadata.tags.map((tag) => tag.toLowerCase()),
+  };
+  normalizedItemCache.set(item, normalized);
+
+  return normalized;
+};
+
+const getInternalSearchScore = (item: IndexItem, normalizedQuery: string) => {
+  const normalizedItem = getNormalizedInternalItem(item);
+
+  if (normalizedItem.title.includes(normalizedQuery)) {
     return 3;
   }
 
-  if (normalizedAliases.some((alias) => alias.includes(normalized))) {
+  if (normalizedItem.aliases.some((alias) => alias.includes(normalizedQuery))) {
     return 2;
   }
 
-  if (normalizedTags.some((tag) => tag.includes(normalized))) {
+  if (normalizedItem.tags.some((tag) => tag.includes(normalizedQuery))) {
     return 1;
   }
 
@@ -266,35 +298,40 @@ export const searchInternalItems = (
   const scope = getInternalSearchScope(query);
   const normalized = query.trim().replace(/^[:/]/, "").trim().toLowerCase();
   const normalizedRequiredTags = requiredTags.map((tag) => tag.toLowerCase());
-  const internalItems = getItemsForScope(scope).filter((item) => {
-    if (normalizedRequiredTags.length === 0) return true;
+  const scopedItems = getItemsForScope(scope);
+  const internalItems =
+    normalizedRequiredTags.length === 0
+      ? scopedItems
+      : scopedItems.filter((item) => {
+          const itemTags = getNormalizedInternalItem(item).tags;
 
-    const itemTags = item.metadata.tags.map((tag) => tag.toLowerCase());
-
-    return normalizedRequiredTags.every((requiredTag) =>
-      itemTags.some((itemTag) => itemTag.startsWith(requiredTag)),
-    );
-  });
+          return normalizedRequiredTags.every((requiredTag) =>
+            itemTags.some((itemTag) => itemTag.startsWith(requiredTag)),
+          );
+        });
 
   if (!normalized) {
-    return internalItems.map((item) => ({
-      item,
-      score: 0,
-    }));
+    if (normalizedRequiredTags.length > 0) {
+      return internalItems.map((item) => ({ item, score: 0 }));
+    }
+
+    const cached = emptySearchResultsCache.get(internalItems);
+
+    if (cached) return cached;
+
+    const results = internalItems.map((item) => ({ item, score: 0 }));
+    emptySearchResultsCache.set(internalItems, results);
+
+    return results;
   }
 
-  return internalItems
-    .map((item, index) => ({
-      item,
-      score: getInternalSearchScore(item, normalized),
-      index,
-    }))
-    .filter((result) => result.score > 0)
-    .sort((a, b) => b.score - a.score || a.index - b.index)
-    .map(({ item, score }) => {
-      return {
-        item,
-        score,
-      };
-    });
+  const rankedResults: SearchResult[][] = [[], [], [], []];
+
+  for (const item of internalItems) {
+    const score = getInternalSearchScore(item, normalized);
+
+    if (score > 0) rankedResults[score].push({ item, score });
+  }
+
+  return [...rankedResults[3], ...rankedResults[2], ...rankedResults[1]];
 };

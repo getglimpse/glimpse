@@ -138,7 +138,18 @@ export default function activate(ctx) {
     });
 
     const registry = await loadRegistryModule();
+    const { searchInternalItems } =
+      await import("@/features/internal/internalItems");
+    const beforeLoadItems = registry.getPluginInternalItems();
+
+    expect(beforeLoadItems).toEqual([]);
+    expect(searchInternalItems("/")).toEqual([]);
     await registry.loadPlugins();
+
+    expect(registry.getPluginInternalItems()).not.toBe(beforeLoadItems);
+    expect(searchInternalItems("/").map((result) => result.item.title)).toEqual(
+      ["trusted-plugin page"],
+    );
 
     const plugins = registry.getPlugins();
 
@@ -155,8 +166,13 @@ export default function activate(ctx) {
       trusted: false,
     });
     expect(registry.getPluginDiscoveryErrors()).toHaveLength(1);
-    expect(registry.getInternalPageContributions()).toHaveLength(1);
-    expect(registry.getPluginInternalItems()[0].metadata.tags).toEqual([
+    const initialContributions = registry.getInternalPageContributions();
+    const initialInternalItems = registry.getPluginInternalItems();
+
+    expect(initialContributions).toHaveLength(1);
+    expect(registry.getInternalPageContributions()).toBe(initialContributions);
+    expect(registry.getPluginInternalItems()).toBe(initialInternalItems);
+    expect(initialInternalItems[0].metadata.tags).toEqual([
       "internal",
       "plugin",
       "viewer",
@@ -185,6 +201,12 @@ export default function activate(ctx) {
     });
 
     registry.setPluginLocale("ja");
+
+    const localizedInternalItems = registry.getPluginInternalItems();
+
+    expect(localizedInternalItems).not.toBe(initialInternalItems);
+    expect(registry.getPluginInternalItems()).toBe(localizedInternalItems);
+    expect(localizedInternalItems[0].title).toBe("trusted-plugin 日本語ページ");
 
     expect(
       registry.getPlugins().find((plugin) => plugin.id === trustedPlugin.id),
@@ -253,8 +275,19 @@ export default function activate(ctx) {
       enabled: false,
       trusted: true,
     });
-    expect(registry.getInternalPageContributions()).toHaveLength(0);
+    const disabledContributions = registry.getInternalPageContributions();
+
+    expect(disabledContributions).toHaveLength(0);
     expect(registry.getPluginActionItems()).toHaveLength(0);
+
+    registry.setPluginEnabled(plugin.id, true);
+    expect(registry.getInternalPageContributions()).not.toBe(
+      disabledContributions,
+    );
+    expect(registry.getInternalPageContributions()).toHaveLength(1);
+
+    registry.setPluginEnabled(plugin.id, false);
+    expect(registry.getInternalPageContributions()).toHaveLength(0);
   });
 
   it("classifies page-action plugin pages as tools", async () => {

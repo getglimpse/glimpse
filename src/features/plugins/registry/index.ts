@@ -36,11 +36,45 @@ let plugins: GlimpsePlugin[] = [];
 let discoveryErrors: PluginDiscoveryError[] = [];
 let pluginTrustStatuses: Record<string, PluginTrustStatus> = {};
 let loadPluginsPromise: Promise<GlimpsePlugin[]> | null = null;
+let enabledPluginsCache: GlimpsePlugin[] | null = null;
+let internalPageContributionsCache: InternalPageContribution[] | null = null;
+let internalPageContributionsByIdCache: Map<
+  string,
+  InternalPageContribution
+> | null = null;
+let pluginInternalItemsCache: IndexItem[] | null = null;
+let pluginInternalItemsByIdCache: Map<string, IndexItem> | null = null;
+let pluginPlaygroundInternalItemsCache: IndexItem[] | null = null;
+let pluginActionItemsCache: IndexItem[] | null = null;
+
+type PluginViewerContribution = {
+  plugin: GlimpsePlugin;
+  viewer: PluginViewerManifest;
+};
+
+let viewerContributionsByIdCache: Map<string, PluginViewerContribution> | null =
+  null;
+let viewerContributionsByExtensionCache: Map<
+  string,
+  PluginViewerContribution
+> | null = null;
 
 const PLUGIN_STATE_STORAGE_KEY = "glimpse:plugins:enabled";
 const PLUGIN_STATE_CHANGED_EVENT = "glimpse:plugins-changed";
 
 type PluginEnabledState = Record<string, boolean>;
+
+const invalidatePluginDerivedCaches = () => {
+  enabledPluginsCache = null;
+  internalPageContributionsCache = null;
+  internalPageContributionsByIdCache = null;
+  pluginInternalItemsCache = null;
+  pluginInternalItemsByIdCache = null;
+  pluginPlaygroundInternalItemsCache = null;
+  pluginActionItemsCache = null;
+  viewerContributionsByIdCache = null;
+  viewerContributionsByExtensionCache = null;
+};
 
 const getStoredEnabledState = (): PluginEnabledState => {
   if (typeof window === "undefined") {
@@ -76,17 +110,27 @@ export const isPluginEnabled = (plugin: GlimpsePlugin): boolean => {
 export const isPluginTrusted = (plugin: GlimpsePlugin): boolean =>
   pluginTrustStatuses[plugin.id]?.trusted ?? false;
 
+const isPluginEnabledWithState = (
+  plugin: GlimpsePlugin,
+  state: PluginEnabledState,
+) =>
+  isPluginTrusted(plugin) &&
+  (state[plugin.id] ?? plugin.enabledByDefault ?? true);
+
 export const getPluginTrustStatus = (
   pluginId: string,
 ): PluginTrustStatus | undefined => pluginTrustStatuses[pluginId];
 
-export const getPlugins = (): PluginRegistryItem[] =>
-  plugins.map((plugin) => ({
+export const getPlugins = (): PluginRegistryItem[] => {
+  const state = getStoredEnabledState();
+
+  return plugins.map((plugin) => ({
     ...localizePlugin(plugin),
-    enabled: isPluginEnabled(plugin),
+    enabled: isPluginEnabledWithState(plugin, state),
     trusted: isPluginTrusted(plugin),
     trustStatus: getPluginTrustStatus(plugin.id),
   }));
+};
 
 export const getPluginDiscoveryErrors = (): PluginDiscoveryError[] =>
   discoveryErrors;
@@ -98,6 +142,8 @@ export const loadPlugins = async (): Promise<GlimpsePlugin[]> => {
       plugins = report.manifests;
       discoveryErrors = report.errors;
       pluginTrustStatuses = await loadPluginTrustStatuses(report.manifests);
+      invalidatePluginDerivedCaches();
+      dispatchPluginStateChanged();
       await syncPluginRuntimes(getPlugins());
       dispatchPluginStateChanged();
 
@@ -116,6 +162,7 @@ export const setPluginEnabled = (pluginId: string, enabled: boolean) => {
 
   state[pluginId] = Boolean(enabled && plugin && isPluginTrusted(plugin));
   saveEnabledState(state);
+  invalidatePluginDerivedCaches();
 
   void syncPluginRuntimes(getPlugins()).finally(() => {
     dispatchPluginStateChanged();
@@ -135,6 +182,8 @@ export const setPluginTrusted = async (pluginId: string, trusted: boolean) => {
     saveEnabledState(state);
   }
 
+  invalidatePluginDerivedCaches();
+  dispatchPluginStateChanged();
   await syncPluginRuntimes(getPlugins());
   dispatchPluginStateChanged();
 
@@ -215,6 +264,8 @@ export const reloadPlugins = async (): Promise<GlimpsePlugin[]> => {
   plugins = report.manifests;
   discoveryErrors = report.errors;
   pluginTrustStatuses = await loadPluginTrustStatuses(report.manifests);
+  invalidatePluginDerivedCaches();
+  dispatchPluginStateChanged();
   await syncPluginRuntimes(getPlugins());
   await Promise.allSettled(
     getPlugins().map((plugin) =>
@@ -255,6 +306,7 @@ export const subscribeToPluginChanges = (listener: () => void) => {
 
 export const setPluginLocale = (locale: string) => {
   if (setCurrentPluginLocale(locale)) {
+    invalidatePluginDerivedCaches();
     dispatchPluginStateChanged();
   }
 };
@@ -267,10 +319,16 @@ const dispatchPluginStateChanged = () => {
   window.dispatchEvent(new Event(PLUGIN_STATE_CHANGED_EVENT));
 };
 
-const getEnabledPlugins = (): GlimpsePlugin[] =>
-  plugins.filter(
-    (plugin) => isPluginTrusted(plugin) && isPluginEnabled(plugin),
+const getEnabledPlugins = (): GlimpsePlugin[] => {
+  if (enabledPluginsCache) return enabledPluginsCache;
+
+  const state = getStoredEnabledState();
+  enabledPluginsCache = plugins.filter((plugin) =>
+    isPluginEnabledWithState(plugin, state),
   );
+
+  return enabledPluginsCache;
+};
 
 const toInternalPageContribution = (
   plugin: GlimpsePlugin,
@@ -292,19 +350,28 @@ const toInternalPageContribution = (
   };
 };
 
-export const getInternalPageContributions = (): InternalPageContribution[] =>
-  getEnabledPlugins().flatMap((plugin) =>
+export const getInternalPageContributions = (): InternalPageContribution[] => {
+  internalPageContributionsCache ??= getEnabledPlugins().flatMap((plugin) =>
     (plugin.internalPages ?? []).map((page) =>
       toInternalPageContribution(plugin, page),
     ),
   );
 
+  return internalPageContributionsCache;
+};
+
 export const getInternalPageContribution = (
   page: string,
-): InternalPageContribution | undefined =>
-  getInternalPageContributions().find(
-    (contribution) => contribution.id === page,
+): InternalPageContribution | undefined => {
+  internalPageContributionsByIdCache ??= new Map(
+    getInternalPageContributions().map((contribution) => [
+      contribution.id,
+      contribution,
+    ]),
   );
+
+  return internalPageContributionsByIdCache.get(page);
+};
 
 export const isPluginInternalPage = (
   page: string,
@@ -312,10 +379,8 @@ export const isPluginInternalPage = (
 
 const toPluginInternalItem = (
   contribution: InternalPageContribution,
+  plugin: GlimpsePlugin | undefined,
 ): IndexItem => {
-  const plugin = getEnabledPlugins().find(
-    (candidate) => candidate.id === contribution.pluginId,
-  );
   const pageTabTypes = new Set(
     contribution.pageDefinition?.tabs.map((tab) => tab.type) ?? [],
   );
@@ -354,23 +419,52 @@ const toPluginInternalItem = (
   };
 };
 
-export const getPluginInternalItems = (): IndexItem[] =>
-  getInternalPageContributions().map(toPluginInternalItem);
+export const getPluginInternalItems = (): IndexItem[] => {
+  if (pluginInternalItemsCache) return pluginInternalItemsCache;
+
+  const enabledPluginsById = new Map(
+    getEnabledPlugins().map((plugin) => [plugin.id, plugin]),
+  );
+  pluginInternalItemsCache = getInternalPageContributions().map(
+    (contribution) =>
+      toPluginInternalItem(
+        contribution,
+        enabledPluginsById.get(contribution.pluginId),
+      ),
+  );
+
+  return pluginInternalItemsCache;
+};
 
 export const getPluginInternalItem = (
   page: PluginInternalPage,
-): IndexItem | undefined =>
-  getInternalPageContributions()
-    .filter((contribution) => contribution.id === page)
-    .map(toPluginInternalItem)[0];
+): IndexItem | undefined => {
+  pluginInternalItemsByIdCache ??= new Map(
+    getPluginInternalItems().map((item) => [item.id, item]),
+  );
 
-export const getPluginPlaygroundInternalItems = (): IndexItem[] =>
-  getInternalPageContributions()
-    .filter((contribution) => contribution.pageAction)
-    .map(toPluginInternalItem);
+  return pluginInternalItemsByIdCache.get(`internal://${page}`);
+};
 
-export const getPluginActionItems = (): IndexItem[] =>
-  getEnabledPlugins().flatMap((plugin) =>
+export const getPluginPlaygroundInternalItems = (): IndexItem[] => {
+  if (pluginPlaygroundInternalItemsCache) {
+    return pluginPlaygroundInternalItemsCache;
+  }
+
+  const playgroundIds = new Set(
+    getInternalPageContributions()
+      .filter((contribution) => contribution.pageAction)
+      .map((contribution) => `internal://${contribution.id}`),
+  );
+  pluginPlaygroundInternalItemsCache = getPluginInternalItems().filter((item) =>
+    playgroundIds.has(item.id),
+  );
+
+  return pluginPlaygroundInternalItemsCache;
+};
+
+export const getPluginActionItems = (): IndexItem[] => {
+  pluginActionItemsCache ??= getEnabledPlugins().flatMap((plugin) =>
     (plugin.contributes?.actions ?? []).map((action) => {
       const localizedPlugin = localizePlugin(plugin);
       const localizedAction = localizeAction(plugin, action);
@@ -404,68 +498,61 @@ export const getPluginActionItems = (): IndexItem[] =>
     }),
   );
 
+  return pluginActionItemsCache;
+};
+
+const ensureViewerContributionCaches = () => {
+  if (viewerContributionsByIdCache && viewerContributionsByExtensionCache) {
+    return;
+  }
+
+  const byId = new Map<string, PluginViewerContribution>();
+  const byExtension = new Map<string, PluginViewerContribution>();
+
+  for (const plugin of getEnabledPlugins()) {
+    for (const viewer of plugin.contributes?.viewers ?? []) {
+      const contribution = {
+        plugin,
+        viewer: localizeViewer(plugin, viewer),
+      };
+
+      byId.set(`${plugin.id}\0${viewer.id}`, contribution);
+
+      for (const extension of viewer.extensions ?? []) {
+        const normalizedExtension = normalizeExtension(extension);
+
+        if (normalizedExtension && !byExtension.has(normalizedExtension)) {
+          byExtension.set(normalizedExtension, contribution);
+        }
+      }
+    }
+  }
+
+  viewerContributionsByIdCache = byId;
+  viewerContributionsByExtensionCache = byExtension;
+};
+
 export const getPluginViewerContribution = (
   pluginId: string,
   viewerId: string,
-):
-  | {
-      plugin: GlimpsePlugin;
-      viewer: PluginViewerManifest;
-    }
-  | undefined => {
-  const plugin = getEnabledPlugins().find(
-    (candidate) => candidate.id === pluginId,
-  );
+): PluginViewerContribution | undefined => {
+  ensureViewerContributionCaches();
 
-  if (!plugin) {
-    return undefined;
-  }
-
-  const viewer = plugin.contributes?.viewers?.find(
-    (candidate) => candidate.id === viewerId,
-  );
-
-  if (!viewer) {
-    return undefined;
-  }
-
-  return {
-    plugin,
-    viewer: localizeViewer(plugin, viewer),
-  };
+  return viewerContributionsByIdCache?.get(`${pluginId}\0${viewerId}`);
 };
 
 export const getPluginViewerContributionForSourcePath = (
   sourcePath?: string | null,
-):
-  | {
-      plugin: GlimpsePlugin;
-      viewer: PluginViewerManifest;
-    }
-  | undefined => {
+): PluginViewerContribution | undefined => {
   const extension = getSourcePathExtension(sourcePath);
 
   if (!extension) {
     return undefined;
   }
 
-  for (const plugin of getEnabledPlugins()) {
-    const viewer = plugin.contributes?.viewers?.find((candidate) =>
-      candidate.extensions?.some(
-        (candidateExtension) =>
-          normalizeExtension(candidateExtension) === extension,
-      ),
-    );
+  ensureViewerContributionCaches();
 
-    if (viewer) {
-      return {
-        plugin,
-        viewer: localizeViewer(plugin, viewer),
-      };
-    }
-  }
-
-  return undefined;
+  return viewerContributionsByExtensionCache?.get(extension);
 };
 
 export const executePluginAction = async ({

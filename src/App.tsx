@@ -234,9 +234,11 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    void loadPlugins().catch((error) => {
-      console.error("Failed to load plugins:", error);
-    });
+    void loadPlugins()
+      .then(() => fetchResults(getCurrentQuery()))
+      .catch((error) => {
+        console.error("Failed to load plugins:", error);
+      });
   }, []);
 
   useEffect(() => {
