@@ -1,8 +1,5 @@
 import { IndexItem, SearchResult } from "@/types";
-import {
-  getPluginInternalItems,
-  getPluginPlaygroundInternalItems,
-} from "@/features/plugins/registry";
+import { getPluginInternalItems } from "@/features/plugins/registry";
 
 const INTERNAL_ITEMS: IndexItem[] = [
   {
@@ -219,13 +216,13 @@ export const TAG_CLOUD_ITEM = INTERNAL_ITEMS.find(
 
 const getInternalItems = () => [...INTERNAL_ITEMS, ...getPluginInternalItems()];
 
-type InternalSearchScope = "all" | "pluginPlaygrounds";
+type InternalSearchScope = "all" | "plugins";
 
 const getInternalSearchScope = (query: string): InternalSearchScope => {
   const trimmed = query.trimStart();
 
   if (trimmed.startsWith("/")) {
-    return "pluginPlaygrounds";
+    return "plugins";
   }
 
   return "all";
@@ -233,8 +230,8 @@ const getInternalSearchScope = (query: string): InternalSearchScope => {
 
 const getItemsForScope = (scope: InternalSearchScope): IndexItem[] => {
   switch (scope) {
-    case "pluginPlaygrounds":
-      return getPluginPlaygroundInternalItems();
+    case "plugins":
+      return getPluginInternalItems();
     case "all":
       return getInternalItems();
   }
@@ -262,10 +259,22 @@ const getInternalSearchScore = (item: IndexItem, normalized: string) => {
   return 0;
 };
 
-export const searchInternalItems = (query: string): SearchResult[] => {
+export const searchInternalItems = (
+  query: string,
+  requiredTags: string[] = [],
+): SearchResult[] => {
   const scope = getInternalSearchScope(query);
   const normalized = query.trim().replace(/^[:/]/, "").trim().toLowerCase();
-  const internalItems = getItemsForScope(scope);
+  const normalizedRequiredTags = requiredTags.map((tag) => tag.toLowerCase());
+  const internalItems = getItemsForScope(scope).filter((item) => {
+    if (normalizedRequiredTags.length === 0) return true;
+
+    const itemTags = item.metadata.tags.map((tag) => tag.toLowerCase());
+
+    return normalizedRequiredTags.every((requiredTag) =>
+      itemTags.some((itemTag) => itemTag.startsWith(requiredTag)),
+    );
+  });
 
   if (!normalized) {
     return internalItems.map((item) => ({

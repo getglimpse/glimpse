@@ -312,22 +312,47 @@ export const isPluginInternalPage = (
 
 const toPluginInternalItem = (
   contribution: InternalPageContribution,
-): IndexItem => ({
-  id: `internal://${contribution.id}`,
-  title: contribution.title,
-  sourcePath: null,
-  updatedAt: new Date(0).toISOString(),
-  metadata: {
-    tags: contribution.tags ?? ["internal", "plugin"],
-    aliases: contribution.aliases ?? [],
-    star: false,
-    boost: contribution.boost ?? 1,
-  },
-  preview: {
-    type: "internal",
-    page: contribution.id,
-  },
-});
+): IndexItem => {
+  const plugin = getEnabledPlugins().find(
+    (candidate) => candidate.id === contribution.pluginId,
+  );
+  const pageTabTypes = new Set(
+    contribution.pageDefinition?.tabs.map((tab) => tab.type) ?? [],
+  );
+  const categoryTags = [
+    contribution.pageAction ||
+    pageTabTypes.has("playground") ||
+    pageTabTypes.has("form")
+      ? "tool"
+      : null,
+    pageTabTypes.has("converter") ? "converter" : null,
+    (plugin?.contributes?.viewers?.length ?? 0) > 0 ? "viewer" : null,
+  ].filter((tag): tag is string => tag !== null);
+
+  return {
+    id: `internal://${contribution.id}`,
+    title: contribution.title,
+    sourcePath: null,
+    updatedAt: new Date(0).toISOString(),
+    metadata: {
+      tags: Array.from(
+        new Set([
+          "internal",
+          "plugin",
+          ...(contribution.tags ?? []),
+          ...categoryTags,
+        ]),
+      ),
+      aliases: contribution.aliases ?? [],
+      star: false,
+      boost: contribution.boost ?? 1,
+    },
+    preview: {
+      type: "internal",
+      page: contribution.id,
+    },
+  };
+};
 
 export const getPluginInternalItems = (): IndexItem[] =>
   getInternalPageContributions().map(toPluginInternalItem);

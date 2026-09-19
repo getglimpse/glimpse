@@ -65,4 +65,26 @@ describe("parseSearchInput", () => {
       reverse: true,
     });
   });
+
+  it("parses a tag joined directly to an internal search prefix", () => {
+    expect(parseSearchInput("/#converter")).toMatchObject({
+      query: "/",
+      tags: ["converter"],
+    });
+    expect(parseSearchInput(":#plugin settings")).toMatchObject({
+      query: ": settings",
+      tags: ["plugin"],
+    });
+  });
+
+  it("keeps plugin search active while a tag token is empty", () => {
+    expect(parseSearchInput("/ #")).toMatchObject({
+      query: "/",
+      tags: [],
+    });
+    expect(parseSearchInput("/#")).toMatchObject({
+      query: "/",
+      tags: [],
+    });
+  });
 });

@@ -70,7 +70,8 @@ prefix の挙動:
 - `#tag` は tag filter になる。
 - `>` は検索部分と引数を分割する。
 - `:` は built-in と plugin の Internal Pages を検索する。
-- `/` は plugin playground pages を検索する。
+- `/` は trusted plugin pages を検索し、`#tool`、`#converter`、`#viewer`
+  などのタグで種類を絞り込める。
 
 ## プレビュー
 

@@ -61,10 +61,14 @@ Use `:` to search built-in Internal Pages and trusted plugin pages.
 
 Internal Pages appear in the result list and can be previewed like documents.
 
-Use `/` to search plugin playground pages only.
+Use `/` to search trusted plugin pages. Combine it with a plugin category tag
+to narrow the results.
 
 ```text
 /calculator
+/#tool
+/#converter
+/#viewer
 ```
 
 ## Arguments
@@ -95,5 +99,6 @@ Everything to the right of `>` is passed as the argument string when you press `
 | `*rust`                      | Search unstarred items                     |
 | `*`                          | Browse unstarred items                     |
 | `:settings`                  | Search Internal Pages                      |
-| `/plugin`                    | Search plugin playground pages             |
+| `/plugin`                    | Search plugin pages                        |
+| `/#converter`                | Search converter plugin pages              |
 | `numeric calculator > 1 + 2` | Pass arguments to the selected page/action |

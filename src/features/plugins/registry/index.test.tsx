@@ -156,6 +156,11 @@ export default function activate(ctx) {
     });
     expect(registry.getPluginDiscoveryErrors()).toHaveLength(1);
     expect(registry.getInternalPageContributions()).toHaveLength(1);
+    expect(registry.getPluginInternalItems()[0].metadata.tags).toEqual([
+      "internal",
+      "plugin",
+      "viewer",
+    ]);
     expect(
       registry.getPluginViewerContribution(trustedPlugin.id, "pdf"),
     ).toMatchObject({
@@ -252,7 +257,7 @@ export default function activate(ctx) {
     expect(registry.getPluginActionItems()).toHaveLength(0);
   });
 
-  it("exposes only page-action plugin pages as playground internal items", async () => {
+  it("classifies page-action plugin pages as tools", async () => {
     const playgroundPlugin: GlimpsePlugin = {
       id: "playground-plugin",
       name: "Playground Plugin",
@@ -268,18 +273,28 @@ export default function activate(ctx) {
         },
       ],
     };
-    const staticPlugin: GlimpsePlugin = {
-      id: "static-plugin",
-      name: "Static Plugin",
+    const converterPlugin: GlimpsePlugin = {
+      id: "converter-plugin",
+      name: "Converter Plugin",
       version: "0.1.0",
       internalPages: [
         {
-          id: "plugin:static-plugin",
-          title: "Static Plugin",
+          id: "plugin:converter-plugin",
+          title: "Converter Plugin",
+          pageDefinition: {
+            id: "plugin:converter-plugin",
+            tabs: [
+              {
+                id: "converter",
+                type: "converter",
+                action: "convert",
+              },
+            ],
+          },
         },
       ],
     };
-    const manifests = [playgroundPlugin, staticPlugin];
+    const manifests = [playgroundPlugin, converterPlugin];
 
     mockedInvoke.mockImplementation((command, args) => {
       if (command === "get_plugin_discovery_report") {
@@ -304,6 +319,12 @@ export default function activate(ctx) {
     expect(
       registry.getPluginPlaygroundInternalItems().map((item) => item.id),
     ).toEqual(["internal://plugin:playground-plugin"]);
+    expect(registry.getPluginInternalItems()[0].metadata.tags).toContain(
+      "tool",
+    );
+    expect(registry.getPluginInternalItems()[1].metadata.tags).toContain(
+      "converter",
+    );
   });
 
   it("reloads plugins after archive and remote installs", async () => {

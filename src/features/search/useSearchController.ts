@@ -73,7 +73,10 @@ export const useSearchController = ({
             : temporaryOverride;
 
         if (isInternalSearchQuery(parsed.query)) {
-          const internalResults = searchInternalItems(parsed.query);
+          const internalResults = searchInternalItems(
+            parsed.query,
+            parsed.tags,
+          );
 
           if (activeTemporaryResults?.query === nextQuery) {
             setTemporarySavedResults(null);

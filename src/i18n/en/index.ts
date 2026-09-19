@@ -249,7 +249,7 @@ const en = {
       toggleUnstarFilter: "Toggle unstar filter",
       toggleReverseSearch: "Toggle reverse order",
       toggleInternalFilter: "Toggle internal search",
-      togglePluginPlaygroundFilter: "Toggle plugin playground search",
+      togglePluginPlaygroundFilter: "Toggle plugin search",
       moveDown: "Move selection down",
       moveUp: "Move selection up",
       openSelected: "Open selected item",
@@ -577,7 +577,8 @@ const en = {
       hidden: "Search hidden items in the current target group",
       reverse: "Show older items first",
       internal: "Search Glimpse internal pages",
-      pluginPlayground: "Search plugin playground pages",
+      pluginPlayground:
+        "Search plugin pages; add #tool, #converter, or #viewer to filter",
       global: "Search all target groups",
       commandArgs: "Pass arguments to the selected command item",
     },

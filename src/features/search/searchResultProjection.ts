@@ -324,7 +324,7 @@ export const addTagToSearchQuery = (currentQuery: string, tag: string) => {
   const parsed = parseSearchInput(currentQuery);
   const tagToken = `#${normalizedTag}`;
 
-  if (isInternalSearchQuery(parsed.query)) return `${tagToken} `;
+  if (parsed.query.trimStart().startsWith(":")) return `${tagToken} `;
 
   const searchPart = currentQuery.split(">")[0].trim();
   const existingTags = new Set(

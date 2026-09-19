@@ -253,7 +253,7 @@ const ja = {
       toggleUnstarFilter: "unstar フィルターを切り替え",
       toggleReverseSearch: "reverse 順を切り替え",
       toggleInternalFilter: "internal 検索を切り替え",
-      togglePluginPlaygroundFilter: "plugin playground 検索を切り替え",
+      togglePluginPlaygroundFilter: "プラグイン検索を切り替え",
       moveDown: "選択を下へ移動",
       moveUp: "選択を上へ移動",
       openSelected: "選択中の項目を開く",
@@ -585,7 +585,8 @@ const ja = {
       hidden: "Current Target Group の hidden 項目を検索",
       reverse: "古い項目から表示",
       internal: "Glimpse の内部ページを検索",
-      pluginPlayground: "plugin playground ページを検索",
+      pluginPlayground:
+        "プラグインページを検索（#tool、#converter、#viewer で絞り込み）",
       global: "すべてのターゲットグループを検索",
       commandArgs: "選択中のコマンド項目に引数を渡す",
     },

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { IndexItem, IndexMetadata } from "@/types";
+import { parseSearchInput } from "@/features/search/parseSearchInput";
 
 const item = (
   id: string,
@@ -26,7 +27,15 @@ const item = (
 
 vi.mock("@/features/plugins/registry", () => ({
   getPluginInternalItems: () => [
-    item("internal://plugin:test-plugin", "Test Plugin"),
+    item("internal://plugin:tool-plugin", "Tool Plugin", {
+      tags: ["internal", "plugin", "tool"],
+    }),
+    item("internal://plugin:converter-plugin", "Converter Plugin", {
+      tags: ["internal", "plugin", "converter", "file"],
+    }),
+    item("internal://plugin:viewer-plugin", "Viewer Plugin", {
+      tags: ["internal", "plugin", "viewer", "file"],
+    }),
     item("internal://plugin:title-match", "Needle Title", {
       tags: ["internal"],
     }),
@@ -37,9 +46,6 @@ vi.mock("@/features/plugins/registry", () => ({
     item("internal://plugin:tag-match", "Tag Match", {
       tags: ["internal", "needle"],
     }),
-  ],
-  getPluginPlaygroundInternalItems: () => [
-    item("internal://plugin:playground-plugin", "Playground Plugin"),
   ],
   getPluginActionItems: () => [
     item("plugin-action://test-plugin/sayHello", "Say Hello"),
@@ -52,18 +58,55 @@ describe("internalItems", () => {
 
     expect(
       searchInternalItems(":").map((result) => result.item.title),
-    ).toContain("Test Plugin");
+    ).toContain("Tool Plugin");
     expect(
       searchInternalItems(":").map((result) => result.item.title),
     ).not.toContain("Say Hello");
   });
 
-  it("keeps slash search scoped to plugin playground pages", async () => {
+  it("keeps slash search scoped to all plugin pages", async () => {
     const { searchInternalItems } = await import("./internalItems");
 
     expect(searchInternalItems("/").map((result) => result.item.title)).toEqual(
-      ["Playground Plugin"],
+      [
+        "Tool Plugin",
+        "Converter Plugin",
+        "Viewer Plugin",
+        "Needle Title",
+        "Alias Match",
+        "Tag Match",
+      ],
     );
+  });
+
+  it("keeps plugin results visible for an empty tag token", async () => {
+    const { searchInternalItems } = await import("./internalItems");
+    const parsed = parseSearchInput("/ #");
+
+    expect(
+      searchInternalItems(parsed.query, parsed.tags).map(
+        (result) => result.item.title,
+      ),
+    ).toHaveLength(6);
+  });
+
+  it("filters plugin pages by case-insensitive tag prefixes", async () => {
+    const { searchInternalItems } = await import("./internalItems");
+
+    expect(
+      searchInternalItems("/", ["CONVERTER"]).map(
+        (result) => result.item.title,
+      ),
+    ).toEqual(["Converter Plugin"]);
+    expect(
+      searchInternalItems("/plugin", ["VIEW", "fi"]).map(
+        (result) => result.item.title,
+      ),
+    ).toEqual(["Viewer Plugin"]);
+    expect(
+      searchInternalItems("/", ["con"]).map((result) => result.item.title),
+    ).toEqual(["Converter Plugin"]);
+    expect(searchInternalItems("/", ["missing"])).toEqual([]);
   });
 
   it("ranks internal results by title, aliases, then tags", async () => {

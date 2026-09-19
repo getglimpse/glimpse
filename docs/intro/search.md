@@ -72,7 +72,8 @@ The search bar supports several prefixes.
 | `*rust`                      | Search unstarred items                     |
 | `*`                          | Browse unstarred items                     |
 | `:settings`                  | Search Internal Pages                      |
-| `/plugin`                    | Search plugin playground pages             |
+| `/plugin`                    | Search plugin pages                        |
+| `/#viewer`                   | Search viewer plugin pages                 |
 | `numeric calculator > 1 + 2` | Pass arguments to the selected page/action |
 
 For the full syntax, see [Query Syntax](../search/syntax.md).

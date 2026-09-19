@@ -64,11 +64,7 @@ export const HelpPage = () => {
             />
             <HelpRow
               command={
-                <SearchBadge
-                  icon={Slash}
-                  label="playground"
-                  syntax="/query"
-                />
+                <SearchBadge icon={Slash} label="plugins" syntax="/query" />
               }
               description={LL.helpPage.search.pluginPlayground()}
             />

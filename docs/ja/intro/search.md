@@ -64,14 +64,15 @@ Ctrl + T
 
 ## 検索構文
 
-| 入力                         | 説明                                         |
-| ---------------------------- | -------------------------------------------- |
-| `rust`                       | 現在の Target Group を検索                   |
-| `#rust`                      | タグ検索                                     |
-| `!rust`                      | hidden item を検索                           |
-| `:settings`                  | Internal Pages を検索                        |
-| `/plugin`                    | plugin playground page を検索                |
-| `numeric calculator > 1 + 2` | 選択したページやアクションへ引数を渡す       |
+| 入力                         | 説明                                   |
+| ---------------------------- | -------------------------------------- |
+| `rust`                       | 現在の Target Group を検索             |
+| `#rust`                      | タグ検索                               |
+| `!rust`                      | hidden item を検索                     |
+| `:settings`                  | Internal Pages を検索                  |
+| `/plugin`                    | plugin page を検索                     |
+| `/#viewer`                   | viewer plugin page を検索              |
+| `numeric calculator > 1 + 2` | 選択したページやアクションへ引数を渡す |
 
 詳しい構文は [クエリ構文](../search/syntax.md) を参照してください。
 
@@ -92,7 +93,6 @@ Internal Pages は検索結果に表示され、ドキュメントと同じよ�
 検索対象は Target Groups で管理します。
 
 `Ctrl + R` を押すと、現在の検索クエリを保ったまま次の Target Group に切り替えます。
-
 
 ## Search Tips
 

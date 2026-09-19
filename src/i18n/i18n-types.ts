@@ -790,7 +790,7 @@ type RootTranslation = {
        */
       toggleInternalFilter: string;
       /**
-       * T​o​g​g​l​e​ ​p​l​u​g​i​n​ ​p​l​a​y​g​r​o​u​n​d​ ​s​e​a​r​c​h
+       * T​o​g​g​l​e​ ​p​l​u​g​i​n​ ​s​e​a​r​c​h
        */
       togglePluginPlaygroundFilter: string;
       /**
@@ -1850,7 +1850,7 @@ type RootTranslation = {
        */
       internal: string;
       /**
-       * S​e​a​r​c​h​ ​p​l​u​g​i​n​ ​p​l​a​y​g​r​o​u​n​d​ ​p​a​g​e​s
+       * S​e​a​r​c​h​ ​p​l​u​g​i​n​ ​p​a​g​e​s​;​ ​a​d​d​ ​#​t​o​o​l​,​ ​#​c​o​n​v​e​r​t​e​r​,​ ​o​r​ ​#​v​i​e​w​e​r​ ​t​o​ ​f​i​l​t​e​r
        */
       pluginPlayground: string;
       /**
@@ -3125,7 +3125,7 @@ export type TranslationFunctions = {
        */
       toggleInternalFilter: () => LocalizedString;
       /**
-       * Toggle plugin playground search
+       * Toggle plugin search
        */
       togglePluginPlaygroundFilter: () => LocalizedString;
       /**
@@ -4164,7 +4164,7 @@ export type TranslationFunctions = {
        */
       internal: () => LocalizedString;
       /**
-       * Search plugin playground pages
+       * Search plugin pages; add #tool, #converter, or #viewer to filter
        */
       pluginPlayground: () => LocalizedString;
       /**

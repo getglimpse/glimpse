@@ -44,10 +44,14 @@ Hidden Search も現在の Target Group 内だけを対象にします。
 :plugin
 ```
 
-`/` を付けると plugin playground page だけを検索します。
+`/` を付けると trusted plugin page を検索します。plugin の種類で絞る場合は
+category tag と組み合わせます。
 
 ```text
 /calculator
+/#tool
+/#converter
+/#viewer
 ```
 
 ## 引数
@@ -63,11 +67,12 @@ Git > status
 
 ## Summary
 
-| Query                        | Description                                  |
-| ---------------------------- | -------------------------------------------- |
-| `rust`                       | 現在の Target Group を検索                   |
-| `#rust`                      | タグ検索                                     |
-| `!rust`                      | hidden item を検索                           |
-| `:settings`                  | Internal Pages を検索                        |
-| `/plugin`                    | plugin playground page を検索                |
-| `numeric calculator > 1 + 2` | 選択した page/action に引数を渡す            |
+| Query                        | Description                       |
+| ---------------------------- | --------------------------------- |
+| `rust`                       | 現在の Target Group を検索        |
+| `#rust`                      | タグ検索                          |
+| `!rust`                      | hidden item を検索                |
+| `:settings`                  | Internal Pages を検索             |
+| `/plugin`                    | plugin page を検索                |
+| `/#converter`                | converter plugin page を検索      |
+| `numeric calculator > 1 + 2` | 選択した page/action に引数を渡す |

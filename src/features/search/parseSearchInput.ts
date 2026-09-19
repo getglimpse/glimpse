@@ -18,9 +18,7 @@ export const parseSearchInput = (input: string): ParsedSearchInput => {
 
   const trimmed = rawSearch.trimStart();
   const unstar = trimmed.startsWith("*");
-  const searchPrefixRemoved = unstar
-    ? trimmed.slice(1).trimStart()
-    : trimmed;
+  const searchPrefixRemoved = unstar ? trimmed.slice(1).trimStart() : trimmed;
   const hidden = searchPrefixRemoved.startsWith("!");
   const hiddenPrefixRemoved = hidden
     ? searchPrefixRemoved.slice(1).trimStart()
@@ -36,6 +34,16 @@ export const parseSearchInput = (input: string): ParsedSearchInput => {
 
   for (const token of searchPart.split(/\s+/)) {
     if (!token) continue;
+
+    if (token === "#") continue;
+
+    const scopedTag = token.match(/^([:/])#(.*)$/);
+
+    if (scopedTag) {
+      queryTokens.push(scopedTag[1]);
+      if (scopedTag[2]) tags.push(scopedTag[2]);
+      continue;
+    }
 
     if (token.startsWith("#") && token.length > 1) {
       tags.push(token.slice(1));

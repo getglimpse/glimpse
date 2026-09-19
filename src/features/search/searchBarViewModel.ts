@@ -227,8 +227,15 @@ export const buildSearchInputFromDisplay = (
   }
 
   const { search, command } = splitCommand(nextDisplayValue);
-  const { unstar, hidden, reverse, internal, pluginPlayground, separator, body } =
-    splitSearchSyntax(search);
+  const {
+    unstar,
+    hidden,
+    reverse,
+    internal,
+    pluginPlayground,
+    separator,
+    body,
+  } = splitSearchSyntax(search);
   const hasPreviousScope =
     previousSyntax.internal || previousSyntax.pluginPlayground;
 
@@ -247,8 +254,15 @@ export const buildSearchInputFromDisplay = (
 
 export const removeCommittedTagAt = (input: string, tagIndex: number) => {
   const { search, command } = splitCommand(input);
-  const { unstar, hidden, reverse, internal, pluginPlayground, separator, body } =
-    splitSearchSyntax(search);
+  const {
+    unstar,
+    hidden,
+    reverse,
+    internal,
+    pluginPlayground,
+    separator,
+    body,
+  } = splitSearchSyntax(search);
   const { committedTags, looseSearch } = tokenizeSearchBody(body);
   const nextTags = committedTags.filter((_, index) => index !== tagIndex);
 
@@ -286,8 +300,15 @@ export const removeUnstarFilter = (input: string) => {
 
 export const toggleUnstarFilter = (input: string) => {
   const { search, command } = splitCommand(input);
-  const { unstar, hidden, reverse, internal, pluginPlayground, separator, body } =
-    splitSearchSyntax(search);
+  const {
+    unstar,
+    hidden,
+    reverse,
+    internal,
+    pluginPlayground,
+    separator,
+    body,
+  } = splitSearchSyntax(search);
   const { committedTags, looseSearch } = tokenizeSearchBody(body);
 
   return buildSearch(
@@ -381,8 +402,15 @@ export const removePluginPlaygroundFilter = (input: string) => {
 
 export const toggleHiddenFilter = (input: string) => {
   const { search, command } = splitCommand(input);
-  const { unstar, hidden, reverse, internal, pluginPlayground, separator, body } =
-    splitSearchSyntax(search);
+  const {
+    unstar,
+    hidden,
+    reverse,
+    internal,
+    pluginPlayground,
+    separator,
+    body,
+  } = splitSearchSyntax(search);
   const { committedTags, looseSearch } = tokenizeSearchBody(body);
 
   return buildSearch(
@@ -400,8 +428,15 @@ export const toggleHiddenFilter = (input: string) => {
 
 export const toggleReverseSearch = (input: string) => {
   const { search, command } = splitCommand(input);
-  const { unstar, hidden, reverse, internal, pluginPlayground, separator, body } =
-    splitSearchSyntax(search);
+  const {
+    unstar,
+    hidden,
+    reverse,
+    internal,
+    pluginPlayground,
+    separator,
+    body,
+  } = splitSearchSyntax(search);
   const { committedTags, looseSearch } = tokenizeSearchBody(body);
 
   return buildSearch(
@@ -510,8 +545,15 @@ export const getTagCompletion = ({
 
 export const completeActiveTag = (displayValue: string, tag: string) => {
   const { search, command } = splitCommand(displayValue);
-  const { unstar, hidden, reverse, internal, pluginPlayground, separator, body } =
-    splitSearchSyntax(search);
+  const {
+    unstar,
+    hidden,
+    reverse,
+    internal,
+    pluginPlayground,
+    separator,
+    body,
+  } = splitSearchSyntax(search);
   const nextBody = body.replace(/(?:^|\s)(#[^\s]*)$/, (match) => {
     const leadingSpace = match.startsWith("#") ? "" : match[0];
 
@@ -538,8 +580,15 @@ export const commitActiveTag = (displayValue: string) => {
     return null;
   }
 
-  const { unstar, hidden, reverse, internal, pluginPlayground, separator, body } =
-    splitSearchSyntax(search);
+  const {
+    unstar,
+    hidden,
+    reverse,
+    internal,
+    pluginPlayground,
+    separator,
+    body,
+  } = splitSearchSyntax(search);
 
   if (!body || /\s$/.test(body)) {
     return null;
@@ -568,3 +617,35 @@ export const sortTagSuggestions = (entries: TagSuggestionEntry[]) =>
   [...entries]
     .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag))
     .map((entry) => entry.tag);
+
+const PLUGIN_STRUCTURAL_TAGS = new Set(["internal", "plugin"]);
+const PLUGIN_CATEGORY_TAGS = ["converter", "tool", "viewer"];
+
+export const collectPluginTagSuggestions = (tagGroups: string[][]) => {
+  const tagCounts = new Map<string, TagSuggestionEntry>();
+
+  for (const tags of tagGroups) {
+    for (const rawTag of tags) {
+      const tag = rawTag.trim();
+      const normalizedTag = tag.toLowerCase();
+
+      if (!tag || PLUGIN_STRUCTURAL_TAGS.has(normalizedTag)) continue;
+
+      const existing = tagCounts.get(normalizedTag);
+      tagCounts.set(normalizedTag, {
+        tag: existing?.tag ?? tag,
+        count: (existing?.count ?? 0) + 1,
+      });
+    }
+  }
+
+  const categoryTags = PLUGIN_CATEGORY_TAGS.flatMap((tag) => {
+    const entry = tagCounts.get(tag);
+    return entry ? [entry.tag] : [];
+  });
+  const remainingTags = [...tagCounts.entries()]
+    .filter(([tag]) => !PLUGIN_CATEGORY_TAGS.includes(tag))
+    .map(([, entry]) => entry);
+
+  return [...categoryTags, ...sortTagSuggestions(remainingTags)];
+};

@@ -145,6 +145,10 @@ Body`,
       "hello #Rust ",
     );
     expect(addTagToSearchQuery(":settings", "config")).toBe("#config ");
+    expect(addTagToSearchQuery("/", "viewer")).toBe("/ #viewer ");
+    expect(addTagToSearchQuery("/ #viewer plugin", "VIEWER")).toBe(
+      "/ #viewer plugin ",
+    );
     expect(sanitizeSqliteFtsQuery('hello "世界" OR test*')).toBe(
       "hello 世界 OR test",
     );

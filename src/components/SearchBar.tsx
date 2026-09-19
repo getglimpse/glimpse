@@ -14,7 +14,12 @@ import { toast } from "@/utils/toast";
 import { indexingApi } from "@/api/indexing";
 import { statsApi } from "@/api/stats";
 import {
+  getPluginInternalItems,
+  subscribeToPluginChanges,
+} from "@/features/plugins/registry";
+import {
   buildSearchInputFromDisplay,
+  collectPluginTagSuggestions,
   commitActiveTag,
   completeActiveTag,
   getTagCompletion,
@@ -44,7 +49,8 @@ export const SearchBar = ({
   onFullScanCompleted,
 }: Props) => {
   const { LL } = useI18nContext();
-  const [availableTags, setAvailableTags] = useState<string[]>([]);
+  const [targetTags, setTargetTags] = useState<string[]>([]);
+  const [pluginTags, setPluginTags] = useState<string[]>([]);
   const [isFullScanning, setIsFullScanning] = useState(false);
   const {
     displayValue,
@@ -55,6 +61,7 @@ export const SearchBar = ({
     internal,
     pluginPlayground,
   } = getSearchBarViewModel(value);
+  const availableTags = pluginPlayground ? pluginTags : targetTags;
   const tagCompletion = useMemo(
     () =>
       getTagCompletion({
@@ -65,17 +72,28 @@ export const SearchBar = ({
     [availableTags, committedTags, displayValue],
   );
 
-  const loadTagSuggestions = async () => {
+  const loadTargetTagSuggestions = async () => {
     try {
       const entries = await statsApi.getTagCloud();
-      setAvailableTags(sortTagSuggestions(entries));
+      setTargetTags(sortTagSuggestions(entries));
     } catch (error) {
       console.error("Failed to load tag suggestions:", error);
     }
   };
 
+  const loadPluginTagSuggestions = () => {
+    setPluginTags(
+      collectPluginTagSuggestions(
+        getPluginInternalItems().map((item) => item.metadata.tags),
+      ),
+    );
+  };
+
   useEffect(() => {
-    void loadTagSuggestions();
+    void loadTargetTagSuggestions();
+    loadPluginTagSuggestions();
+
+    return subscribeToPluginChanges(loadPluginTagSuggestions);
   }, []);
 
   const handleFullScan = async () => {
@@ -86,7 +104,7 @@ export const SearchBar = ({
     try {
       setIsFullScanning(true);
       await indexingApi.fullScan();
-      await loadTagSuggestions();
+      await loadTargetTagSuggestions();
       await onFullScanCompleted?.();
       toast.success(LL.searchBar.indexRefreshed());
     } catch (error) {
@@ -290,14 +308,14 @@ export const SearchBar = ({
             <Badge
               variant="outline"
               className="h-7 rounded-md border-primary/40 bg-primary/10 px-2.5 text-sm font-medium text-text-main"
-              title="Plugin playground search"
+              title="Plugin search"
             >
               <Slash size={13} aria-hidden="true" />
-              <span>playground</span>
+              <span>plugins</span>
               <button
                 type="button"
                 className="-mr-1 flex h-5 w-5 items-center justify-center rounded text-text-muted hover:bg-item-hover hover:text-text-main focus:outline-none"
-                aria-label="Remove plugin playground search"
+                aria-label="Remove plugin search"
                 onClick={handleRemovePluginPlayground}
               >
                 <X size={12} aria-hidden="true" />

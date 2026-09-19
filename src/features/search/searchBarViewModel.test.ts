@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildSearchInputFromDisplay,
+  collectPluginTagSuggestions,
   commitActiveTag,
   completeActiveTag,
   getSearchBarViewModel,
@@ -369,7 +370,7 @@ describe("searchBarViewModel", () => {
     expect(toggleInternalFilter("!: #rust tags")).toBe("!#rust tags");
   });
 
-  it("shows plugin playground search as a badge instead of visible punctuation", () => {
+  it("shows plugin search as a badge instead of visible punctuation", () => {
     expect(getSearchBarViewModel("/")).toEqual({
       displayValue: "",
       committedTags: [],
@@ -391,11 +392,11 @@ describe("searchBarViewModel", () => {
     });
   });
 
-  it("keeps plugin playground search active while visible text changes", () => {
+  it("keeps plugin search active while visible text changes", () => {
     expect(buildSearchInputFromDisplay("/tools", "debug")).toBe("/debug");
   });
 
-  it("keeps hidden and plugin playground filters active together", () => {
+  it("keeps hidden and plugin filters active together", () => {
     expect(getSearchBarViewModel("!/tools")).toEqual({
       displayValue: "tools",
       committedTags: [],
@@ -409,7 +410,7 @@ describe("searchBarViewModel", () => {
     expect(buildSearchInputFromDisplay("!/tools", "debug")).toBe("!/debug");
   });
 
-  it("removes plugin playground search without disturbing other badges", () => {
+  it("removes plugin search without disturbing other badges", () => {
     expect(removePluginPlaygroundFilter("!/ #rust tools")).toBe("!#rust tools");
     expect(
       getSearchBarViewModel(removePluginPlaygroundFilter("/ #rust ")),
@@ -424,13 +425,13 @@ describe("searchBarViewModel", () => {
     });
   });
 
-  it("toggles plugin playground search without disturbing text or badges", () => {
+  it("toggles plugin search without disturbing text or badges", () => {
     expect(togglePluginPlaygroundFilter("tools")).toBe("/tools");
     expect(togglePluginPlaygroundFilter("!#rust tools")).toBe("!/ #rust tools");
     expect(togglePluginPlaygroundFilter("!/ #rust tools")).toBe("!#rust tools");
   });
 
-  it("keeps internal and plugin playground search mutually exclusive", () => {
+  it("keeps internal and plugin search mutually exclusive", () => {
     expect(toggleInternalFilter("/tools")).toBe(":tools");
     expect(togglePluginPlaygroundFilter(":settings")).toBe("/settings");
   });
@@ -502,5 +503,15 @@ describe("searchBarViewModel", () => {
         { tag: "react", count: 12 },
       ]),
     ).toEqual(["react", "rust", "tauri"]);
+  });
+
+  it("collects plugin tags without structural internal tags", () => {
+    expect(
+      collectPluginTagSuggestions([
+        ["internal", "plugin", "viewer", "pdf"],
+        ["internal", "plugin", "viewer", "csv"],
+        ["internal", "plugin", "converter", "tool", "file"],
+      ]),
+    ).toEqual(["converter", "tool", "viewer", "csv", "file", "pdf"]);
   });
 });
