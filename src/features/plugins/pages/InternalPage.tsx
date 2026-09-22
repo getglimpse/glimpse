@@ -602,7 +602,7 @@ const StandardPluginForm = ({
             history.map((item, index) => (
               <div
                 key={item.id}
-                className="grid grid-cols-[auto_1fr] gap-x-1 rounded-md px-2 py-2 hover:bg-item-hover/60"
+                className="grid grid-cols-[2.0rem_1fr] gap-x-1 rounded-md px-2 py-2 hover:bg-item-hover/60"
               >
                 <div
                   className={`pt-0.5 text-xs font-semibold ${
