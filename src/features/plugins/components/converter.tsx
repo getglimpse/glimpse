@@ -1,6 +1,7 @@
 import {
   useEffect,
   useId,
+  useRef,
   useState,
   type DragEvent,
   type ReactNode,
@@ -114,6 +115,7 @@ export const FileDropConverter = ({
     "Overwrite requires files dropped from the file system";
   const [dragActive, setDragActive] = useState(false);
   const [running, setRunning] = useState(false);
+  const runningRef = useRef(false);
   const [directory, setDirectory] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [results, setResults] = useState<FileDropConverterSavedResult[]>([]);
@@ -232,7 +234,7 @@ export const FileDropConverter = ({
     sourceName: string,
     result: unknown,
     mode: FileDropConverterOutputMode,
-  ) => {
+  ): Promise<boolean> => {
     const outputs = normalizeFileDropConverterResults(sourceName, result);
 
     if (mode === "overwrite") {
@@ -263,7 +265,7 @@ export const FileDropConverter = ({
         })),
       );
       setMessage(null);
-      return;
+      return true;
     }
 
     const preferredDirectory =
@@ -278,7 +280,7 @@ export const FileDropConverter = ({
     if (!outputGrant) {
       outputGrant = await fileApi.selectOutputDirectory();
       if (!outputGrant) {
-        return;
+        return false;
       }
       setDirectory(outputGrant.path);
       await writePluginPreference(
@@ -306,13 +308,14 @@ export const FileDropConverter = ({
       })),
     );
     setMessage(null);
+    return true;
   };
 
   const runInput = async (
     input: FileDropConverterInput,
     mode: FileDropConverterOutputMode,
   ) => {
-    if (running) {
+    if (runningRef.current) {
       return;
     }
 
@@ -321,6 +324,7 @@ export const FileDropConverter = ({
       return;
     }
 
+    runningRef.current = true;
     setRunning(true);
     setMessage(null);
 
@@ -330,21 +334,25 @@ export const FileDropConverter = ({
         ...(multiple ? { files: payloadFiles } : payloadFiles[0]),
       });
 
-      await persistConverterOutputs(
+      const saved = await persistConverterOutputs(
         input,
         payloadFiles[0]?.name ?? "converted.txt",
         result,
         mode,
       );
+      if (saved) {
+        setStagedInput(null);
+      }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
     } finally {
+      runningRef.current = false;
       setRunning(false);
     }
   };
 
   const stageInput = (input: FileDropConverterInput) => {
-    if (running) {
+    if (runningRef.current) {
       return;
     }
 

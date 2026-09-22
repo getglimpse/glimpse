@@ -31,10 +31,12 @@ const fileMocks = vi.hoisted(() => ({
         token: "output-token",
       }),
     ),
-    selectOutputDirectory: vi.fn(async () => ({
-      path: "C:/Converted",
-      token: "selected-token",
-    })),
+    selectOutputDirectory: vi.fn(
+      async (): Promise<{ path: string; token: string } | null> => ({
+        path: "C:/Converted",
+        token: "selected-token",
+      }),
+    ),
     claimPluginTextInputs: vi.fn(async (paths: string[]) =>
       paths.map((path) => ({ path, token: "input-token" })),
     ),
@@ -673,6 +675,9 @@ describe("pluginComponents", () => {
         body: "HELLO\n",
       });
     });
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "Run" })).toBeNull(),
+    );
     expect(screen.getByRole("heading", { name: "Results" })).toBeTruthy();
     expect(screen.getByRole("columnheader", { name: "File" })).toBeTruthy();
     expect(screen.getByRole("columnheader", { name: "Size" })).toBeTruthy();
@@ -764,6 +769,72 @@ describe("pluginComponents", () => {
         body: "OVERWRITTEN",
       });
     });
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "Run" })).toBeNull(),
+    );
+  });
+
+  it("keeps the selected file for retry when conversion fails", async () => {
+    const { FileDropConverter } = createPluginComponents(
+      {
+        convertFile: {
+          handler: () => {
+            throw new Error("conversion failed");
+          },
+        },
+      },
+      "file-converter-plugin",
+    );
+    render(<FileDropConverter action="convertFile" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Choose File" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Run" }));
+
+    expect(await screen.findByText("conversion failed")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Run" })).toBeTruthy();
+  });
+
+  it("does not start the same selected file twice while execution is pending", async () => {
+    let finish!: (value: string) => void;
+    const pending = new Promise<string>((resolve) => {
+      finish = resolve;
+    });
+    const convertFile = vi.fn(() => pending);
+    const { FileDropConverter } = createPluginComponents(
+      { convertFile: { handler: convertFile } },
+      "file-converter-plugin",
+    );
+    render(<FileDropConverter action="convertFile" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Choose File" }));
+    const runButton = await screen.findByRole("button", { name: "Run" });
+    fireEvent.click(runButton);
+    fireEvent.click(runButton);
+    await waitFor(() => expect(convertFile).toHaveBeenCalledTimes(1));
+
+    finish("CONVERTED");
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "Run" })).toBeNull(),
+    );
+  });
+
+  it("keeps the selected file when the output picker is cancelled", async () => {
+    fileMocks.fileApi.getPluginOutputDirectoryGrant.mockResolvedValueOnce(null);
+    fileMocks.fileApi.selectOutputDirectory.mockResolvedValueOnce(null);
+    const { FileDropConverter } = createPluginComponents(
+      { convertFile: { handler: () => "converted" } },
+      "file-converter-plugin",
+    );
+    render(<FileDropConverter action="convertFile" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Choose File" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Run" }));
+
+    await waitFor(() =>
+      expect(fileMocks.fileApi.selectOutputDirectory).toHaveBeenCalled(),
+    );
+    expect(await screen.findByRole("button", { name: "Run" })).toBeTruthy();
+    expect(fileMocks.fileApi.writePluginTextOutput).not.toHaveBeenCalled();
   });
 
   it("requires a native picker when the saved output directory lacks a session grant", async () => {
