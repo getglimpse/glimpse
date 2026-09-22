@@ -342,6 +342,28 @@ export default function activate() {
     expect(snapshot.error).toContain("dynamic import is not available");
   });
 
+  it("allows plugin actions to use the standard Web Crypto API", async () => {
+    const runtimeModule = await loadRuntimeModule();
+    const plugin = testPlugin("random-runtime-plugin");
+
+    mockPluginApi(`
+export default function activate(ctx) {
+  ctx.registerAction("random", (length) =>
+    Array.from(crypto.getRandomValues(new Uint8Array(length)))
+  );
+}
+`);
+
+    const runtime = await runtimeModule.activatePluginRuntime(plugin);
+    const bytes = await runtime.actions.random.handler(32);
+
+    expect(bytes).toHaveLength(32);
+    expect(bytes).toEqual(expect.arrayContaining([expect.any(Number)]));
+    expect(
+      (bytes as number[]).every((value) => value >= 0 && value <= 255),
+    ).toBe(true);
+  });
+
   it("blocks function constructor escape patterns before plugin code runs", async () => {
     const runtimeModule = await loadRuntimeModule();
     const plugin = testPlugin("constructor-escape-plugin");

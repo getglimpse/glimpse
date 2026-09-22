@@ -292,6 +292,51 @@ export const localizeInternalPage = (
                       ),
                     })),
                   })),
+                  result: tab.result
+                    ? {
+                        ...tab.result,
+                        copyLabel: translateDeclaredString(
+                          plugin,
+                          tab.result.copyLabelKey,
+                          tab.result.copyLabelFallback,
+                          tab.result.copyLabel ??
+                            tab.result.copyLabelFallback ??
+                            "Copy",
+                        ),
+                        copiedLabel: translateDeclaredString(
+                          plugin,
+                          tab.result.copiedLabelKey,
+                          tab.result.copiedLabelFallback,
+                          tab.result.copiedLabel ??
+                            tab.result.copiedLabelFallback ??
+                            "Copied",
+                        ),
+                        saveLatestLabel: translateDeclaredString(
+                          plugin,
+                          tab.result.saveLatestLabelKey,
+                          tab.result.saveLatestLabelFallback,
+                          tab.result.saveLatestLabel ??
+                            tab.result.saveLatestLabelFallback ??
+                            "Save latest result",
+                        ),
+                        saveAllLabel: translateDeclaredString(
+                          plugin,
+                          tab.result.saveAllLabelKey,
+                          tab.result.saveAllLabelFallback,
+                          tab.result.saveAllLabel ??
+                            tab.result.saveAllLabelFallback ??
+                            "Save all results",
+                        ),
+                        resetLabel: translateDeclaredString(
+                          plugin,
+                          tab.result.resetLabelKey,
+                          tab.result.resetLabelFallback,
+                          tab.result.resetLabel ??
+                            tab.result.resetLabelFallback ??
+                            "Reset results",
+                        ),
+                      }
+                    : tab.result,
                 }
               : {}),
           })),

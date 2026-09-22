@@ -1,13 +1,28 @@
 // @vitest-environment jsdom
 
 import type { ReactNode } from "react";
-import { cleanup, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { PluginInternalPageManifest } from "@/types";
 
 import { PluginInternalPageView } from "./InternalPage";
 import { getPluginRuntime } from "../runtime";
+
+const fileApiMocks = vi.hoisted(() => ({
+  selectOutputDirectory: vi.fn(),
+  writePluginTextOutput: vi.fn(),
+}));
+
+vi.mock("@/api/file", () => ({
+  fileApi: fileApiMocks,
+}));
 
 vi.mock("../runtime", () => ({
   getPluginRuntime: vi.fn(() => undefined),
@@ -22,6 +37,8 @@ vi.mock("../runtime", () => ({
 
 afterEach(() => {
   cleanup();
+  fileApiMocks.selectOutputDirectory.mockReset();
+  fileApiMocks.writePluginTextOutput.mockReset();
   vi.mocked(getPluginRuntime).mockReturnValue(undefined);
 });
 
@@ -260,6 +277,210 @@ describe("PluginInternalPageView", () => {
     expect(screen.getByText("サイズ")).toBeTruthy();
     expect(screen.getByText("パス")).toBeTruthy();
     expect(screen.getByText("出力はまだありません")).toBeTruthy();
+  });
+
+  it("runs a Form tab with default values and copies its result", async () => {
+    const generatePassword = vi.fn(() => "secure-password");
+    const writeText = vi.fn(() => Promise.resolve());
+    fileApiMocks.selectOutputDirectory.mockResolvedValue("C:/Exports");
+    fileApiMocks.writePluginTextOutput
+      .mockResolvedValueOnce(
+        "C:/Exports/password-generator-plugin-generator-latest.txt",
+      )
+      .mockResolvedValueOnce(
+        "C:/Exports/password-generator-plugin-generator-results.txt",
+      );
+
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    vi.mocked(getPluginRuntime).mockReturnValue({
+      pluginId: "password-generator-plugin",
+      version: "0.2.0",
+      pages: new Map(),
+      actions: {
+        generatePassword: { handler: generatePassword },
+      },
+      components: {
+        ActionPlayground: () => <div>Playground</div>,
+        FileDropConverter: () => <div>Converter</div>,
+        OutputDirectorySettings: () => <div>Settings</div>,
+        Tabs: ({
+          items,
+        }: {
+          items?: Array<{ id: string; title: string; content: ReactNode }>;
+        }) => (
+          <div>
+            {items?.map((item) => (
+              <section key={item.id}>
+                <h2>{item.title}</h2>
+                {item.content}
+              </section>
+            ))}
+          </div>
+        ),
+      },
+      context: {
+        i18n: {
+          language: "en",
+          locale: "en",
+          t: (_key: string, fallback?: string) => fallback ?? "",
+          has: () => false,
+        },
+      },
+    } as never);
+    const page: PluginInternalPageManifest = {
+      id: "plugin:password-generator-plugin",
+      title: "Password Generator",
+      pageDefinition: {
+        id: "plugin:password-generator-plugin",
+        tabs: [
+          {
+            id: "generator",
+            type: "form",
+            title: "Generator",
+            action: "generatePassword",
+            submitLabel: "Generate",
+            fields: [
+              {
+                id: "length",
+                type: "number",
+                control: "number",
+                label: "Length",
+                default: 20,
+                min: 8,
+                max: 128,
+              },
+              {
+                id: "symbols",
+                type: "boolean",
+                control: "checkbox",
+                label: "Symbols",
+                default: true,
+              },
+            ],
+            result: {
+              type: "text",
+              copy: true,
+              copyLabel: "Copy password",
+              copiedLabel: "Copied",
+              saveLatestLabel: "Save latest result",
+              saveAllLabel: "Save all results",
+              resetLabel: "Reset results",
+            },
+          },
+        ],
+      },
+    };
+
+    const { container } = render(
+      <PluginInternalPageView
+        page={page}
+        pluginId="password-generator-plugin"
+      />,
+    );
+
+    const results = container.querySelector(
+      "[data-glimpse-plugin-form-results]",
+    );
+    const action = container.querySelector("[data-glimpse-plugin-form-action]");
+    const parameters = container.querySelector(
+      "[data-glimpse-plugin-form-parameters]",
+    );
+
+    expect(results).toBeTruthy();
+    expect(action).toBeTruthy();
+    expect(parameters).toBeTruthy();
+    if (!results || !action || !parameters) {
+      throw new Error("Expected Form layout sections to render");
+    }
+    expect(
+      results.compareDocumentPosition(parameters) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(results.parentElement?.contains(action)).toBe(true);
+    expect(parameters.contains(action)).toBe(false);
+
+    expect(screen.getByText("Parameters")).toBeTruthy();
+    expect(screen.getByRole("spinbutton", { name: "Length" })).toBeTruthy();
+    expect(screen.getByRole("checkbox", { name: "Symbols" })).toBeTruthy();
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Save results",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Reset results",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+
+    await screen.findByText("secure-password");
+    expect(generatePassword).toHaveBeenCalledWith({
+      length: 20,
+      symbols: true,
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy password" }));
+
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith("secure-password");
+      expect(screen.getByRole("button", { name: "Copied" })).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+
+    await waitFor(() => {
+      expect(screen.getAllByText("secure-password")).toHaveLength(2);
+    });
+    expect(screen.getByText("[1]:")).toBeTruthy();
+    expect(screen.getByText("[2]:")).toBeTruthy();
+
+    fireEvent.pointerDown(
+      screen.getByRole("button", { name: "Save results" }),
+      { button: 0, ctrlKey: false },
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Save latest result" }),
+    );
+    await waitFor(() => {
+      expect(fileApiMocks.writePluginTextOutput).toHaveBeenNthCalledWith(1, {
+        directory: "C:/Exports",
+        fileName: "password-generator-plugin-generator-latest.txt",
+        body: "secure-password",
+      });
+    });
+
+    fireEvent.pointerDown(
+      screen.getByRole("button", { name: "Save results" }),
+      { button: 0, ctrlKey: false },
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Save all results" }),
+    );
+    await waitFor(() => {
+      expect(fileApiMocks.writePluginTextOutput).toHaveBeenNthCalledWith(2, {
+        directory: "C:/Exports",
+        fileName: "password-generator-plugin-generator-results.txt",
+        body: "secure-password\nsecure-password",
+      });
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset results" }));
+    expect(screen.queryAllByText("secure-password")).toHaveLength(0);
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Save results",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(true);
   });
 
   it("orders v0.2 generated tabs as Settings then Info", () => {

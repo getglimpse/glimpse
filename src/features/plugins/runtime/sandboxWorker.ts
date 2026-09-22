@@ -206,7 +206,6 @@ for (const name of [
   "clearInterval",
   "queueMicrotask",
   "WebAssembly",
-  "crypto",
   "eval",
   // Keep the real Function global for bundled dependencies such as mathjs,
   // while plugin modules receive a shadowed undefined Function parameter.

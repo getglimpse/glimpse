@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { open } from "@tauri-apps/plugin-dialog";
 
 /**
  * Payload for creating a new Markdown file.
@@ -60,6 +61,12 @@ export type FileMetadata = {
  * calling Tauri `invoke()` directly.
  */
 export const fileApi = {
+  selectOutputDirectory: () =>
+    open({
+      directory: true,
+      multiple: false,
+    }),
+
   /**
    * Reads a UTF-8 text file.
    *

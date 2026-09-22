@@ -133,4 +133,66 @@ describe("pluginI18n", () => {
       emptyResultsLabel: "出力はまだありません",
     });
   });
+
+  it("localizes Form result copy labels", () => {
+    const plugin: GlimpsePlugin = {
+      id: "password-generator-plugin",
+      name: "Password Generator",
+      version: "0.2.0",
+      apiVersion: "0.2.0",
+      i18n: {
+        ja: {
+          "tabs.generator.result.copy": "パスワードをコピー",
+          "tabs.generator.result.copied": "コピーしました",
+          "tabs.generator.result.saveLatest": "直近の結果を保存",
+          "tabs.generator.result.saveAll": "すべての結果を保存",
+          "tabs.generator.result.reset": "結果をリセット",
+        },
+      },
+    };
+    const page: PluginInternalPageManifest = {
+      id: "plugin:password-generator-plugin",
+      title: "Password Generator",
+      pageDefinition: {
+        id: "plugin:password-generator-plugin",
+        tabs: [
+          {
+            id: "generator",
+            type: "form",
+            action: "generatePassword",
+            result: {
+              type: "text",
+              copy: true,
+              copyLabelKey: "tabs.generator.result.copy",
+              copyLabelFallback: "Copy password",
+              copiedLabelKey: "tabs.generator.result.copied",
+              copiedLabelFallback: "Copied",
+              saveLatestLabelKey: "tabs.generator.result.saveLatest",
+              saveLatestLabelFallback: "Save latest result",
+              saveAllLabelKey: "tabs.generator.result.saveAll",
+              saveAllLabelFallback: "Save all results",
+              resetLabelKey: "tabs.generator.result.reset",
+              resetLabelFallback: "Reset results",
+            },
+          },
+        ],
+      },
+    };
+
+    setCurrentPluginLocale("ja");
+
+    const [tab] = localizeInternalPage(plugin, page).pageDefinition?.tabs ?? [];
+
+    expect(tab).toMatchObject({
+      type: "form",
+      result: {
+        copy: true,
+        copyLabel: "パスワードをコピー",
+        copiedLabel: "コピーしました",
+        saveLatestLabel: "直近の結果を保存",
+        saveAllLabel: "すべての結果を保存",
+        resetLabel: "結果をリセット",
+      },
+    });
+  });
 });

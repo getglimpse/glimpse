@@ -122,7 +122,27 @@ export type PluginFormTab = PluginPageTabBase & {
   submitLabelKey?: string;
   submitLabelFallback?: string;
   fields?: PluginFormField[];
-  result?: Record<string, unknown>;
+  result?: PluginFormResult;
+};
+
+export type PluginFormResult = {
+  type?: "text";
+  copy?: boolean;
+  copyLabel?: string;
+  copyLabelKey?: string;
+  copyLabelFallback?: string;
+  copiedLabel?: string;
+  copiedLabelKey?: string;
+  copiedLabelFallback?: string;
+  saveLatestLabel?: string;
+  saveLatestLabelKey?: string;
+  saveLatestLabelFallback?: string;
+  saveAllLabel?: string;
+  saveAllLabelKey?: string;
+  saveAllLabelFallback?: string;
+  resetLabel?: string;
+  resetLabelKey?: string;
+  resetLabelFallback?: string;
 };
 
 export type PluginFormField = {

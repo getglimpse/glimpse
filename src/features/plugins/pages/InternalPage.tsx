@@ -2,11 +2,20 @@ import {
   Component,
   createElement,
   useEffect,
+  useRef,
   useState,
   type ErrorInfo,
   type ReactNode,
 } from "react";
+import { Download, LoaderCircle, RotateCcw, WandSparkles } from "lucide-react";
 
+import { fileApi } from "@/api/file";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type {
   GlimpsePlugin,
   PluginFormField,
@@ -16,6 +25,7 @@ import type {
   PluginPageTab,
   PluginStaticPageSection,
 } from "@/types";
+import { copyText } from "@/utils/clipboard";
 
 import { invokePluginAction, PluginPageActivityProvider } from "../components";
 import {
@@ -402,8 +412,16 @@ const StandardPluginForm = ({
     ),
   );
   const [running, setRunning] = useState(false);
-  const [result, setResult] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [history, setHistory] = useState<PluginFormHistoryItem[]>([]);
+  const [copiedHistoryId, setCopiedHistoryId] = useState<number | null>(null);
+  const [savingMode, setSavingMode] = useState<PluginFormSaveMode | null>(null);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const nextHistoryId = useRef(1);
+  const historyEndRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    historyEndRef.current?.scrollIntoView?.({ block: "end" });
+  }, [history.length]);
 
   const updateValue = (id: string, value: unknown) => {
     setValues((current) => ({
@@ -418,7 +436,6 @@ const StandardPluginForm = ({
     }
 
     setRunning(true);
-    setError(null);
 
     try {
       const output = await invokePluginAction(
@@ -426,55 +443,280 @@ const StandardPluginForm = ({
         tab.action,
         values,
       );
-      setResult(formatPluginFormResult(output));
+      setHistory((previous) => [
+        ...previous,
+        {
+          id: nextHistoryId.current++,
+          result: formatPluginFormResult(output),
+        },
+      ]);
     } catch (submitError) {
-      setError(
-        submitError instanceof Error
-          ? submitError.message
-          : String(submitError),
-      );
+      setHistory((previous) => [
+        ...previous,
+        {
+          id: nextHistoryId.current++,
+          result:
+            submitError instanceof Error
+              ? submitError.message
+              : String(submitError),
+          error: true,
+        },
+      ]);
     } finally {
       setRunning(false);
     }
   };
 
+  const copyResult = async (item: PluginFormHistoryItem) => {
+    if (item.error) {
+      return;
+    }
+
+    try {
+      const copied = await copyText(item.result);
+
+      if (copied) {
+        setCopiedHistoryId(item.id);
+        window.setTimeout(() => {
+          setCopiedHistoryId((current) =>
+            current === item.id ? null : current,
+          );
+        }, 1200);
+      }
+    } catch (copyError) {
+      console.warn("Failed to copy plugin form result", copyError);
+    }
+  };
+
+  const successfulHistory = history.filter((item) => !item.error);
+
+  const saveResults = async (mode: PluginFormSaveMode) => {
+    if (savingMode !== null || successfulHistory.length === 0) {
+      return;
+    }
+
+    const results =
+      mode === "latest" ? successfulHistory.slice(-1) : successfulHistory;
+
+    setSavingMode(mode);
+    setSaveMessage(null);
+
+    try {
+      const directory = await fileApi.selectOutputDirectory();
+
+      if (typeof directory !== "string") {
+        return;
+      }
+
+      const path = await fileApi.writePluginTextOutput({
+        directory,
+        fileName: getPluginFormOutputFileName(runtime.pluginId, tab.id, mode),
+        body: results.map((item) => item.result).join("\n"),
+      });
+      setSaveMessage(`Saved to ${path}`);
+    } catch (saveError) {
+      setSaveMessage(
+        saveError instanceof Error ? saveError.message : String(saveError),
+      );
+    } finally {
+      setSavingMode(null);
+    }
+  };
+
+  const resetHistory = () => {
+    setHistory([]);
+    setCopiedHistoryId(null);
+    setSaveMessage(null);
+    nextHistoryId.current = 1;
+  };
+
+  const copyLabel =
+    tab.result?.copyLabel ?? tab.result?.copyLabelFallback ?? "Copy";
+  const copiedLabel =
+    tab.result?.copiedLabel ?? tab.result?.copiedLabelFallback ?? "Copied";
+  const saveLatestLabel =
+    tab.result?.saveLatestLabel ??
+    tab.result?.saveLatestLabelFallback ??
+    "Save latest result";
+  const saveAllLabel =
+    tab.result?.saveAllLabel ??
+    tab.result?.saveAllLabelFallback ??
+    "Save all results";
+  const resetLabel =
+    tab.result?.resetLabel ?? tab.result?.resetLabelFallback ?? "Reset results";
+  const submitLabel = tab.submitLabel ?? tab.submitLabelFallback ?? "Run";
+
   return (
-    <div className="space-y-4 py-3">
-      <div className="space-y-3">
-        {(tab.fields ?? []).map((field) => (
-          <PluginFormFieldControl
-            key={field.id}
-            field={field}
-            value={values[field.id]}
-            onChange={(value) => updateValue(field.id, value)}
-          />
-        ))}
-      </div>
+    <div
+      className="@container flex h-full min-h-0 flex-col overflow-hidden border-y border-border-main/60"
+      data-glimpse-plugin-form
+    >
+      <section className="relative min-h-0 w-full min-w-0 basis-1/2 overflow-hidden">
+        <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                disabled={successfulHistory.length === 0 || savingMode !== null}
+                className="grid size-8 place-items-center rounded border border-border-main bg-main-bg/95 text-text-muted shadow-sm backdrop-blur-sm hover:border-accent hover:text-accent disabled:pointer-events-none disabled:opacity-35"
+                aria-label="Save results"
+                title="Save results"
+                data-glimpse-plugin-form-save
+              >
+                <Download aria-hidden="true" className="size-3.5" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={() => void saveResults("latest")}>
+                {saveLatestLabel}
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => void saveResults("all")}>
+                {saveAllLabel}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
-      <button
-        type="button"
-        onClick={() => void submit()}
-        disabled={running}
-        className="rounded border border-border-main bg-main-bg px-3 py-2 text-sm font-medium text-text-main hover:border-accent disabled:opacity-60"
-      >
-        {running
-          ? "Running"
-          : (tab.submitLabel ?? tab.submitLabelFallback ?? "Run")}
-      </button>
-
-      {error && (
-        <div className="border-y border-red-500/40 py-3 text-sm text-red-400">
-          {error}
+          <button
+            type="button"
+            onClick={resetHistory}
+            disabled={history.length === 0}
+            className="grid size-8 place-items-center rounded border border-border-main bg-main-bg/95 text-text-muted shadow-sm backdrop-blur-sm hover:border-red-400/70 hover:text-red-400 disabled:pointer-events-none disabled:opacity-35"
+            aria-label={resetLabel}
+            title={resetLabel}
+            data-glimpse-plugin-form-reset
+          >
+            <RotateCcw aria-hidden="true" className="size-3.5" />
+          </button>
         </div>
-      )}
 
-      {result !== null && !error && (
-        <pre className="max-h-80 overflow-auto border-y border-border-main/60 bg-main-bg px-3 py-2 text-xs whitespace-pre-wrap text-text-main">
-          {result}
-        </pre>
-      )}
+        <div
+          className="h-full w-full space-y-1 overflow-y-auto pt-3 pr-21 pb-14 pl-1 [scrollbar-gutter:stable]"
+          aria-live="polite"
+          data-glimpse-plugin-form-results
+        >
+          {history.length === 0 ? (
+            <div className="flex h-full min-h-40 items-center justify-center px-4 text-center text-sm text-text-muted">
+              Adjust the parameters below, then run the action.
+            </div>
+          ) : (
+            history.map((item, index) => (
+              <div
+                key={item.id}
+                className="grid grid-cols-[auto_1fr] gap-x-1 rounded-md px-2 py-2 hover:bg-item-hover/60"
+              >
+                <div
+                  className={`pt-0.5 text-xs font-semibold ${
+                    item.error ? "text-red-300" : "text-text-main"
+                  }`}
+                  aria-label={`${item.error ? "Error" : "Result"} ${index + 1}`}
+                >
+                  [{index + 1}]:
+                </div>
+                {item.error ? (
+                  <div className="min-w-0 text-sm leading-relaxed whitespace-pre-wrap break-words text-red-300">
+                    {item.result}
+                  </div>
+                ) : tab.result?.copy ? (
+                  <div className="min-w-0">
+                    <button
+                      type="button"
+                      onClick={() => void copyResult(item)}
+                      className="block w-full rounded-sm text-left font-mono text-sm text-text-main select-text transition-colors hover:text-accent focus-visible:outline focus-visible:outline-1 focus-visible:outline-accent"
+                      aria-label={
+                        copiedHistoryId === item.id ? copiedLabel : copyLabel
+                      }
+                      title={copyLabel}
+                    >
+                      <span className="block leading-relaxed break-all">
+                        {item.result}
+                      </span>
+                    </button>
+                    {copiedHistoryId === item.id && (
+                      <span className="mt-0.5 block text-[11px] text-text-muted">
+                        {copiedLabel}
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <pre className="min-w-0 overflow-x-auto font-mono text-sm leading-relaxed whitespace-pre-wrap break-words text-text-main">
+                    {item.result}
+                  </pre>
+                )}
+              </div>
+            ))
+          )}
+          <div ref={historyEndRef} />
+        </div>
+
+        <button
+          type="button"
+          onClick={() => void submit()}
+          disabled={running}
+          className="absolute right-2 bottom-2 z-10 grid size-10 touch-manipulation place-items-center rounded-full border border-accent bg-accent text-white select-none shadow-md transition-transform hover:scale-105 hover:opacity-90 disabled:pointer-events-none disabled:scale-100 disabled:opacity-50"
+          aria-label={submitLabel}
+          title={submitLabel}
+          data-glimpse-plugin-form-action
+        >
+          {running ? (
+            <LoaderCircle
+              aria-hidden="true"
+              className="pointer-events-none size-4 animate-spin"
+            />
+          ) : (
+            <WandSparkles
+              aria-hidden="true"
+              className="pointer-events-none size-4"
+            />
+          )}
+        </button>
+      </section>
+
+      <section
+        className="flex min-h-0 flex-1 flex-col border-t border-border-main/60 bg-main-bg"
+        data-glimpse-plugin-form-parameters
+      >
+        <div className="shrink-0 border-b border-border-main/40 bg-main-bg px-2 py-1.5 text-xs font-semibold tracking-wide text-text-muted uppercase">
+          <span>Parameters</span>
+          <span className="ml-1.5 font-normal tracking-normal text-text-muted/70 normal-case">
+            {(tab.fields ?? []).length}
+          </span>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div
+            className="grid w-full min-w-0 grid-cols-1 gap-1.5 p-2 @min-[420px]:grid-cols-2"
+            data-glimpse-plugin-form-controls
+          >
+            {(tab.fields ?? []).map((field) => (
+              <PluginFormFieldControl
+                key={field.id}
+                field={field}
+                value={values[field.id]}
+                onChange={(value) => updateValue(field.id, value)}
+              />
+            ))}
+          </div>
+        </div>
+
+        {saveMessage && (
+          <div
+            className="shrink-0 border-t border-border-main/40 px-2 py-1.5 text-xs leading-4 break-words text-text-muted"
+            aria-live="polite"
+          >
+            {saveMessage}
+          </div>
+        )}
+      </section>
     </div>
   );
+};
+
+type PluginFormSaveMode = "latest" | "all";
+
+type PluginFormHistoryItem = {
+  id: number;
+  result: string;
+  error?: boolean;
 };
 
 const PluginFormFieldControl = ({
@@ -489,9 +731,39 @@ const PluginFormFieldControl = ({
   const inputId = `plugin-form-${field.id}`;
   const label = field.label ?? field.labelFallback ?? field.id;
   const description = field.description ?? field.descriptionFallback;
+  const isCheckbox = field.type === "boolean" || field.control === "checkbox";
+
+  if (isCheckbox) {
+    return (
+      <label
+        htmlFor={inputId}
+        className="flex min-h-full cursor-pointer items-start gap-2 rounded border border-border-main/60 bg-main-bg px-2 py-1.5 hover:border-accent"
+      >
+        <PluginFormInput
+          id={inputId}
+          field={field}
+          value={value}
+          onChange={onChange}
+        />
+        <span className="min-w-0">
+          <span className="block text-sm font-medium text-text-main">
+            {label}
+          </span>
+          {description && (
+            <span className="block text-xs leading-4 text-text-muted">
+              {description}
+            </span>
+          )}
+        </span>
+      </label>
+    );
+  }
 
   return (
-    <label htmlFor={inputId} className="block space-y-1.5">
+    <label
+      htmlFor={inputId}
+      className="block space-y-0.5 @min-[420px]:col-span-2"
+    >
       <div className="text-sm font-medium text-text-main">{label}</div>
       {description && (
         <div className="text-xs text-text-muted">{description}</div>
@@ -556,7 +828,7 @@ const PluginFormInput = ({
         id={id}
         value={String(value ?? "")}
         onChange={(event) => onChange(event.target.value)}
-        className="w-full rounded border border-border-main bg-main-bg px-3 py-2 text-sm text-text-main outline-none focus:border-accent"
+        className="w-full rounded border border-border-main bg-main-bg px-2 py-1 text-sm text-text-main outline-none focus:border-accent"
       >
         {(field.options ?? []).map((option) => (
           <option key={String(option.value)} value={String(option.value)}>
@@ -584,7 +856,9 @@ const PluginFormInput = ({
           step={field.step}
           value={numericValue}
           onChange={(event) => onChange(Number(event.target.value))}
-          className="min-w-0 flex-1 rounded border border-border-main bg-main-bg px-3 py-2 text-sm text-text-main outline-none focus:border-accent"
+          className={`rounded border border-border-main bg-main-bg px-2 py-1 text-sm text-text-main outline-none focus:border-accent ${
+            inputType === "range" ? "min-w-0 flex-1" : "w-28"
+          }`}
         />
         {inputType === "range" && (
           <span className="w-12 text-right font-mono text-xs text-text-muted">
@@ -601,7 +875,7 @@ const PluginFormInput = ({
       type="text"
       value={typeof value === "string" ? value : ""}
       onChange={(event) => onChange(event.target.value)}
-      className="w-full rounded border border-border-main bg-main-bg px-3 py-2 text-sm text-text-main outline-none focus:border-accent"
+      className="w-full rounded border border-border-main bg-main-bg px-2 py-1 text-sm text-text-main outline-none focus:border-accent"
     />
   );
 };
@@ -624,6 +898,20 @@ const getDefaultFormFieldValue = (field: PluginFormField): unknown => {
 
 const getFormOptionLabel = (option: PluginFormFieldOption): string =>
   option.label ?? option.labelFallback ?? String(option.value);
+
+const getPluginFormOutputFileName = (
+  pluginId: string,
+  tabId: string,
+  mode: PluginFormSaveMode,
+): string => {
+  const baseName = `${pluginId}-${tabId}`
+    .replace(/^plugin:/, "")
+    .replace(/[^a-zA-Z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  const suffix = mode === "latest" ? "latest" : "results";
+
+  return `${baseName || "generator"}-${suffix}.txt`;
+};
 
 const formatPluginFormResult = (value: unknown): string => {
   if (typeof value === "string") {
