@@ -25,11 +25,27 @@ const clipboardMocks = vi.hoisted(() => ({
 const fileMocks = vi.hoisted(() => ({
   fileApi: {
     getDefaultDownloadDirectory: vi.fn(async () => "C:/Users/j/Downloads"),
+    getPluginOutputDirectoryGrant: vi.fn(
+      async (): Promise<{ path: string; token: string } | null> => ({
+        path: "C:/Users/j/Downloads",
+        token: "output-token",
+      }),
+    ),
+    selectOutputDirectory: vi.fn(async () => ({
+      path: "C:/Converted",
+      token: "selected-token",
+    })),
+    claimPluginTextInputs: vi.fn(async (paths: string[]) =>
+      paths.map((path) => ({ path, token: "input-token" })),
+    ),
+    selectPluginTextInputs: vi.fn(async () => [
+      { path: "C:/Inbox/notes.txt", token: "picked-token" },
+    ]),
     readPluginTextInput: vi.fn(async () => "hello from path"),
     writePluginTextOutput: vi.fn(
       async ({ fileName }) => `C:/Users/j/Downloads/${fileName}`,
     ),
-    overwritePluginTextInput: vi.fn(async ({ filePath }) => filePath),
+    overwritePluginTextInput: vi.fn(async () => "C:/Inbox/notes.txt"),
   },
 }));
 
@@ -134,6 +150,10 @@ vi.mock("@tauri-apps/api/window", () => ({
 afterEach(() => {
   clipboardMocks.copyText.mockReset();
   fileMocks.fileApi.getDefaultDownloadDirectory.mockClear();
+  fileMocks.fileApi.getPluginOutputDirectoryGrant.mockClear();
+  fileMocks.fileApi.selectOutputDirectory.mockClear();
+  fileMocks.fileApi.claimPluginTextInputs.mockClear();
+  fileMocks.fileApi.selectPluginTextInputs.mockClear();
   fileMocks.fileApi.readPluginTextInput.mockClear();
   fileMocks.fileApi.writePluginTextOutput.mockClear();
   fileMocks.fileApi.overwritePluginTextInput.mockClear();
@@ -648,7 +668,7 @@ describe("pluginComponents", () => {
 
     await waitFor(() => {
       expect(fileMocks.fileApi.writePluginTextOutput).toHaveBeenCalledWith({
-        directory: "C:/Users/j/Downloads",
+        grantToken: "output-token",
         fileName: "notes.converted.txt",
         body: "HELLO\n",
       });
@@ -695,6 +715,84 @@ describe("pluginComponents", () => {
     expect(await screen.findByRole("group", { name: "出力方法" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "新規作成" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "上書き" })).toBeTruthy();
+  });
+
+  it("converts a file selected with Choose File using a native input grant", async () => {
+    const convertFile = vi.fn(() => "CONVERTED");
+    const { FileDropConverter } = createPluginComponents(
+      { convertFile: { handler: convertFile } },
+      "file-converter-plugin",
+    );
+    render(<FileDropConverter action="convertFile" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Choose File" }));
+    expect(fileMocks.fileApi.selectPluginTextInputs).toHaveBeenCalledWith(
+      false,
+      ["txt", "md", "markdown"],
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Run" }));
+
+    await waitFor(() => {
+      expect(fileMocks.fileApi.readPluginTextInput).toHaveBeenCalledWith(
+        "picked-token",
+      );
+      expect(convertFile).toHaveBeenCalledWith(
+        expect.objectContaining({ name: "notes.txt", text: "hello from path" }),
+      );
+      expect(fileMocks.fileApi.writePluginTextOutput).toHaveBeenCalledWith({
+        grantToken: "output-token",
+        fileName: "notes.converted.txt",
+        body: "CONVERTED",
+      });
+    });
+  });
+
+  it("can overwrite a file selected with Choose File", async () => {
+    const { FileDropConverter } = createPluginComponents(
+      { convertFile: { handler: () => "OVERWRITTEN" } },
+      "file-converter-plugin",
+    );
+    render(<FileDropConverter action="convertFile" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Choose File" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Overwrite" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Run" }));
+
+    await waitFor(() => {
+      expect(fileMocks.fileApi.overwritePluginTextInput).toHaveBeenCalledWith({
+        grantToken: "picked-token",
+        body: "OVERWRITTEN",
+      });
+    });
+  });
+
+  it("requires a native picker when the saved output directory lacks a session grant", async () => {
+    fileMocks.fileApi.getPluginOutputDirectoryGrant.mockResolvedValueOnce(null);
+    const { FileDropConverter } = createPluginComponents(
+      { convertFile: { handler: () => "converted" } },
+      "file-converter-plugin",
+    );
+    const { container } = render(<FileDropConverter action="convertFile" />);
+    await waitFor(() =>
+      expect(fileMocks.fileApi.getDefaultDownloadDirectory).toHaveBeenCalled(),
+    );
+    fireEvent.drop(
+      container.querySelector("[data-glimpse-plugin-file-drop-converter]")!,
+      {
+        dataTransfer: {
+          files: [new File(["hello"], "notes.txt", { type: "text/plain" })],
+        },
+      },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Run" }));
+    await waitFor(() => {
+      expect(fileMocks.fileApi.selectOutputDirectory).toHaveBeenCalled();
+      expect(fileMocks.fileApi.writePluginTextOutput).toHaveBeenCalledWith({
+        grantToken: "selected-token",
+        fileName: "notes.converted.txt",
+        body: "converted",
+      });
+    });
   });
 
   it("rejects non-text files in FileDropConverter", async () => {
@@ -776,7 +874,7 @@ describe("pluginComponents", () => {
 
     await waitFor(() => {
       expect(fileMocks.fileApi.writePluginTextOutput).toHaveBeenCalledWith({
-        directory: "C:/Users/j/Downloads",
+        grantToken: "output-token",
         fileName: "notes.converted.md",
         body: "Success Converted!\n# hello",
       });
@@ -815,7 +913,7 @@ describe("pluginComponents", () => {
     });
   });
 
-  it("saves manual OutputDirectorySettings input on blur", async () => {
+  it("does not accept a typed path as an output permission", async () => {
     const { OutputDirectorySettings } = createPluginComponents(
       {},
       "file-converter-plugin",
@@ -827,22 +925,8 @@ describe("pluginComponents", () => {
       "Output directory",
     )) as HTMLInputElement;
 
-    fireEvent.change(input, {
-      target: { value: "C:/ManualOutput" },
-    });
-    fireEvent.blur(input);
-
-    await waitFor(() => {
-      expect(settingsMocks.settingsApi.set).toHaveBeenCalledWith({
-        plugins: {
-          "file-converter-plugin": {
-            preferences: {
-              downloadDirectory: "C:/ManualOutput",
-            },
-          },
-        },
-      });
-    });
+    expect(input.readOnly).toBe(true);
+    expect(settingsMocks.settingsApi.set).not.toHaveBeenCalled();
   });
 
   it("converts a Tauri window file drop while preserving app drag-drop events", async () => {
@@ -885,10 +969,10 @@ describe("pluginComponents", () => {
 
     await waitFor(() => {
       expect(fileMocks.fileApi.readPluginTextInput).toHaveBeenCalledWith(
-        "C:/Inbox/notes.txt",
+        "input-token",
       );
       expect(fileMocks.fileApi.writePluginTextOutput).toHaveBeenCalledWith({
-        directory: "C:/Users/j/Downloads",
+        grantToken: "output-token",
         fileName: "notes.converted.txt",
         body: "HELLO FROM PATH\n",
       });
@@ -944,7 +1028,7 @@ describe("pluginComponents", () => {
 
     await waitFor(() => {
       expect(fileMocks.fileApi.overwritePluginTextInput).toHaveBeenCalledWith({
-        filePath: "C:/Inbox/notes.txt",
+        grantToken: "input-token",
         body: "OVERWRITTEN\n",
       });
     });

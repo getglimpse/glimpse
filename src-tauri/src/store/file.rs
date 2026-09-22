@@ -33,14 +33,15 @@ use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine};
 use chrono::Local;
 use serde::Serialize;
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use crate::models::settings::{AppSettings, TargetGroup};
 use crate::store::settings::load_settings;
 
 const MAX_BINARY_READ_BYTES: u64 = 32 * 1024 * 1024;
-const MAX_TEXT_READ_BYTES: u64 = 32 * 1024 * 1024;
-const MAX_PLUGIN_TEXT_OUTPUT_BYTES: usize = 32 * 1024 * 1024;
+pub(crate) const MAX_TEXT_READ_BYTES: u64 = 32 * 1024 * 1024;
+pub(crate) const MAX_PLUGIN_TEXT_OUTPUT_BYTES: usize = 32 * 1024 * 1024;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -429,12 +430,31 @@ pub fn write_text_file_in_directory(
 
     let output_dir = canonicalize_existing_dir(directory)?;
     let file_name = safe_file_name_from_input(&file_name)?;
-    let file_path = unique_file_path(&output_dir, &file_name);
-
-    fs::write(&file_path, body)
-        .map_err(|error| format!("failed to write file: {}: {error}", file_path.display()))?;
-
-    Ok(file_path.to_string_lossy().to_string())
+    // create_new prevents a competing process from replacing the selected
+    // name with a symlink or existing file between the existence check and write.
+    for _ in 0..1000 {
+        let file_path = unique_file_path(&output_dir, &file_name);
+        match fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&file_path)
+        {
+            Ok(mut file) => {
+                file.write_all(body.as_bytes()).map_err(|error| {
+                    format!("failed to write file: {}: {error}", file_path.display())
+                })?;
+                return Ok(file_path.to_string_lossy().to_string());
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(error) => {
+                return Err(format!(
+                    "failed to create file: {}: {error}",
+                    file_path.display()
+                ))
+            }
+        }
+    }
+    Err("could not allocate a unique plugin output filename".into())
 }
 
 pub fn overwrite_text_file_from_path(file_path: String, body: String) -> Result<String, String> {
@@ -898,7 +918,7 @@ fn unique_file_path(dir: &Path, file_name: &str) -> PathBuf {
 
     let mut path = dir.join(file_name);
 
-    if !path.exists() {
+    if !path.exists() && fs::symlink_metadata(&path).is_err() {
         return path;
     }
 
@@ -910,7 +930,7 @@ fn unique_file_path(dir: &Path, file_name: &str) -> PathBuf {
 
         path = dir.join(next_name);
 
-        if !path.exists() {
+        if !path.exists() && fs::symlink_metadata(&path).is_err() {
             return path;
         }
     }

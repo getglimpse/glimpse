@@ -504,12 +504,12 @@ const StandardPluginForm = ({
     try {
       const directory = await fileApi.selectOutputDirectory();
 
-      if (typeof directory !== "string") {
+      if (!directory) {
         return;
       }
 
       const path = await fileApi.writePluginTextOutput({
-        directory,
+        grantToken: directory.token,
         fileName: getPluginFormOutputFileName(runtime.pluginId, tab.id, mode),
         body: results.map((item) => item.result).join("\n"),
       });

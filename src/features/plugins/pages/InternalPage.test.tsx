@@ -282,7 +282,10 @@ describe("PluginInternalPageView", () => {
   it("runs a Form tab with default values and copies its result", async () => {
     const generatePassword = vi.fn(() => "secure-password");
     const writeText = vi.fn(() => Promise.resolve());
-    fileApiMocks.selectOutputDirectory.mockResolvedValue("C:/Exports");
+    fileApiMocks.selectOutputDirectory.mockResolvedValue({
+      path: "C:/Exports",
+      token: "exports-token",
+    });
     fileApiMocks.writePluginTextOutput
       .mockResolvedValueOnce(
         "C:/Exports/password-generator-plugin-generator-latest.txt",
@@ -451,7 +454,7 @@ describe("PluginInternalPageView", () => {
     );
     await waitFor(() => {
       expect(fileApiMocks.writePluginTextOutput).toHaveBeenNthCalledWith(1, {
-        directory: "C:/Exports",
+        grantToken: "exports-token",
         fileName: "password-generator-plugin-generator-latest.txt",
         body: "secure-password",
       });
@@ -466,7 +469,7 @@ describe("PluginInternalPageView", () => {
     );
     await waitFor(() => {
       expect(fileApiMocks.writePluginTextOutput).toHaveBeenNthCalledWith(2, {
-        directory: "C:/Exports",
+        grantToken: "exports-token",
         fileName: "password-generator-plugin-generator-results.txt",
         body: "secure-password\nsecure-password",
       });

@@ -28,6 +28,7 @@
 pub mod app_state;
 pub mod commands;
 pub mod models;
+pub mod plugin_file_grants;
 pub mod search;
 pub mod shortcuts;
 pub mod store;
@@ -38,11 +39,12 @@ pub mod utils;
 pub mod test_utils;
 
 use app_state::{SharedAppDataDir, SharedSettingsPath};
+use plugin_file_grants::PluginFileGrants;
 use search::ActiveSearchEngine;
 use shortcuts::register_global_shortcuts_from_settings_path;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
-use tauri::Manager;
+use tauri::{DragDropEvent, Manager, WindowEvent};
 use tracing::{error, info, warn};
 
 use store::db::init_db;
@@ -108,6 +110,10 @@ pub fn run() {
             commands::about::get_about_info,
             commands::file::read_text_file,
             commands::file::read_plugin_text_input,
+            commands::file::claim_plugin_text_inputs,
+            commands::file::select_plugin_text_inputs,
+            commands::file::select_plugin_output_directory,
+            commands::file::get_plugin_output_directory_grant,
             commands::file::read_text_file_in_target_group,
             commands::file::get_file_metadata,
             commands::file::get_file_metadata_in_target_group,
@@ -126,6 +132,13 @@ pub fn run() {
             commands::file::update_text_file_body,
             commands::preview::get_preview,
         ])
+        .on_window_event(|window, event| {
+            if let WindowEvent::DragDrop(DragDropEvent::Drop { paths, .. }) = event {
+                if let Some(grants) = window.try_state::<PluginFileGrants>() {
+                    grants.register_drop(window.label(), paths);
+                }
+            }
+        })
         .setup(setup_app)
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -164,6 +177,7 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
     app.manage(SharedAppDataDir(app_data_dir));
     app.manage(SharedSettingsPath(settings_path.clone()));
+    app.manage(PluginFileGrants::default());
 
     let settings_file_path = settings_path.lock().map_err(|e| e.to_string())?.clone();
 

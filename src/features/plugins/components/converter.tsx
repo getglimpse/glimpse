@@ -1,18 +1,15 @@
 import {
   useEffect,
   useId,
-  useRef,
   useState,
-  type ChangeEvent,
   type DragEvent,
   type ReactNode,
 } from "react";
 
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
-import { fileApi } from "@/api/file";
+import { fileApi, type PluginFileGrant } from "@/api/file";
 import { openerApi } from "@/api/opener";
-import { settingsApi } from "@/api/settings";
 import { useOptionalI18nContext } from "@/i18n/I18nProvider";
 
 import { readPluginPreference, writePluginPreference } from "./settings";
@@ -67,7 +64,7 @@ type FileDropConverterSavedResult = {
 
 type FileDropConverterInput =
   | { kind: "files"; files: File[] }
-  | { kind: "sourcePaths"; sourcePaths: string[] };
+  | { kind: "sourcePaths"; sourcePaths: PluginFileGrant[] };
 
 type FileDropConverterOutputMode = "create" | "overwrite";
 
@@ -115,7 +112,6 @@ export const FileDropConverter = ({
   const overwriteDroppedFilesOnlyMessage =
     i18n?.LL.pluginPage.converter.overwriteDroppedFilesOnly() ??
     "Overwrite requires files dropped from the file system";
-  const inputRef = useRef<HTMLInputElement | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [running, setRunning] = useState(false);
   const [directory, setDirectory] = useState<string | null>(null);
@@ -171,6 +167,7 @@ export const FileDropConverter = ({
     if (input.kind === "files") {
       for (const file of input.files) {
         ensureSupportedTextFile(file.name, file.type);
+        ensureAcceptedFile(file.name, file.type, accept);
 
         if (file.size > maxBytes) {
           throw new Error(
@@ -181,10 +178,15 @@ export const FileDropConverter = ({
       return;
     }
 
-    for (const sourcePath of input.sourcePaths) {
+    for (const source of input.sourcePaths) {
       ensureSupportedTextFile(
-        sourcePath.split(/[\\/]/).pop() || "dropped-file.txt",
+        source.path.split(/[\\/]/).pop() || "dropped-file.txt",
         "",
+      );
+      ensureAcceptedFile(
+        source.path.split(/[\\/]/).pop() || "dropped-file.txt",
+        "",
+        accept,
       );
     }
   };
@@ -203,9 +205,9 @@ export const FileDropConverter = ({
     }
 
     return Promise.all(
-      input.sourcePaths.map(async (sourcePath) => {
-        const name = sourcePath.split(/[\\/]/).pop() || "dropped-file.txt";
-        const text = await fileApi.readPluginTextInput(sourcePath);
+      input.sourcePaths.map(async (source) => {
+        const name = source.path.split(/[\\/]/).pop() || "dropped-file.txt";
+        const text = await fileApi.readPluginTextInput(source.token);
 
         if (text.length > maxBytes) {
           throw new Error(
@@ -219,7 +221,7 @@ export const FileDropConverter = ({
           contentType: "",
           size: text.length,
           text,
-          sourcePath,
+          sourcePath: source.path,
         };
       }),
     );
@@ -247,7 +249,7 @@ export const FileDropConverter = ({
       const savedPaths = await Promise.all(
         outputs.map((output, index) =>
           fileApi.overwritePluginTextInput({
-            filePath: input.sourcePaths[index],
+            grantToken: input.sourcePaths[index].token,
             body: output.body,
           }),
         ),
@@ -264,14 +266,32 @@ export const FileDropConverter = ({
       return;
     }
 
-    if (!directory) {
+    const preferredDirectory =
+      (await readPluginPreference(pluginId, outputDirectoryPreference)) ??
+      directory;
+    if (!preferredDirectory) {
       throw new Error("Output directory is not available");
+    }
+
+    let outputGrant =
+      await fileApi.getPluginOutputDirectoryGrant(preferredDirectory);
+    if (!outputGrant) {
+      outputGrant = await fileApi.selectOutputDirectory();
+      if (!outputGrant) {
+        return;
+      }
+      setDirectory(outputGrant.path);
+      await writePluginPreference(
+        pluginId,
+        outputDirectoryPreference,
+        outputGrant.path,
+      );
     }
 
     const savedPaths = await Promise.all(
       outputs.map((output) =>
         fileApi.writePluginTextOutput({
-          directory,
+          grantToken: outputGrant.token,
           fileName: output.fileName,
           body: output.body,
         }),
@@ -361,12 +381,17 @@ export const FileDropConverter = ({
         }
 
         setDragActive(false);
-        stageInput({
-          kind: "sourcePaths",
-          sourcePaths: multiple
-            ? event.payload.paths
-            : event.payload.paths.slice(0, 1),
-        });
+        const paths = multiple
+          ? event.payload.paths
+          : event.payload.paths.slice(0, 1);
+        void fileApi
+          .claimPluginTextInputs(paths)
+          .then((sourcePaths) =>
+            stageInput({ kind: "sourcePaths", sourcePaths }),
+          )
+          .catch((error) =>
+            setMessage(error instanceof Error ? error.message : String(error)),
+          );
       })
       .then((dispose) => {
         if (disposed) {
@@ -408,15 +433,18 @@ export const FileDropConverter = ({
     });
   };
 
-  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    stageInput({
-      kind: "files",
-      files: Array.from(event.target.files ?? []).slice(
-        0,
-        multiple ? undefined : 1,
-      ),
-    });
-    event.target.value = "";
+  const chooseFiles = async () => {
+    try {
+      const sourcePaths = await fileApi.selectPluginTextInputs(
+        multiple,
+        acceptedTextExtensions(accept),
+      );
+      if (sourcePaths) {
+        stageInput({ kind: "sourcePaths", sourcePaths });
+      }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    }
   };
   const clearResults = () => {
     setResults([]);
@@ -426,7 +454,7 @@ export const FileDropConverter = ({
     ? stagedInput.kind === "files"
       ? stagedInput.files.map((file) => file.name)
       : stagedInput.sourcePaths.map(
-          (sourcePath) => sourcePath.split(/[\\/]/).pop() || "dropped-file.txt",
+          (source) => source.path.split(/[\\/]/).pop() || "dropped-file.txt",
         )
     : [];
   const stagedSummary =
@@ -501,14 +529,6 @@ export const FileDropConverter = ({
             </button>
           </div>
         )}
-        <input
-          ref={inputRef}
-          type="file"
-          accept={accept}
-          multiple={multiple}
-          className="hidden"
-          onChange={handleFileChange}
-        />
         <div className="text-sm font-medium text-text-main">
           {running ? convertingLabel : stagedInput ? stagedSummary : emptyLabel}
         </div>
@@ -516,7 +536,7 @@ export const FileDropConverter = ({
           type="button"
           onClick={(event) => {
             event.stopPropagation();
-            inputRef.current?.click();
+            void chooseFiles();
           }}
           disabled={running}
           className={getPluginButtonClassName("secondary")}
@@ -658,7 +678,7 @@ export const OutputDirectorySettings = ({
     };
   }, [pluginId, preference]);
 
-  const saveValue = async (nextValue = value) => {
+  const saveValue = async (nextValue: string) => {
     try {
       await writePluginPreference(pluginId, preference, nextValue);
       setMessage("Saved");
@@ -668,14 +688,14 @@ export const OutputDirectorySettings = ({
   };
 
   const chooseDirectory = async () => {
-    const selected = await settingsApi.selectTargetDirectory();
+    const selected = await fileApi.selectOutputDirectory();
 
-    if (typeof selected !== "string") {
+    if (!selected) {
       return;
     }
 
-    setValue(selected);
-    await saveValue(selected);
+    setValue(selected.path);
+    await saveValue(selected.path);
   };
 
   return (
@@ -693,14 +713,7 @@ export const OutputDirectorySettings = ({
         <input
           id={inputId}
           value={value}
-          onChange={(event) => setValue(event.target.value)}
-          onBlur={() => void saveValue()}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              event.currentTarget.blur();
-            }
-          }}
+          readOnly
           placeholder={placeholder}
           className="min-w-0 flex-1 rounded border border-border-main bg-main-bg px-3 py-2 text-sm text-text-main outline-none focus:border-accent"
         />
@@ -788,6 +801,34 @@ const ensureSupportedTextFile = (fileName: string, type: string) => {
 
   if (!isTextExtension && !isTextMime) {
     throw new Error("Only text and Markdown files are supported");
+  }
+};
+
+const acceptedTextExtensions = (accept: string): string[] => {
+  const entries = accept.split(",").map((entry) => entry.trim().toLowerCase());
+  const extensions = new Set(
+    entries
+      .filter((entry) => /^\.(txt|md|markdown)$/.test(entry))
+      .map((entry) => entry.slice(1)),
+  );
+  if (entries.includes("text/plain")) extensions.add("txt");
+  if (entries.includes("text/markdown")) {
+    extensions.add("md");
+    extensions.add("markdown");
+  }
+  return extensions.size > 0 ? [...extensions] : ["txt", "md", "markdown"];
+};
+
+const ensureAcceptedFile = (name: string, type: string, accept: string) => {
+  const extensions = acceptedTextExtensions(accept);
+  const extension = name.match(/\.([^.\\/]+)$/)?.[1]?.toLowerCase();
+  if (!extension || !extensions.includes(extension)) {
+    if (
+      !(type === "text/plain" && extensions.includes("txt")) &&
+      !(type === "text/markdown" && extensions.includes("md"))
+    ) {
+      throw new Error("File type is not accepted by this converter");
+    }
   }
 };
 

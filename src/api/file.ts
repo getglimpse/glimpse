@@ -1,5 +1,4 @@
 import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
 
 /**
  * Payload for creating a new Markdown file.
@@ -30,15 +29,17 @@ export type CreateTextFileAtPathPayload = {
 };
 
 export type WritePluginTextOutputPayload = {
-  directory: string;
+  grantToken: string;
   fileName: string;
   body: string;
 };
 
 export type OverwritePluginTextInputPayload = {
-  filePath: string;
+  grantToken: string;
   body: string;
 };
+
+export type PluginFileGrant = { path: string; token: string };
 
 export type FileMetadata = {
   sizeBytes: number;
@@ -62,9 +63,20 @@ export type FileMetadata = {
  */
 export const fileApi = {
   selectOutputDirectory: () =>
-    open({
-      directory: true,
-      multiple: false,
+    invoke<PluginFileGrant | null>("select_plugin_output_directory"),
+
+  getPluginOutputDirectoryGrant: (directory: string) =>
+    invoke<PluginFileGrant | null>("get_plugin_output_directory_grant", {
+      directory,
+    }),
+
+  claimPluginTextInputs: (paths: string[]) =>
+    invoke<PluginFileGrant[]>("claim_plugin_text_inputs", { paths }),
+
+  selectPluginTextInputs: (multiple: boolean, extensions: string[]) =>
+    invoke<PluginFileGrant[] | null>("select_plugin_text_inputs", {
+      multiple,
+      extensions,
     }),
 
   /**
@@ -81,8 +93,8 @@ export const fileApi = {
   readTextFile: (filePath: string) =>
     invoke<string>("read_text_file", { filePath }),
 
-  readPluginTextInput: (filePath: string) =>
-    invoke<string>("read_plugin_text_input", { filePath }),
+  readPluginTextInput: (grantToken: string) =>
+    invoke<string>("read_plugin_text_input", { grantToken }),
 
   /**
    * Reads a UTF-8 text file constrained to one configured Target Group.
