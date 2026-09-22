@@ -16,6 +16,7 @@ import {
   PluginPageActivityProvider,
   type PluginActions,
 } from ".";
+import { ConvertedFilePrefixSettings } from "./converter";
 import { publishPluginPlaygroundExecution } from "../events/playground";
 
 const clipboardMocks = vi.hoisted(() => ({
@@ -864,6 +865,92 @@ describe("pluginComponents", () => {
         body: "converted",
       });
     });
+  });
+
+  it("uses the configured filename prefix for converter-generated names", async () => {
+    await settingsMocks.settingsApi.set({
+      plugins: {
+        "file-converter-plugin": {
+          preferences: { convertedFilePrefix: ".ready" },
+        },
+      },
+    });
+    const { FileDropConverter } = createPluginComponents(
+      { convertFile: { handler: () => "converted" } },
+      "file-converter-plugin",
+    );
+    const { container } = render(<FileDropConverter action="convertFile" />);
+    await waitFor(() =>
+      expect(fileMocks.fileApi.getDefaultDownloadDirectory).toHaveBeenCalled(),
+    );
+    fireEvent.drop(
+      container.querySelector("[data-glimpse-plugin-file-drop-converter]")!,
+      {
+        dataTransfer: {
+          files: [new File(["hello"], "notes.txt", { type: "text/plain" })],
+        },
+      },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Run" }));
+    await waitFor(() =>
+      expect(fileMocks.fileApi.writePluginTextOutput).toHaveBeenCalledWith({
+        grantToken: "output-token",
+        fileName: "notes.ready.txt",
+        body: "converted",
+      }),
+    );
+  });
+
+  it("replaces the template plugin's explicit .converted filename", async () => {
+    await settingsMocks.settingsApi.set({
+      plugins: {
+        "file-converter-plugin": {
+          preferences: { convertedFilePrefix: ".processed" },
+        },
+      },
+    });
+    const { FileDropConverter } = createPluginComponents(
+      {
+        convertFile: {
+          handler: () => ({
+            fileName: "notes.converted.html",
+            body: "<p>ok</p>",
+          }),
+        },
+      },
+      "file-converter-plugin",
+    );
+    render(<FileDropConverter action="convertFile" />);
+    fireEvent.click(screen.getByRole("button", { name: "Choose File" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Run" }));
+    await waitFor(() =>
+      expect(fileMocks.fileApi.writePluginTextOutput).toHaveBeenCalledWith({
+        grantToken: "output-token",
+        fileName: "notes.processed.html",
+        body: "<p>ok</p>",
+      }),
+    );
+  });
+
+  it("saves a filename prefix and resets blank input to .converted", async () => {
+    render(<ConvertedFilePrefixSettings pluginId="file-converter-plugin" />);
+    const input = (await screen.findByLabelText(
+      "Converted filename prefix",
+    )) as HTMLInputElement;
+    await waitFor(() => expect(input.value).toBe(".converted"));
+    fireEvent.change(input, { target: { value: ".custom" } });
+    fireEvent.blur(input);
+    await waitFor(() =>
+      expect(settingsMocks.getSettings().plugins).toEqual({
+        "file-converter-plugin": {
+          preferences: { convertedFilePrefix: ".custom" },
+        },
+      }),
+    );
+    fireEvent.change(input, { target: { value: "   " } });
+    fireEvent.blur(input);
+    await waitFor(() => expect(input.value).toBe(".converted"));
+    expect(settingsMocks.getSettings().plugins).toEqual({});
   });
 
   it("rejects non-text files in FileDropConverter", async () => {

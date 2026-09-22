@@ -299,6 +299,9 @@ const ja = {
       outputMode: "出力方法",
       create: "新規作成",
       overwrite: "上書き",
+      fileNamePrefix: "変換後ファイル名のプレフィックス",
+      fileNamePrefixDescription:
+        "拡張子の前に付ける文字列です（例: notes.converted.txt）。空欄なら .converted を使用します。",
       overwriteDroppedFilesOnly:
         "上書きにはファイルシステムからドロップしたファイルが必要です",
     },

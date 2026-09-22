@@ -28,6 +28,7 @@ import type {
 import { copyText } from "@/utils/clipboard";
 
 import { invokePluginAction, PluginPageActivityProvider } from "../components";
+import { ConvertedFilePrefixSettings } from "../components/converter";
 import {
   getPluginRuntime,
   getPluginRuntimeSnapshot,
@@ -153,19 +154,24 @@ const StandardPluginPage = ({
     (tab) => !["info", "settings"].includes(tab.id),
   );
   const settings = Object.entries(plugin?.settings ?? {});
+  const hasConverterTab = tabs.some((tab) => tab.type === "converter");
   const items = [
     ...tabs.map((tab) => ({
       id: tab.id,
       title: getStandardTabTitle(tab),
       content: <StandardPluginTab tab={tab} runtime={runtime} />,
     })),
-    ...(settings.length > 0
+    ...(settings.length > 0 || hasConverterTab
       ? [
           {
             id: "settings",
             title: "Settings",
             content: (
-              <StandardPluginSettings plugin={plugin} runtime={runtime} />
+              <StandardPluginSettings
+                plugin={plugin}
+                runtime={runtime}
+                hasConverterTab={hasConverterTab}
+              />
             ),
           },
         ]
@@ -246,20 +252,30 @@ const getStandardTabTitle = (tab: PluginPageTab): string =>
 const StandardPluginSettings = ({
   plugin,
   runtime,
+  hasConverterTab,
 }: {
   plugin?: GlimpsePlugin;
   runtime: NonNullable<ReturnType<typeof getPluginRuntime>>;
+  hasConverterTab: boolean;
 }) => {
   const settings = Object.entries(plugin?.settings ?? {});
   const OutputDirectorySettings = runtime.components.OutputDirectorySettings;
 
-  if (settings.length === 0) {
+  if (settings.length === 0 && !hasConverterTab) {
     return null;
   }
 
   return (
     <div className="space-y-4 py-3">
       {settings.map(([key, schema]) => {
+        if (key === "convertedFilePrefix") {
+          return (
+            <ConvertedFilePrefixSettings
+              key={key}
+              pluginId={runtime.pluginId}
+            />
+          );
+        }
         const setting = readSettingSchema(schema);
 
         if (setting.type === "directory") {
@@ -283,6 +299,10 @@ const StandardPluginSettings = ({
           </InfoSection>
         );
       })}
+      {hasConverterTab &&
+        !settings.some(([key]) => key === "convertedFilePrefix") && (
+          <ConvertedFilePrefixSettings pluginId={runtime.pluginId} />
+        )}
     </div>
   );
 };

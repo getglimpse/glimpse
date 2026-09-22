@@ -953,6 +953,14 @@ type RootTranslation = {
        */
       overwrite: string;
       /**
+       * C​o​n​v​e​r​t​e​d​ ​f​i​l​e​n​a​m​e​ ​p​r​e​f​i​x
+       */
+      fileNamePrefix: string;
+      /**
+       * T​e​x​t​ ​i​n​s​e​r​t​e​d​ ​b​e​f​o​r​e​ ​t​h​e​ ​o​u​t​p​u​t​ ​e​x​t​e​n​s​i​o​n​ ​(​f​o​r​ ​e​x​a​m​p​l​e​,​ ​n​o​t​e​s​.​c​o​n​v​e​r​t​e​d​.​t​x​t​)​.​ ​B​l​a​n​k​ ​u​s​e​s​ ​.​c​o​n​v​e​r​t​e​d​.
+       */
+      fileNamePrefixDescription: string;
+      /**
        * O​v​e​r​w​r​i​t​e​ ​r​e​q​u​i​r​e​s​ ​f​i​l​e​s​ ​d​r​o​p​p​e​d​ ​f​r​o​m​ ​t​h​e​ ​f​i​l​e​ ​s​y​s​t​e​m
        */
       overwriteDroppedFilesOnly: string;
@@ -1163,7 +1171,7 @@ type RootTranslation = {
        */
       localConflict: RequiredParams<"pluginId">;
       /**
-       * I​n​s​t​a​l​l​e​d​ ​{​p​l​u​g​i​n​I​d​}​.​ ​T​r​u​s​t​ ​i​t​ ​b​e​f​o​r​e​ ​e​n​a​b​l​i​n​g​.
+       * I​n​s​t​a​l​l​e​d​ ​{​p​l​u​g​i​n​I​d​}​.​ ​R​e​v​i​e​w​ ​i​t​ ​b​e​f​o​r​e​ ​e​n​a​b​l​i​n​g​.
        * @param {unknown} pluginId
        */
       installSuccess: RequiredParams<"pluginId">;
@@ -1293,7 +1301,7 @@ type RootTranslation = {
        */
       openFolder: string;
       /**
-       * I​n​s​t​a​l​l​e​d​ ​{​p​l​u​g​i​n​I​d​}​.​ ​T​r​u​s​t​ ​i​t​ ​b​e​f​o​r​e​ ​e​n​a​b​l​i​n​g​.
+       * I​n​s​t​a​l​l​e​d​ ​{​p​l​u​g​i​n​I​d​}​.​ ​R​e​v​i​e​w​ ​i​t​ ​b​e​f​o​r​e​ ​e​n​a​b​l​i​n​g​.
        * @param {unknown} pluginId
        */
       installSuccess: RequiredParams<"pluginId">;
@@ -3287,6 +3295,14 @@ export type TranslationFunctions = {
        */
       overwrite: () => LocalizedString;
       /**
+       * Converted filename prefix
+       */
+      fileNamePrefix: () => LocalizedString;
+      /**
+       * Text inserted before the output extension (for example, notes.converted.txt). Blank uses .converted.
+       */
+      fileNamePrefixDescription: () => LocalizedString;
+      /**
        * Overwrite requires files dropped from the file system
        */
       overwriteDroppedFilesOnly: () => LocalizedString;
@@ -3491,7 +3507,7 @@ export type TranslationFunctions = {
        */
       localConflict: (arg: { pluginId: unknown }) => LocalizedString;
       /**
-       * Installed {pluginId}. Trust it before enabling.
+       * Installed {pluginId}. Review it before enabling.
        */
       installSuccess: (arg: { pluginId: unknown }) => LocalizedString;
       /**
@@ -3616,7 +3632,7 @@ export type TranslationFunctions = {
        */
       openFolder: () => LocalizedString;
       /**
-       * Installed {pluginId}. Trust it before enabling.
+       * Installed {pluginId}. Review it before enabling.
        */
       installSuccess: (arg: { pluginId: unknown }) => LocalizedString;
       /**

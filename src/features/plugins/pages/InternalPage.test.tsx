@@ -267,7 +267,8 @@ describe("PluginInternalPageView", () => {
     expect(screen.getByText("ここにファイルをドロップ")).toBeTruthy();
     expect(screen.getByText("ファイルを選択")).toBeTruthy();
     expect(screen.getByText("実行")).toBeTruthy();
-    expect(screen.queryByRole("heading", { name: "Settings" })).toBeNull();
+    expect(screen.getByRole("heading", { name: "Settings" })).toBeTruthy();
+    expect(screen.getByLabelText("Converted filename prefix")).toBeTruthy();
     expect(screen.getByText("新規作成")).toBeTruthy();
     expect(screen.getByText("上書き")).toBeTruthy();
     expect(screen.getByText("結果")).toBeTruthy();

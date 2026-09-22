@@ -71,6 +71,8 @@ type FileDropConverterOutputMode = "create" | "overwrite";
 
 const DEFAULT_FILE_DROP_MAX_BYTES = 10 * 1024 * 1024;
 const DEFAULT_OUTPUT_DIRECTORY_PREFERENCE = "downloadDirectory";
+const CONVERTED_FILE_PREFIX_PREFERENCE = "convertedFilePrefix";
+const DEFAULT_CONVERTED_FILE_PREFIX = ".converted";
 
 export const FileDropConverter = ({
   action,
@@ -235,7 +237,20 @@ export const FileDropConverter = ({
     result: unknown,
     mode: FileDropConverterOutputMode,
   ): Promise<boolean> => {
-    const outputs = normalizeFileDropConverterResults(sourceName, result);
+    const prefix =
+      mode === "create"
+        ? normalizeConvertedFilePrefix(
+            await readPluginPreference(
+              pluginId,
+              CONVERTED_FILE_PREFIX_PREFERENCE,
+            ),
+          )
+        : DEFAULT_CONVERTED_FILE_PREFIX;
+    const outputs = normalizeFileDropConverterResults(
+      sourceName,
+      result,
+      prefix,
+    );
 
     if (mode === "overwrite") {
       if (input.kind !== "sourcePaths") {
@@ -738,13 +753,86 @@ export const OutputDirectorySettings = ({
   );
 };
 
+export const ConvertedFilePrefixSettings = ({
+  pluginId,
+}: {
+  pluginId: string;
+}) => {
+  const inputId = useId();
+  const i18n = useOptionalI18nContext();
+  const [value, setValue] = useState(DEFAULT_CONVERTED_FILE_PREFIX);
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void readPluginPreference(pluginId, CONVERTED_FILE_PREFIX_PREFERENCE)
+      .then((saved) => {
+        if (!cancelled) setValue(normalizeConvertedFilePrefix(saved));
+      })
+      .catch((error) => {
+        if (!cancelled)
+          setMessage(error instanceof Error ? error.message : String(error));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [pluginId]);
+
+  const save = async () => {
+    const normalized = normalizeConvertedFilePrefix(value);
+    try {
+      await writePluginPreference(
+        pluginId,
+        CONVERTED_FILE_PREFIX_PREFERENCE,
+        normalized === DEFAULT_CONVERTED_FILE_PREFIX ? null : normalized,
+      );
+      setValue(normalized);
+      setMessage(null);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    }
+  };
+
+  return (
+    <div className="space-y-2 py-3">
+      <label
+        htmlFor={inputId}
+        className="block text-sm font-medium text-text-main"
+      >
+        {i18n?.LL.pluginPage.converter.fileNamePrefix() ??
+          "Converted filename prefix"}
+      </label>
+      <p className="text-sm text-text-muted">
+        {i18n?.LL.pluginPage.converter.fileNamePrefixDescription() ??
+          "Text inserted before the output extension (for example, notes.converted.txt)."}
+      </p>
+      <input
+        id={inputId}
+        value={value}
+        onChange={(event) => setValue(event.target.value)}
+        onBlur={() => void save()}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            event.currentTarget.blur();
+          }
+        }}
+        placeholder={DEFAULT_CONVERTED_FILE_PREFIX}
+        className="w-full rounded border border-border-main bg-main-bg px-3 py-2 text-sm text-text-main outline-none focus:border-accent"
+      />
+      {message && <div className="text-xs text-red-300">{message}</div>}
+    </div>
+  );
+};
+
 const normalizeFileDropConverterResult = (
   sourceName: string,
   result: unknown,
+  prefix: string,
 ): FileDropConverterResult => {
   if (typeof result === "string") {
     return {
-      fileName: convertedFileName(sourceName, "txt"),
+      fileName: convertedFileName(sourceName, "txt", prefix),
       body: result,
     };
   }
@@ -760,10 +848,11 @@ const normalizeFileDropConverterResult = (
     return {
       fileName:
         typeof record.fileName === "string" && record.fileName.trim()
-          ? record.fileName
+          ? replaceConvertedFilePrefix(record.fileName, prefix)
           : convertedFileName(
               sourceName,
               typeof record.extension === "string" ? record.extension : "txt",
+              prefix,
             ),
       body,
     };
@@ -775,6 +864,7 @@ const normalizeFileDropConverterResult = (
 const normalizeFileDropConverterResults = (
   sourceName: string,
   result: unknown,
+  prefix: string,
 ): FileDropConverterResult[] => {
   if (Array.isArray(result)) {
     if (result.length === 0) {
@@ -785,11 +875,12 @@ const normalizeFileDropConverterResults = (
       normalizeFileDropConverterResult(
         addFileNameIndex(sourceName, index),
         entry,
+        prefix,
       ),
     );
   }
 
-  return [normalizeFileDropConverterResult(sourceName, result)];
+  return [normalizeFileDropConverterResult(sourceName, result, prefix)];
 };
 
 const addFileNameIndex = (sourceName: string, index: number): string => {
@@ -840,11 +931,21 @@ const ensureAcceptedFile = (name: string, type: string, accept: string) => {
   }
 };
 
-const convertedFileName = (sourceName: string, extension: string): string => {
+const normalizeConvertedFilePrefix = (value: string | null): string =>
+  value?.trim() || DEFAULT_CONVERTED_FILE_PREFIX;
+
+const replaceConvertedFilePrefix = (fileName: string, prefix: string): string =>
+  fileName.replace(/\.converted(?=\.[^.\\/]+$)/i, () => prefix);
+
+const convertedFileName = (
+  sourceName: string,
+  extension: string,
+  prefix: string,
+): string => {
   const cleanExtension = extension.trim().replace(/^\./, "") || "txt";
   const stem = sourceName.replace(/\.[^.\\/]+$/, "") || "converted";
 
-  return `${stem}.converted.${cleanExtension}`;
+  return `${stem}${prefix}.${cleanExtension}`;
 };
 
 const formatBytes = (bytes: number): string => {

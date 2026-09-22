@@ -295,6 +295,9 @@ const en = {
       outputMode: "Output mode",
       create: "Create new",
       overwrite: "Overwrite",
+      fileNamePrefix: "Converted filename prefix",
+      fileNamePrefixDescription:
+        "Text inserted before the output extension (for example, notes.converted.txt). Blank uses .converted.",
       overwriteDroppedFilesOnly:
         "Overwrite requires files dropped from the file system",
     },
