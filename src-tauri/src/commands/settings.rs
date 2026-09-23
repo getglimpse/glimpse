@@ -23,12 +23,115 @@ use tracing::{debug, error, info};
 
 use crate::app_state::SharedSettingsPath;
 use crate::models::settings::{AppSettings, PartialAppSettings, TargetGroup};
-use crate::shortcuts::register_global_shortcuts;
+use crate::shortcuts::{
+    global_shortcut_settings_changed, register_global_shortcuts, validate_global_shortcuts,
+};
 use crate::store::indexer::runtime::IndexerRuntime;
 use crate::store::settings::{
-    load_settings, normalize_settings, restore_settings_backup as restore_backup_file,
+    load_settings, normalize_settings, prepare_settings_backup, restore_prepared_settings_backup,
     save_settings, settings_recovery_status, try_load_settings, SettingsRecoveryStatus,
 };
+
+static SETTINGS_UPDATE_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
+trait SettingsEffects {
+    async fn apply_runtime(&self, previous: &AppSettings, next: &AppSettings)
+        -> Result<(), String>;
+    fn register_shortcuts(&self, settings: &AppSettings) -> Result<(), String>;
+}
+
+struct AppSettingsEffects<'a> {
+    app: &'a AppHandle,
+    runtime: &'a IndexerRuntime,
+}
+
+impl SettingsEffects for AppSettingsEffects<'_> {
+    async fn apply_runtime(
+        &self,
+        previous: &AppSettings,
+        next: &AppSettings,
+    ) -> Result<(), String> {
+        self.runtime
+            .apply_settings_update(previous, next.clone())
+            .await
+    }
+
+    fn register_shortcuts(&self, settings: &AppSettings) -> Result<(), String> {
+        register_global_shortcuts(self.app, settings)
+    }
+}
+
+async fn rollback_settings_effects<E: SettingsEffects>(
+    effects: &E,
+    previous: &AppSettings,
+    next: &AppSettings,
+    rollback_runtime: bool,
+    rollback_shortcuts: bool,
+    original_error: String,
+) -> String {
+    let mut errors = vec![original_error];
+    if rollback_shortcuts {
+        if let Err(error) = effects.register_shortcuts(previous) {
+            errors.push(format!("shortcut rollback failed: {error}"));
+        }
+    }
+    if rollback_runtime {
+        if let Err(error) = effects.apply_runtime(next, previous).await {
+            errors.push(format!("runtime rollback failed: {error}"));
+        }
+    }
+    errors.join("; ")
+}
+
+async fn apply_settings_transaction<E, F>(
+    effects: &E,
+    previous: &AppSettings,
+    next: &AppSettings,
+    commit: F,
+) -> Result<(), String>
+where
+    E: SettingsEffects,
+    F: FnOnce() -> Result<(), String>,
+{
+    let update_runtime = indexer_runtime_inputs_changed(previous, next);
+    let update_shortcuts = global_shortcut_settings_changed(previous, next);
+    if update_shortcuts {
+        validate_global_shortcuts(next)?;
+    }
+
+    if update_runtime {
+        if let Err(error) = effects.apply_runtime(previous, next).await {
+            return Err(
+                rollback_settings_effects(effects, previous, next, true, false, error).await,
+            );
+        }
+    }
+    if update_shortcuts {
+        if let Err(error) = effects.register_shortcuts(next) {
+            return Err(rollback_settings_effects(
+                effects,
+                previous,
+                next,
+                update_runtime,
+                true,
+                error,
+            )
+            .await);
+        }
+    }
+    if let Err(error) = commit() {
+        return Err(rollback_settings_effects(
+            effects,
+            previous,
+            next,
+            update_runtime,
+            update_shortcuts,
+            error,
+        )
+        .await);
+    }
+    Ok(())
+}
 
 /// Loads the current application settings.
 ///
@@ -72,27 +175,28 @@ pub async fn restore_settings_backup(
     runtime: State<'_, Arc<IndexerRuntime>>,
     settings_path: State<'_, SharedSettingsPath>,
 ) -> Result<AppSettings, String> {
+    let _update_guard = SETTINGS_UPDATE_LOCK.lock().await;
     let path = settings_path
         .0
         .lock()
         .map_err(|error| error.to_string())?
         .clone();
     let previous_settings = load_settings(&path);
-    let restored = restore_backup_file(&path)?;
+    let prepared = prepare_settings_backup(&path)?;
+    let effects = AppSettingsEffects {
+        app: &app,
+        runtime: runtime.inner().as_ref(),
+    };
+    apply_settings_transaction(&effects, &previous_settings, &prepared.settings, || {
+        restore_prepared_settings_backup(&path, &prepared)
+    })
+    .await?;
 
     if let Err(error) = app.emit(crate::store::settings_watch::SETTINGS_CHANGED_EVENT, ()) {
         error!(error = %error, "failed to notify settings restore");
     }
 
-    if let Err(error) = register_global_shortcuts(&app, &restored) {
-        error!(error = %error, "failed to reload shortcuts after settings restore");
-    }
-    if indexer_runtime_inputs_changed(&previous_settings, &restored) {
-        runtime
-            .apply_settings_update(&previous_settings, restored.clone())
-            .await?;
-    }
-    Ok(restored)
+    Ok(prepared.settings)
 }
 
 /// Updates application settings.
@@ -115,6 +219,7 @@ pub async fn set_settings(
     settings_path: State<'_, SharedSettingsPath>,
     partial: PartialAppSettings,
 ) -> Result<AppSettings, String> {
+    let _update_guard = SETTINGS_UPDATE_LOCK.lock().await;
     let path = settings_path
         .0
         .lock()
@@ -134,30 +239,19 @@ pub async fn set_settings(
 
     apply_partial_settings(&mut settings, partial);
     settings = normalize_settings(settings);
-    let should_update_indexer_runtime =
-        indexer_runtime_inputs_changed(&previous_settings, &settings);
-
-    save_settings(&path, &settings)?;
+    let effects = AppSettingsEffects {
+        app: &app,
+        runtime: runtime.inner().as_ref(),
+    };
+    apply_settings_transaction(&effects, &previous_settings, &settings, || {
+        save_settings(&path, &settings)
+    })
+    .await?;
 
     info!(
         settings_path = %path.display(),
         "settings saved"
     );
-
-    if let Err(error) = register_global_shortcuts(&app, &settings) {
-        error!(
-            error = %error,
-            "failed to reload global shortcuts"
-        );
-    } else {
-        debug!("global shortcuts reloaded");
-    }
-
-    if should_update_indexer_runtime {
-        runtime
-            .apply_settings_update(&previous_settings, settings.clone())
-            .await?;
-    }
 
     Ok(settings)
 }
@@ -367,7 +461,189 @@ pub async fn switch_target_group(
 mod tests {
     use super::*;
 
-    use crate::models::settings::{PartialExperimentalSettings, PartialUiSettings};
+    use crate::models::settings::{
+        KeybindingValue, PartialExperimentalSettings, PartialUiSettings,
+    };
+    use std::cell::Cell;
+    use std::sync::Mutex;
+
+    #[derive(Default)]
+    struct FakeSettingsEffects {
+        events: Mutex<Vec<&'static str>>,
+        fail_runtime_apply: bool,
+        fail_shortcut_apply: bool,
+        fail_runtime_rollback: bool,
+        fail_shortcut_rollback: bool,
+    }
+
+    impl SettingsEffects for FakeSettingsEffects {
+        async fn apply_runtime(
+            &self,
+            _previous: &AppSettings,
+            next: &AppSettings,
+        ) -> Result<(), String> {
+            let rollback = next.theme == "old";
+            self.events.lock().unwrap().push(if rollback {
+                "runtime:old"
+            } else {
+                "runtime:new"
+            });
+            if (rollback && self.fail_runtime_rollback) || (!rollback && self.fail_runtime_apply) {
+                Err("injected runtime failure".into())
+            } else {
+                Ok(())
+            }
+        }
+
+        fn register_shortcuts(&self, settings: &AppSettings) -> Result<(), String> {
+            let rollback = settings.theme == "old";
+            self.events.lock().unwrap().push(if rollback {
+                "shortcuts:old"
+            } else {
+                "shortcuts:new"
+            });
+            if (rollback && self.fail_shortcut_rollback) || (!rollback && self.fail_shortcut_apply)
+            {
+                Err("injected shortcut failure".into())
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    fn settings_transition() -> (AppSettings, AppSettings) {
+        let mut previous = AppSettings {
+            theme: "old".into(),
+            current_target_group_id: Some("old".into()),
+            ..Default::default()
+        };
+        previous.keybindings.insert(
+            "toggleMainWindow".into(),
+            KeybindingValue::One("Ctrl+Space".into()),
+        );
+        let mut next = previous.clone();
+        next.theme = "new".into();
+        next.current_target_group_id = Some("new".into());
+        next.keybindings.insert(
+            "toggleMainWindow".into(),
+            KeybindingValue::One("Alt+Space".into()),
+        );
+        (previous, next)
+    }
+
+    #[tokio::test]
+    async fn runtime_failure_does_not_commit_settings() {
+        let (previous, next) = settings_transition();
+        let effects = FakeSettingsEffects {
+            fail_runtime_apply: true,
+            ..Default::default()
+        };
+        let committed = Cell::new(false);
+        let result = apply_settings_transaction(&effects, &previous, &next, || {
+            committed.set(true);
+            Ok(())
+        })
+        .await;
+
+        assert!(result.unwrap_err().contains("injected runtime failure"));
+        assert!(!committed.get());
+        assert_eq!(
+            *effects.events.lock().unwrap(),
+            ["runtime:new", "runtime:old"]
+        );
+    }
+
+    #[tokio::test]
+    async fn shortcut_failure_restores_previous_runtime_and_shortcuts() {
+        let (previous, next) = settings_transition();
+        let effects = FakeSettingsEffects {
+            fail_shortcut_apply: true,
+            ..Default::default()
+        };
+        let committed = Cell::new(false);
+        let result = apply_settings_transaction(&effects, &previous, &next, || {
+            committed.set(true);
+            Ok(())
+        })
+        .await;
+
+        assert!(result.unwrap_err().contains("injected shortcut failure"));
+        assert!(!committed.get());
+        assert_eq!(
+            *effects.events.lock().unwrap(),
+            [
+                "runtime:new",
+                "shortcuts:new",
+                "shortcuts:old",
+                "runtime:old"
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn settings_commit_failure_restores_both_effects() {
+        let (previous, next) = settings_transition();
+        let effects = FakeSettingsEffects::default();
+        let result = apply_settings_transaction(&effects, &previous, &next, || {
+            Err("injected disk failure".into())
+        })
+        .await;
+
+        assert!(result.unwrap_err().contains("injected disk failure"));
+        assert_eq!(
+            *effects.events.lock().unwrap(),
+            [
+                "runtime:new",
+                "shortcuts:new",
+                "shortcuts:old",
+                "runtime:old"
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn rollback_failures_are_reported_without_skipping_other_rollback() {
+        let (previous, next) = settings_transition();
+        let effects = FakeSettingsEffects {
+            fail_shortcut_rollback: true,
+            fail_runtime_rollback: true,
+            ..Default::default()
+        };
+        let error = apply_settings_transaction(&effects, &previous, &next, || {
+            Err("injected disk failure".into())
+        })
+        .await
+        .unwrap_err();
+
+        assert!(error.contains("shortcut rollback failed"));
+        assert!(error.contains("runtime rollback failed"));
+        assert_eq!(effects.events.lock().unwrap().len(), 4);
+    }
+
+    #[tokio::test]
+    async fn backup_restore_shortcut_failure_keeps_primary_settings() {
+        let dir =
+            std::env::temp_dir().join(format!("glimpse-restore-test-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("settings.json");
+        let (previous, backup_settings) = settings_transition();
+        save_settings(&path, &backup_settings).unwrap();
+        save_settings(&path, &previous).unwrap();
+        let prepared = prepare_settings_backup(&path).unwrap();
+        let effects = FakeSettingsEffects {
+            fail_shortcut_apply: true,
+            ..Default::default()
+        };
+
+        let result = apply_settings_transaction(&effects, &previous, &prepared.settings, || {
+            restore_prepared_settings_backup(&path, &prepared)
+        })
+        .await;
+
+        assert!(result.is_err());
+        assert_eq!(try_load_settings(&path).unwrap().theme, "old");
+        std::fs::remove_dir_all(dir).unwrap();
+    }
 
     fn target_group(id: &str, active: bool, paths: Vec<&str>) -> TargetGroup {
         TargetGroup {

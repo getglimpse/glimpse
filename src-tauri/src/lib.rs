@@ -132,6 +132,7 @@ pub fn run() {
             commands::file::update_text_file_title,
             commands::file::update_markdown_file_body,
             commands::file::update_text_file_body,
+            commands::file::save_text_file,
             commands::preview::get_preview,
         ])
         .on_window_event(|window, event| {

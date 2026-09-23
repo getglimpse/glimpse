@@ -30,7 +30,9 @@ import {
 
 type UseSearchControllerOptions = {
   setSelectedIndex: Dispatch<SetStateAction<number>>;
-  setLoadedPreview: Dispatch<SetStateAction<Preview | null>>;
+  setLoadedPreview: Dispatch<
+    SetStateAction<{ itemId: string; preview: Preview } | null>
+  >;
   failedRefreshMessage: (error: string) => string;
 };
 
@@ -48,13 +50,22 @@ export const useSearchController = ({
   setLoadedPreview,
   failedRefreshMessage,
 }: UseSearchControllerOptions) => {
-  const [query, setQuery] = useState("");
+  const [query, setQueryState] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [temporarySavedResults, setTemporarySavedResults] =
     useState<TemporarySavedResults | null>(null);
   const currentQueryRef = useRef(query);
   const previousSearchQueryRef = useRef("");
+  const searchGenerationRef = useRef(0);
+  const setQuery: Dispatch<SetStateAction<string>> = useCallback((value) => {
+    const next =
+      typeof value === "function" ? value(currentQueryRef.current) : value;
+    if (next === currentQueryRef.current) return;
+    currentQueryRef.current = next;
+    searchGenerationRef.current += 1;
+    setQueryState(next);
+  }, []);
 
   const fetchResults = useCallback(
     async (
@@ -62,6 +73,7 @@ export const useSearchController = ({
       temporaryOverride?: TemporarySavedResults | null,
       options?: { forceTemporaryReplace?: boolean },
     ) => {
+      const generation = ++searchGenerationRef.current;
       perf.begin("fetchResults");
 
       try {
@@ -78,6 +90,7 @@ export const useSearchController = ({
             parsed.tags,
           );
 
+          if (generation !== searchGenerationRef.current) return false;
           if (activeTemporaryResults?.query === nextQuery) {
             setTemporarySavedResults(null);
           }
@@ -101,6 +114,7 @@ export const useSearchController = ({
           hidden: parsed.hidden,
           reverse: parsed.reverse,
         });
+        if (generation !== searchGenerationRef.current) return false;
         const reconciliation = reconcileFetchedSearchResults({
           results,
           temporaryResults: activeTemporaryResults,
@@ -120,10 +134,12 @@ export const useSearchController = ({
 
         return reconciliation.foundTemporarySource;
       } catch (error) {
-        console.error("Search failed:", error);
+        if (generation === searchGenerationRef.current) {
+          console.error("Search failed:", error);
+        }
         return false;
       } finally {
-        setIsLoading(false);
+        if (generation === searchGenerationRef.current) setIsLoading(false);
         perf.end();
       }
     },
@@ -164,7 +180,6 @@ export const useSearchController = ({
       }
 
       previousSearchQueryRef.current = value;
-      currentQueryRef.current = value;
       setQuery(value);
     },
     [setSelectedIndex],
@@ -176,7 +191,6 @@ export const useSearchController = ({
 
       setTemporarySavedResults(null);
       previousSearchQueryRef.current = nextQuery;
-      currentQueryRef.current = nextQuery;
       setSelectedIndex(0);
       setQuery(nextQuery);
 
@@ -235,6 +249,7 @@ export const useSearchController = ({
 
   const refreshTemporarySavedResults = useCallback(() => {
     const activeQuery = currentQueryRef.current;
+    const generation = searchGenerationRef.current;
     const activeTemporaryResults =
       temporarySavedResults?.query === activeQuery
         ? temporarySavedResults
@@ -245,6 +260,11 @@ export const useSearchController = ({
     void searchApi
       .getItemsBySourcePath(activeTemporaryResults.filePath)
       .then((sourceResults) => {
+        if (
+          generation !== searchGenerationRef.current ||
+          activeQuery !== currentQueryRef.current
+        )
+          return;
         if (sourceResults.length === 0) return;
 
         const replacementResults = filterTemporaryResultsForQuery(

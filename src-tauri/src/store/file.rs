@@ -541,6 +541,164 @@ pub fn update_text_file_body(
     Ok(())
 }
 
+/// Saves a text document's title and body together. The replacement is fully
+/// written before the original path is changed. If a replacement step fails,
+/// the original file is restored where possible.
+pub fn save_text_file(
+    settings_path: &Path,
+    file_path: String,
+    title: String,
+    body: String,
+) -> Result<String, String> {
+    save_text_file_with_hook(settings_path, file_path, title, body, |_| Ok(()))
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SaveStage {
+    AfterTemporaryWrite,
+    BeforeOriginalRemove,
+    BeforeReplacement,
+}
+
+fn save_text_file_with_hook<F>(
+    settings_path: &Path,
+    file_path: String,
+    title: String,
+    body: String,
+    hook: F,
+) -> Result<String, String>
+where
+    F: Fn(SaveStage) -> Result<(), String>,
+{
+    if body.len() as u64 > MAX_TEXT_READ_BYTES {
+        return Err("text file is too large to save".into());
+    }
+    let settings = load_settings(settings_path);
+    let current_path = canonicalize_existing_file(file_path)?;
+    ensure_path_is_in_configured_target_group(&current_path, &settings)?;
+    let permissions = fs::metadata(&current_path)
+        .map_err(|error| format!("failed to read file permissions: {error}"))?
+        .permissions();
+    if permissions.readonly() {
+        return Err(format!("file is read-only: {}", current_path.display()));
+    }
+    let parent = current_path
+        .parent()
+        .ok_or_else(|| "file has no parent directory".to_string())?;
+    let extension = current_path.extension().and_then(|ext| ext.to_str());
+    let desired_path = parent.join(file_name_from_title(&title, extension)?);
+    let renaming = normalize_path(&desired_path) != normalize_path(&current_path);
+    if renaming && desired_path.exists() {
+        return Err(format!("file already exists: {}", desired_path.display()));
+    }
+
+    let temporary_path = parent.join(format!(".glimpse-save-{}", uuid::Uuid::new_v4()));
+    let write_result = (|| -> Result<(), String> {
+        let mut temporary = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temporary_path)
+            .map_err(|error| format!("failed to create save file: {error}"))?;
+        temporary
+            .write_all(body.as_bytes())
+            .and_then(|_| temporary.sync_all())
+            .map_err(|error| format!("failed to write save file: {error}"))?;
+        fs::set_permissions(&temporary_path, permissions)
+            .map_err(|error| format!("failed to preserve file permissions: {error}"))
+    })();
+    if let Err(error) = write_result {
+        let _ = fs::remove_file(&temporary_path);
+        return Err(error);
+    }
+    if let Err(error) = hook(SaveStage::AfterTemporaryWrite) {
+        let _ = fs::remove_file(&temporary_path);
+        return Err(error);
+    }
+
+    if renaming {
+        if let Err(error) = fs::hard_link(&temporary_path, &desired_path) {
+            let _ = fs::remove_file(&temporary_path);
+            return Err(format!("failed to create renamed file: {error}"));
+        }
+        let remove_result = hook(SaveStage::BeforeOriginalRemove).and_then(|_| {
+            fs::remove_file(&current_path)
+                .map_err(|error| format!("failed to remove original file: {error}"))
+        });
+        if let Err(error) = remove_result {
+            let _ = fs::remove_file(&desired_path);
+            let _ = fs::remove_file(&temporary_path);
+            return Err(error);
+        }
+        let _ = fs::remove_file(&temporary_path);
+    } else {
+        let backup_path = parent.join(format!(".glimpse-backup-{}", uuid::Uuid::new_v4()));
+        if let Err(error) = hook(SaveStage::BeforeReplacement) {
+            let _ = fs::remove_file(&temporary_path);
+            return Err(error);
+        }
+        if let Err(error) = replace_file_with_backup(&current_path, &temporary_path, &backup_path) {
+            let rollback = if !current_path.exists() && backup_path.exists() {
+                fs::rename(&backup_path, &current_path)
+            } else {
+                Ok(())
+            };
+            let _ = fs::remove_file(&temporary_path);
+            return Err(format!(
+                "failed to replace file: {error}; rollback: {rollback:?}; backup: {}",
+                backup_path.display()
+            ));
+        }
+        let _ = fs::remove_file(&backup_path);
+    }
+
+    Ok(if renaming { desired_path } else { current_path }
+        .to_string_lossy()
+        .to_string())
+}
+
+#[cfg(windows)]
+fn replace_file_with_backup(
+    current_path: &Path,
+    temporary_path: &Path,
+    backup_path: &Path,
+) -> Result<(), String> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows::core::PCWSTR;
+    use windows::Win32::Storage::FileSystem::{ReplaceFileW, REPLACE_FILE_FLAGS};
+
+    let wide = |path: &Path| {
+        path.as_os_str()
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect::<Vec<_>>()
+    };
+    let current = wide(current_path);
+    let temporary = wide(temporary_path);
+    let backup = wide(backup_path);
+    unsafe {
+        ReplaceFileW(
+            PCWSTR(current.as_ptr()),
+            PCWSTR(temporary.as_ptr()),
+            PCWSTR(backup.as_ptr()),
+            REPLACE_FILE_FLAGS(0),
+            None,
+            None,
+        )
+    }
+    .map_err(|error| error.to_string())
+}
+
+#[cfg(not(windows))]
+fn replace_file_with_backup(
+    current_path: &Path,
+    temporary_path: &Path,
+    backup_path: &Path,
+) -> Result<(), String> {
+    fs::hard_link(current_path, backup_path)
+        .map_err(|error| format!("failed to back up original file: {error}"))?;
+    fs::rename(temporary_path, current_path).map_err(|error| error.to_string())
+}
+
 pub fn update_markdown_file_body(
     settings_path: &Path,
     file_path: String,
@@ -1701,6 +1859,184 @@ mod tests {
         assert!(file_path.exists());
         assert_eq!(fs::read_to_string(file_path).unwrap(), "new");
 
+        fs::remove_dir_all(target_dir).ok();
+        fs::remove_dir_all(settings_dir).ok();
+    }
+
+    #[test]
+    fn save_text_file_renames_and_replaces_body_together() {
+        let target_dir = unique_test_dir("target");
+        let settings_dir = unique_test_dir("settings");
+        let settings_path = settings_dir.join("settings.json");
+        fs::create_dir_all(&target_dir).unwrap();
+        fs::create_dir_all(&settings_dir).unwrap();
+        write_settings(&settings_path, &target_dir);
+        let old_path = target_dir.join("Old.md");
+        fs::write(&old_path, "old body").unwrap();
+
+        let saved_path = save_text_file(
+            &settings_path,
+            old_path.to_string_lossy().to_string(),
+            "New".into(),
+            "new body".into(),
+        )
+        .unwrap();
+
+        assert_eq!(Path::new(&saved_path), target_dir.join("New.md"));
+        assert!(!old_path.exists());
+        assert_eq!(fs::read_to_string(saved_path).unwrap(), "new body");
+        fs::remove_dir_all(target_dir).ok();
+        fs::remove_dir_all(settings_dir).ok();
+    }
+
+    #[test]
+    fn save_text_file_collision_leaves_original_unchanged() {
+        let target_dir = unique_test_dir("target");
+        let settings_dir = unique_test_dir("settings");
+        let settings_path = settings_dir.join("settings.json");
+        fs::create_dir_all(&target_dir).unwrap();
+        fs::create_dir_all(&settings_dir).unwrap();
+        write_settings(&settings_path, &target_dir);
+        let old_path = target_dir.join("Old.md");
+        let occupied_path = target_dir.join("Taken.md");
+        fs::write(&old_path, "old body").unwrap();
+        fs::write(&occupied_path, "occupied").unwrap();
+
+        let result = save_text_file(
+            &settings_path,
+            old_path.to_string_lossy().to_string(),
+            "Taken".into(),
+            "new body".into(),
+        );
+
+        assert!(result.is_err());
+        assert_eq!(fs::read_to_string(old_path).unwrap(), "old body");
+        assert_eq!(fs::read_to_string(occupied_path).unwrap(), "occupied");
+        fs::remove_dir_all(target_dir).ok();
+        fs::remove_dir_all(settings_dir).ok();
+    }
+
+    #[test]
+    fn save_text_file_replaces_body_without_renaming() {
+        let target_dir = unique_test_dir("target");
+        let settings_dir = unique_test_dir("settings");
+        let settings_path = settings_dir.join("settings.json");
+        fs::create_dir_all(&target_dir).unwrap();
+        fs::create_dir_all(&settings_dir).unwrap();
+        write_settings(&settings_path, &target_dir);
+        let file_path = target_dir.join("Note.gjson");
+        fs::write(&file_path, "old body").unwrap();
+
+        let saved_path = save_text_file(
+            &settings_path,
+            file_path.to_string_lossy().to_string(),
+            "Note".into(),
+            "new body".into(),
+        )
+        .unwrap();
+
+        assert_eq!(Path::new(&saved_path), file_path);
+        assert_eq!(fs::read_to_string(saved_path).unwrap(), "new body");
+        fs::remove_dir_all(target_dir).ok();
+        fs::remove_dir_all(settings_dir).ok();
+    }
+
+    #[test]
+    fn save_text_file_restores_original_after_rename_commit_failure() {
+        let target_dir = unique_test_dir("target");
+        let settings_dir = unique_test_dir("settings");
+        let settings_path = settings_dir.join("settings.json");
+        fs::create_dir_all(&target_dir).unwrap();
+        fs::create_dir_all(&settings_dir).unwrap();
+        write_settings(&settings_path, &target_dir);
+        let original = target_dir.join("Old.md");
+        fs::write(&original, "old body").unwrap();
+
+        let result = save_text_file_with_hook(
+            &settings_path,
+            original.to_string_lossy().to_string(),
+            "New".into(),
+            "new body".into(),
+            |stage| {
+                if stage == SaveStage::BeforeOriginalRemove {
+                    Err("injected rename failure".into())
+                } else {
+                    Ok(())
+                }
+            },
+        );
+
+        assert!(result.unwrap_err().contains("injected rename failure"));
+        assert_eq!(fs::read_to_string(original).unwrap(), "old body");
+        assert!(!target_dir.join("New.md").exists());
+        assert_eq!(fs::read_dir(&target_dir).unwrap().count(), 1);
+        fs::remove_dir_all(target_dir).ok();
+        fs::remove_dir_all(settings_dir).ok();
+    }
+
+    #[test]
+    fn save_text_file_restores_original_after_replacement_failure() {
+        let target_dir = unique_test_dir("target");
+        let settings_dir = unique_test_dir("settings");
+        let settings_path = settings_dir.join("settings.json");
+        fs::create_dir_all(&target_dir).unwrap();
+        fs::create_dir_all(&settings_dir).unwrap();
+        write_settings(&settings_path, &target_dir);
+        let original = target_dir.join("Note.md");
+        fs::write(&original, "old body").unwrap();
+
+        let result = save_text_file_with_hook(
+            &settings_path,
+            original.to_string_lossy().to_string(),
+            "Note".into(),
+            "new body".into(),
+            |stage| {
+                if stage == SaveStage::BeforeReplacement {
+                    Err("injected replacement failure".into())
+                } else {
+                    Ok(())
+                }
+            },
+        );
+
+        assert!(result.unwrap_err().contains("injected replacement failure"));
+        assert_eq!(fs::read_to_string(original).unwrap(), "old body");
+        assert_eq!(fs::read_dir(&target_dir).unwrap().count(), 1);
+        fs::remove_dir_all(target_dir).ok();
+        fs::remove_dir_all(settings_dir).ok();
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn save_text_file_os_replacement_failure_keeps_original() {
+        use std::os::windows::fs::OpenOptionsExt;
+
+        let target_dir = unique_test_dir("target");
+        let settings_dir = unique_test_dir("settings");
+        let settings_path = settings_dir.join("settings.json");
+        fs::create_dir_all(&target_dir).unwrap();
+        fs::create_dir_all(&settings_dir).unwrap();
+        write_settings(&settings_path, &target_dir);
+        let original = target_dir.join("Note.md");
+        fs::write(&original, "old body").unwrap();
+        // Permit reads and writes, but deny DELETE sharing required by ReplaceFileW.
+        let held = fs::OpenOptions::new()
+            .read(true)
+            .share_mode(0x0000_0001 | 0x0000_0002)
+            .open(&original)
+            .unwrap();
+
+        let result = save_text_file(
+            &settings_path,
+            original.to_string_lossy().to_string(),
+            "Note".into(),
+            "new body".into(),
+        );
+
+        assert!(result.unwrap_err().contains("failed to replace file"));
+        assert_eq!(fs::read_to_string(&original).unwrap(), "old body");
+        assert_eq!(fs::read_dir(&target_dir).unwrap().count(), 1);
+        drop(held);
         fs::remove_dir_all(target_dir).ok();
         fs::remove_dir_all(settings_dir).ok();
     }

@@ -204,31 +204,23 @@ export const FileEditorPanel = ({
               extension: editor.extension === "gjson" ? "gjson" : "md",
             });
       } else {
-        savedPath = editor.filePath!;
+        if (bodyChanged && editor.contentMode === "gjsonCards") {
+          const missingTitle =
+            !isEmptyGjsonDocument(gjsonDocument) &&
+            gjsonDocument.items.some(
+              (item) => !item.title.trim() && !isEmptyGjsonCardItem(item),
+            );
 
-        if (titleChanged) {
-          savedPath = await fileApi.updateTextFileTitle(
-            savedPath,
-            trimmedTitle,
-          );
-        }
-
-        if (bodyChanged) {
-          if (editor.contentMode === "gjsonCards") {
-            const missingTitle =
-              !isEmptyGjsonDocument(gjsonDocument) &&
-              gjsonDocument.items.some(
-                (item) => !item.title.trim() && !isEmptyGjsonCardItem(item),
-              );
-
-            if (missingTitle) {
-              toast.error(LL.fileEditor.gjson.missingItemTitle());
-              return;
-            }
+          if (missingTitle) {
+            toast.error(LL.fileEditor.gjson.missingItemTitle());
+            return;
           }
-
-          await fileApi.updateTextFileBody(savedPath, savedBody);
         }
+        savedPath = await fileApi.saveTextFile({
+          filePath: editor.filePath!,
+          title: trimmedTitle,
+          body: savedBody,
+        });
       }
 
       toast.success(LL.fileEditor.fileSaved());

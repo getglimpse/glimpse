@@ -33,6 +33,12 @@ pub fn register_global_shortcuts_from_settings_path(
 
 pub fn register_global_shortcuts(app: &AppHandle, settings: &AppSettings) -> Result<(), String> {
     let shortcuts = get_toggle_main_window_shortcuts(settings);
+    let parsed_shortcuts = shortcuts
+        .iter()
+        .map(|shortcut| {
+            parse_shortcut(shortcut).ok_or_else(|| format!("invalid global shortcut: {shortcut}"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     let capture_selected_text_on_activation =
         settings.experimental.capture_selected_text_on_activation;
 
@@ -55,15 +61,7 @@ pub fn register_global_shortcuts(app: &AppHandle, settings: &AppSettings) -> Res
 
     debug!("unregistered existing global shortcuts");
 
-    for shortcut in shortcuts {
-        let Some(parsed) = parse_shortcut(&shortcut) else {
-            warn!(
-                shortcut = %shortcut,
-                "invalid global shortcut ignored"
-            );
-            continue;
-        };
-
+    for (shortcut, parsed) in shortcuts.into_iter().zip(parsed_shortcuts) {
         debug!(
             shortcut = %shortcut,
             parsed = ?parsed,
@@ -93,6 +91,19 @@ pub fn register_global_shortcuts(app: &AppHandle, settings: &AppSettings) -> Res
     }
 
     Ok(())
+}
+
+pub fn validate_global_shortcuts(settings: &AppSettings) -> Result<(), String> {
+    for shortcut in get_toggle_main_window_shortcuts(settings) {
+        parse_shortcut(&shortcut).ok_or_else(|| format!("invalid global shortcut: {shortcut}"))?;
+    }
+    Ok(())
+}
+
+pub fn global_shortcut_settings_changed(previous: &AppSettings, next: &AppSettings) -> bool {
+    get_toggle_main_window_shortcuts(previous) != get_toggle_main_window_shortcuts(next)
+        || previous.experimental.capture_selected_text_on_activation
+            != next.experimental.capture_selected_text_on_activation
 }
 
 fn load_settings(settings_path: &Path) -> Result<AppSettings, String> {
@@ -167,7 +178,10 @@ fn parse_shortcut(value: &str) -> Option<Shortcut> {
             "alt" => modifiers |= Modifiers::ALT,
             "meta" | "cmd" | "command" | "super" => modifiers |= Modifiers::SUPER,
             key => {
-                code = parse_code(key);
+                if code.is_some() {
+                    return None;
+                }
+                code = Some(parse_code(key)?);
             }
         }
     }
@@ -621,6 +635,16 @@ mod tests {
     }
 
     #[test]
+    fn validates_new_shortcuts_before_replacing_old_ones() {
+        let previous = settings_with_keybinding(KeybindingValue::One("Ctrl+Space".into()));
+        let invalid = settings_with_keybinding(KeybindingValue::One("Unknown+Space".into()));
+
+        assert!(validate_global_shortcuts(&previous).is_ok());
+        assert!(validate_global_shortcuts(&invalid).is_err());
+        assert!(global_shortcut_settings_changed(&previous, &invalid));
+    }
+
+    #[test]
     fn parse_shortcut_accepts_ctrl_space() {
         let shortcut = parse_shortcut("Ctrl+Space");
 
@@ -655,6 +679,8 @@ mod tests {
         let shortcut = parse_shortcut("Ctrl+UnknownKey");
 
         assert!(shortcut.is_none());
+        assert!(parse_shortcut("UnknownKey+Space").is_none());
+        assert!(parse_shortcut("Space+Enter").is_none());
     }
 
     #[test]

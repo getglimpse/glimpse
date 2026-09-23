@@ -15,6 +15,22 @@
 - P2 / Medium: 7 件
 - P3 / Low: 1 件
 
+## P2 対応状況（2026-09-24）
+
+以下の 7 件について実装を反映しました。元の指摘と行番号はレビュー時点のものです。
+
+1. 検索: request generation を導入し、古い結果と loading 更新を破棄。応答順の回帰テストを追加。
+2. Preview: item ID と generation を照合し、選択変更後の古い本文を表示しないよう変更。
+3. エディタ保存: タイトルと本文を単一 IPC で保存。本文を一時ファイルへ書き、Windows ではバックアップ付き `ReplaceFileW`、他OSでは同一ディレクトリ内の置換を使用。改名衝突では元ファイルを保持。保存後の index 更新失敗は保存成功と区別してログに記録。
+4. Plugin reload: 新規 runtime の二重起動を排除し、既存 runtime は fingerprint が変化した場合だけ再起動。回帰テストを追加。
+5. Global shortcut: 登録前に構文を検証し、登録失敗時には以前の設定で再登録。失敗は IPC error として返す。
+6. Settings: runtime と shortcut の反映後に設定を保存し、途中失敗時には旧状態への復旧を試みる。設定更新を直列化。
+7. Release gate: `pnpm test`、Rust 書式・Clippy・テストを release readiness に追加。release workflow は共通 frontend 検証ジョブを全 matrix build の前に実行し、各 build でも Rust 書式・Clippy・テストを確認してから publish する。
+
+最終検証: frontend 203 件、Rust 467 件、frontend build、Rust fmt / Clippy、`pnpm audit --prod`、`cargo audit`、gitleaks、plugin registry 検証が成功。`rustls` は `0.23.45` に更新し、検出されていた RUSTSEC-2026-0285 を解消しました。保存途中の失敗（Windows の実際の置換API失敗を含む）、shortcut 登録失敗、runtime 更新失敗、設定保存失敗、バックアップ復元失敗のテストを追加しました。バックアップ復元も runtime・shortcut の反映後に確定し、失敗時は旧状態への復旧を試みます。
+
+`release:ready` の最後の clean-worktree 判定は未コミット差分があるため失敗します。OS 上の実際の shortcut 競合とプロセス異常終了は自動テストでは再現していません。
+
 ## レビュー区分
 
 コード量が約 6.5 万行あるため、次の 6 セクションに分けて確認しました。
@@ -30,6 +46,8 @@
 
 ### [P2] 古い検索リクエストが新しい検索結果を上書きする
 
+Issue: https://github.com/getglimpse/glimpse/issues/11
+
 対象: `src/features/search/useSearchController.ts:59-129`, `src/features/search/useSearchController.ts:133-135`
 
 `query` が変わるたびに `fetchResults` を開始していますが、request ID、AbortController、または現在の query との照合がありません。たとえば `a` の検索が遅く、後から開始した `ab` が先に完了すると、その後完了した `a` の結果が `setSearchResults` で画面を上書きします。同様に、古いリクエストの `finally` が `isLoading` を `false` にするため、新しい検索が継続中でもローディング表示が終了します。
@@ -43,6 +61,8 @@
 
 ### [P2] 選択変更後に古い preview が表示される
 
+Issue: https://github.com/getglimpse/glimpse/issues/12
+
 対象: `src/App.tsx:266-290`
 
 effect の cleanup は、まだ開始していない 80ms の timer だけを解除します。`previewApi.getPreview` の呼び出し後に選択 item が変わった場合、古い Promise は有効なままで、完了時に新しい item の `loadedPreview` を上書きします。検索を素早く移動したとき、タイトルと本文が別 item になる可能性があります。
@@ -54,6 +74,8 @@ effect の cleanup は、まだ開始していない 80ms の timer だけを解
 - 遅延した preview A の後に preview B が完了する順序と、その逆順をテストする。
 
 ### [P2] rename 成功後に本文保存が失敗すると editor が回復不能になり得る
+
+Issue: https://github.com/getglimpse/glimpse/issues/13
 
 対象: `src/components/preview/FileEditorPanel.tsx:165-170`, `src/components/preview/FileEditorPanel.tsx:206-231`
 
@@ -79,6 +101,8 @@ effect の cleanup は、まだ開始していない 80ms の timer だけを解
 ## 2. プラグイン registry・runtime・converter
 
 ### [P2] plugin reload 時に enabled plugin を二重に activate している
+
+Issue: https://github.com/getglimpse/glimpse/issues/14
 
 対象: `src/features/plugins/registry/index.ts:261-274`
 
@@ -116,6 +140,8 @@ Issue: https://github.com/getglimpse/glimpse/issues/8
 
 ### [P2] global shortcut の再登録失敗が成功として返され、既存 shortcut も失われる
 
+Issue: https://github.com/getglimpse/glimpse/issues/15
+
 対象: `src-tauri/src/commands/settings.rs:96-115`, `src-tauri/src/shortcuts.rs:34-95`
 
 設定保存後、`register_global_shortcuts` の失敗はログに記録するだけで `set_settings` は成功を返します。さらに再登録処理は最初に `unregister_all` し、その後 1 件ずつ登録するため、競合 shortcut や途中の OS エラーが起きると、以前動いていた shortcut が消えた状態または一部だけ登録された状態になります。UI は返された settings を採用するため、ユーザーには保存成功に見えます。
@@ -148,6 +174,8 @@ Issue: https://github.com/getglimpse/glimpse/issues/9
 - 中断された書き込みと backup recovery のテストを追加する。
 
 ### [P2] settings を保存してから runtime 更新するため、エラー時に永続状態と実行状態がずれる
+
+Issue: https://github.com/getglimpse/glimpse/issues/16
 
 対象: `src-tauri/src/commands/settings.rs:88-118`
 
@@ -195,6 +223,8 @@ full scan では既に `replace_sources` を使用しているため、watcher �
 ## 6. テスト・ビルド・リリース基盤
 
 ### [P2] release gate がフロントエンドテストを実行していない
+
+Issue: https://github.com/getglimpse/glimpse/issues/17
 
 対象: `scripts/release-ready.mjs:149-160`, `.github/workflows/release.yml:113-117`
 

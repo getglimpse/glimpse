@@ -28,6 +28,12 @@ export type CreateTextFileAtPathPayload = {
   body: string;
 };
 
+export type SaveTextFilePayload = {
+  filePath: string;
+  title: string;
+  body: string;
+};
+
 export type WritePluginTextOutputPayload = {
   grantToken: string;
   fileName: string;
@@ -250,6 +256,9 @@ export const fileApi = {
    */
   updateTextFileBody: (filePath: string, body: string) =>
     invoke<void>("update_text_file_body", { filePath, body }),
+
+  saveTextFile: (payload: SaveTextFilePayload) =>
+    invoke<string>("save_text_file", { payload }),
 
   /**
    * Updates only the Markdown file body.

@@ -112,9 +112,11 @@ export default function App() {
   );
   const [startupWarm, setStartupWarm] = useState<StartupWarmStats | null>(null);
   const [customThemes, setCustomThemes] = useState<CssTheme[]>([]);
-  const [loadedPreview, setLoadedPreview] = useState<
-    SearchResult["item"]["preview"] | null
-  >(null);
+  const [loadedPreview, setLoadedPreview] = useState<{
+    itemId: string;
+    preview: SearchResult["item"]["preview"];
+  } | null>(null);
+  const previewGenerationRef = useRef(0);
   const [commandHistory, setCommandHistory] = useState<CommandHistoryEntry[]>(
     [],
   );
@@ -259,11 +261,15 @@ export default function App() {
   const item = baseItem
     ? {
         ...baseItem,
-        preview: loadedPreview ?? baseItem.preview,
+        preview:
+          loadedPreview?.itemId === baseItem.id
+            ? loadedPreview.preview
+            : baseItem.preview,
       }
     : null;
 
   useEffect(() => {
+    const generation = ++previewGenerationRef.current;
     if (!baseItem?.id) {
       setLoadedPreview(null);
       return;
@@ -275,8 +281,8 @@ export default function App() {
       void previewApi
         .getPreview(baseItem.id)
         .then((preview) => {
-          if (preview) {
-            setLoadedPreview(preview);
+          if (preview && generation === previewGenerationRef.current) {
+            setLoadedPreview({ itemId: baseItem.id, preview });
           }
         })
         .catch((error) => {
@@ -286,6 +292,7 @@ export default function App() {
 
     return () => {
       window.clearTimeout(timer);
+      previewGenerationRef.current += 1;
     };
   }, [baseItem?.id]);
 
@@ -333,7 +340,10 @@ export default function App() {
       return;
     }
 
-    if (!loadedPreview && item.preview.content.length === 0) {
+    if (
+      loadedPreview?.itemId !== item.id &&
+      item.preview.content.length === 0
+    ) {
       return;
     }
 

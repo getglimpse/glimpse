@@ -27,7 +27,10 @@ function resolveCommand(name) {
       for (const entry of readdirSync(wingetPackagesDir, {
         withFileTypes: true,
       })) {
-        if (!entry.isDirectory() || !entry.name.startsWith("Gitleaks.Gitleaks_")) {
+        if (
+          !entry.isDirectory() ||
+          !entry.name.startsWith("Gitleaks.Gitleaks_")
+        ) {
           continue;
         }
 
@@ -101,9 +104,7 @@ function requireCommand(command, installHint) {
     fail(`Missing required command: ${command}\n${installHint}`);
   }
 
-  fail(
-    `Required command failed: ${command}\n${installHint}`,
-  );
+  fail(`Required command failed: ${command}\n${installHint}`);
 }
 
 function requireCleanWorktree() {
@@ -157,6 +158,23 @@ run("pnpm", ["audit", "--prod"], {
 run("cargo", ["audit", "--file", "src-tauri/Cargo.lock"]);
 run("gitleaks", ["detect", "--source", repoRoot, "--no-banner", "--redact"]);
 run("pnpm", ["build"]);
+run("pnpm", ["test"]);
+run("cargo", [
+  "fmt",
+  "--manifest-path",
+  "src-tauri/Cargo.toml",
+  "--",
+  "--check",
+]);
+run("cargo", [
+  "clippy",
+  "--manifest-path",
+  "src-tauri/Cargo.toml",
+  "--all-targets",
+  "--",
+  "-D",
+  "warnings",
+]);
 run("cargo", ["test", "--manifest-path", "src-tauri/Cargo.toml"]);
 
 if (existsSync(resolve(repoRoot, ".plugins/scripts/validate-registry.mjs"))) {
@@ -172,10 +190,14 @@ if (existsSync(resolve(repoRoot, ".plugins/scripts/validate-registry.mjs"))) {
   }
 
   if (result.status !== 0) {
-    fail(`Public plugin registry validation failed with exit code ${result.status}`);
+    fail(
+      `Public plugin registry validation failed with exit code ${result.status}`,
+    );
   }
 }
 
 requireCleanWorktree();
 
-console.log("\nRelease readiness checks passed. It is OK to create the release.");
+console.log(
+  "\nRelease readiness checks passed. It is OK to create the release.",
+);

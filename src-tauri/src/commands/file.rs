@@ -53,6 +53,14 @@ pub struct CreateTextFileAtPathPayload {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct SaveTextFilePayload {
+    pub file_path: String,
+    pub title: String,
+    pub body: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct WritePluginTextOutputPayload {
     pub grant_token: String,
     pub file_name: String,
@@ -423,6 +431,30 @@ pub async fn update_text_file_body(
     runtime.index_file(path).await?;
 
     Ok(())
+}
+
+#[tauri::command]
+pub async fn save_text_file(
+    settings_path: State<'_, SharedSettingsPath>,
+    runtime: State<'_, Arc<IndexerRuntime>>,
+    payload: SaveTextFilePayload,
+) -> Result<String, String> {
+    let old_path = PathBuf::from(&payload.file_path);
+    let next_path = crate::store::file::save_text_file(
+        &resolve_settings_path(&settings_path)?,
+        payload.file_path,
+        payload.title,
+        payload.body,
+    )?;
+    if old_path != Path::new(&next_path) {
+        if let Err(error) = runtime.delete_file_from_index(old_path).await {
+            tracing::warn!(%error, "saved file but failed to remove old index entry");
+        }
+    }
+    if let Err(error) = runtime.index_file(PathBuf::from(&next_path)).await {
+        tracing::warn!(%error, "saved file but failed to refresh index entry");
+    }
+    Ok(next_path)
 }
 
 fn resolve_settings_path(settings_path: &State<SharedSettingsPath>) -> Result<PathBuf, String> {

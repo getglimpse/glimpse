@@ -123,6 +123,18 @@ pub fn settings_recovery_status(path: &Path) -> SettingsRecoveryStatus {
 /// Restores only a validated backup. The current file is preserved verbatim
 /// under a unique sibling name before the atomic replacement.
 pub fn restore_settings_backup(path: &Path) -> Result<AppSettings, String> {
+    let prepared = prepare_settings_backup(path)?;
+    restore_prepared_settings_backup(path, &prepared)?;
+    Ok(prepared.settings)
+}
+
+pub struct PreparedSettingsBackup {
+    pub settings: AppSettings,
+    bytes: Vec<u8>,
+}
+
+/// Reads and validates one backup snapshot without changing the current file.
+pub fn prepare_settings_backup(path: &Path) -> Result<PreparedSettingsBackup, String> {
     let backup = backup_path(path);
     let backup_bytes = fs::read(&backup).map_err(|error| {
         format!(
@@ -134,6 +146,17 @@ pub fn restore_settings_backup(path: &Path) -> Result<AppSettings, String> {
         .map(normalize_settings)
         .map_err(|error| format!("settings backup {} is invalid: {error}", backup.display()))?;
 
+    Ok(PreparedSettingsBackup {
+        settings: restored,
+        bytes: backup_bytes,
+    })
+}
+
+/// Commits the previously validated bytes, even if the backup changes later.
+pub fn restore_prepared_settings_backup(
+    path: &Path,
+    prepared: &PreparedSettingsBackup,
+) -> Result<(), String> {
     match fs::read(path) {
         Ok(current) => {
             let label = if try_load_settings(path).is_ok() {
@@ -160,8 +183,7 @@ pub fn restore_settings_backup(path: &Path) -> Result<AppSettings, String> {
         }
     }
 
-    atomic_write(path, &backup_bytes)?;
-    Ok(restored)
+    atomic_write(path, &prepared.bytes)
 }
 
 /// Ensures that the initial `settings.json` file exists.
@@ -883,8 +905,10 @@ mod tests {
     fn save_replaces_settings_and_keeps_previous_valid_backup() {
         let dir = unique_test_dir("atomic-backup");
         let path = dir.join("settings.json");
-        let mut first = AppSettings::default();
-        first.theme = "first".into();
+        let first = AppSettings {
+            theme: "first".into(),
+            ..Default::default()
+        };
         save_settings(&path, &first).unwrap();
         let mut second = first.clone();
         second.theme = "second".into();
@@ -909,8 +933,10 @@ mod tests {
     fn corrupt_primary_is_not_overwritten_and_backup_is_available_for_read_only_use() {
         let dir = unique_test_dir("corrupt-backup");
         let path = dir.join("settings.json");
-        let mut first = AppSettings::default();
-        first.theme = "first".into();
+        let first = AppSettings {
+            theme: "first".into(),
+            ..Default::default()
+        };
         save_settings(&path, &first).unwrap();
         let mut second = first.clone();
         second.theme = "second".into();
@@ -1023,8 +1049,10 @@ mod tests {
     fn restore_valid_backup_preserves_corrupt_primary() {
         let dir = unique_test_dir("restore-corrupt");
         let path = dir.join("settings.json");
-        let mut first = AppSettings::default();
-        first.theme = "first".into();
+        let first = AppSettings {
+            theme: "first".into(),
+            ..Default::default()
+        };
         save_settings(&path, &first).unwrap();
         let mut second = first.clone();
         second.theme = "second".into();
@@ -1058,8 +1086,10 @@ mod tests {
     fn restore_valid_backup_preserves_valid_primary() {
         let dir = unique_test_dir("restore-valid");
         let path = dir.join("settings.json");
-        let mut first = AppSettings::default();
-        first.theme = "first".into();
+        let first = AppSettings {
+            theme: "first".into(),
+            ..Default::default()
+        };
         save_settings(&path, &first).unwrap();
         let mut second = first.clone();
         second.theme = "second".into();
@@ -1082,6 +1112,29 @@ mod tests {
             })
             .unwrap();
         assert_eq!(fs::read(preserved).unwrap(), current);
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn prepared_restore_uses_validated_snapshot_even_if_backup_changes() {
+        let dir = unique_test_dir("prepared-restore");
+        let path = dir.join("settings.json");
+        let first = AppSettings {
+            theme: "first".into(),
+            ..Default::default()
+        };
+        save_settings(&path, &first).unwrap();
+        let second = AppSettings {
+            theme: "second".into(),
+            ..Default::default()
+        };
+        save_settings(&path, &second).unwrap();
+
+        let prepared = prepare_settings_backup(&path).unwrap();
+        fs::write(backup_path(&path), b"{ changed after validation").unwrap();
+        restore_prepared_settings_backup(&path, &prepared).unwrap();
+
+        assert_eq!(try_load_settings(&path).unwrap().theme, "first");
         fs::remove_dir_all(dir).unwrap();
     }
 

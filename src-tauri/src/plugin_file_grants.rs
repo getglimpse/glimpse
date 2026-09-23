@@ -302,7 +302,7 @@ mod tests {
         assert!(grants
             .claim_drop("main", &[allowed.to_string_lossy().into_owned()])
             .is_err());
-        grants.register_drop("main", &[allowed.clone()]);
+        grants.register_drop("main", std::slice::from_ref(&allowed));
         assert!(grants
             .claim_drop("main", &[denied.to_string_lossy().into_owned()])
             .is_err());
@@ -364,7 +364,7 @@ mod tests {
         let grants = PluginFileGrants::default();
         assert!(grants.grant_picked_inputs("main", &[rejected]).is_err());
         let picked = grants
-            .grant_picked_inputs("main", &[selected.clone()])
+            .grant_picked_inputs("main", std::slice::from_ref(&selected))
             .unwrap();
         assert_eq!(picked.len(), 1);
         assert!(grants.open_input("main", &picked[0].token, false).is_ok());

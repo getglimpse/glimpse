@@ -259,6 +259,12 @@ export const reloadPlugin = async (pluginId: string) => {
 };
 
 export const reloadPlugins = async (): Promise<GlimpsePlugin[]> => {
+  const activeRuntimeIds = new Set(
+    plugins
+      .filter((plugin) => getPluginRuntime(plugin.id))
+      .map((plugin) => plugin.id),
+  );
+  const previousTrustStatuses = pluginTrustStatuses;
   loadPluginsPromise = null;
   const report = await pluginsApi.getDiscoveryReport();
   plugins = report.manifests;
@@ -269,7 +275,12 @@ export const reloadPlugins = async (): Promise<GlimpsePlugin[]> => {
   await syncPluginRuntimes(getPlugins());
   await Promise.allSettled(
     getPlugins().map((plugin) =>
-      plugin.enabled ? reloadPluginRuntime(plugin) : Promise.resolve(),
+      plugin.enabled &&
+      activeRuntimeIds.has(plugin.id) &&
+      previousTrustStatuses[plugin.id]?.manifestFingerprint !==
+        pluginTrustStatuses[plugin.id]?.manifestFingerprint
+        ? reloadPluginRuntime(plugin)
+        : Promise.resolve(),
     ),
   );
   dispatchPluginStateChanged();
