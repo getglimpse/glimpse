@@ -61,3 +61,23 @@ it("starts a new plugin once and reloads a changed active plugin once", async ()
   await reloadPlugins();
   expect(runtimeMocks.reloadPluginRuntime).toHaveBeenCalledTimes(1);
 });
+
+it("does not restart an active plugin when its fingerprint is unchanged", async () => {
+  pluginMocks.getDiscoveryReport.mockResolvedValue({
+    manifests: [{ id: "stable-plugin", name: "Stable", version: "1.0.0" }],
+    errors: [],
+  });
+  pluginMocks.getTrustStatus.mockResolvedValue({
+    pluginId: "stable-plugin",
+    trusted: true,
+    manifestFingerprint: "unchanged",
+    version: "1.0.0",
+  });
+  runtimeMocks.getPluginRuntime.mockReturnValue({});
+
+  await reloadPlugins();
+  await reloadPlugins();
+
+  expect(runtimeMocks.syncPluginRuntimes).toHaveBeenCalledTimes(2);
+  expect(runtimeMocks.reloadPluginRuntime).not.toHaveBeenCalled();
+});

@@ -18,6 +18,7 @@
 //! - `store::file`
 
 use serde::Deserialize;
+use std::future::Future;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -439,19 +440,40 @@ pub async fn save_text_file(
     runtime: State<'_, Arc<IndexerRuntime>>,
     payload: SaveTextFilePayload,
 ) -> Result<String, String> {
+    save_text_file_with_indexing(
+        &resolve_settings_path(&settings_path)?,
+        payload,
+        |path| runtime.delete_file_from_index(path),
+        |path| runtime.index_file(path),
+    )
+    .await
+}
+
+async fn save_text_file_with_indexing<D, I, DF, IF>(
+    settings_path: &Path,
+    payload: SaveTextFilePayload,
+    delete_from_index: D,
+    index_file: I,
+) -> Result<String, String>
+where
+    D: FnOnce(PathBuf) -> DF,
+    I: FnOnce(PathBuf) -> IF,
+    DF: Future<Output = Result<(), String>>,
+    IF: Future<Output = Result<(), String>>,
+{
     let old_path = PathBuf::from(&payload.file_path);
     let next_path = crate::store::file::save_text_file(
-        &resolve_settings_path(&settings_path)?,
+        settings_path,
         payload.file_path,
         payload.title,
         payload.body,
     )?;
     if old_path != Path::new(&next_path) {
-        if let Err(error) = runtime.delete_file_from_index(old_path).await {
+        if let Err(error) = delete_from_index(old_path).await {
             tracing::warn!(%error, "saved file but failed to remove old index entry");
         }
     }
-    if let Err(error) = runtime.index_file(PathBuf::from(&next_path)).await {
+    if let Err(error) = index_file(PathBuf::from(&next_path)).await {
         tracing::warn!(%error, "saved file but failed to refresh index entry");
     }
     Ok(next_path)
@@ -463,4 +485,62 @@ fn resolve_settings_path(settings_path: &State<SharedSettingsPath>) -> Result<Pa
         .lock()
         .map_err(|error| error.to_string())
         .map(|path| path.clone())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::settings::{AppSettings, TargetGroup};
+    use crate::store::settings::save_settings;
+    use std::fs;
+
+    #[tokio::test]
+    async fn index_failure_after_save_still_returns_new_path_and_keeps_saved_body() {
+        let root =
+            std::env::temp_dir().join(format!("glimpse-save-index-{}", uuid::Uuid::new_v4()));
+        let target = root.join("target");
+        fs::create_dir_all(&target).unwrap();
+        let settings_path = root.join("settings.json");
+        save_settings(
+            &settings_path,
+            &AppSettings {
+                target_groups: vec![TargetGroup {
+                    id: "test".into(),
+                    name: "Test".into(),
+                    paths: vec![target.to_string_lossy().into_owned()],
+                    active: true,
+                }],
+                current_target_group_id: Some("test".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let old_path = target.join("Old.md");
+        fs::write(&old_path, "old body").unwrap();
+        let new_path = target.join("New.md");
+
+        let result = save_text_file_with_indexing(
+            &settings_path,
+            SaveTextFilePayload {
+                file_path: old_path.to_string_lossy().into_owned(),
+                title: "New".into(),
+                body: "new body".into(),
+            },
+            |path| async move {
+                assert_eq!(path, old_path);
+                Err("injected old index deletion failure".into())
+            },
+            |path| async move {
+                assert_eq!(path, new_path);
+                Err("injected index refresh failure".into())
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(Path::new(&result), target.join("New.md"));
+        assert!(!target.join("Old.md").exists());
+        assert_eq!(fs::read_to_string(&result).unwrap(), "new body");
+        fs::remove_dir_all(root).unwrap();
+    }
 }

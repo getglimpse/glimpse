@@ -41,6 +41,8 @@ import { useDebouncedIndex } from "@/hooks/useDebouncedIndex";
 import { useLayoutMode } from "@/hooks/useLayoutMode";
 import { usePreviewTabs } from "@/hooks/usePreviewTabs";
 import { useSettings } from "@/hooks/useSettings";
+import { useSelectedItemPreview } from "@/hooks/useSelectedItemPreview";
+import type { LoadedPreview } from "@/hooks/useSelectedItemPreview";
 import { useShortcuts } from "@/hooks/useShortcuts";
 import { useTheme } from "@/hooks/useTheme";
 
@@ -112,11 +114,7 @@ export default function App() {
   );
   const [startupWarm, setStartupWarm] = useState<StartupWarmStats | null>(null);
   const [customThemes, setCustomThemes] = useState<CssTheme[]>([]);
-  const [loadedPreview, setLoadedPreview] = useState<{
-    itemId: string;
-    preview: SearchResult["item"]["preview"];
-  } | null>(null);
-  const previewGenerationRef = useRef(0);
+  const [loadedPreview, setLoadedPreview] = useState<LoadedPreview | null>(null);
   const [commandHistory, setCommandHistory] = useState<CommandHistoryEntry[]>(
     [],
   );
@@ -268,33 +266,7 @@ export default function App() {
       }
     : null;
 
-  useEffect(() => {
-    const generation = ++previewGenerationRef.current;
-    if (!baseItem?.id) {
-      setLoadedPreview(null);
-      return;
-    }
-
-    setLoadedPreview(null);
-
-    const timer = window.setTimeout(() => {
-      void previewApi
-        .getPreview(baseItem.id)
-        .then((preview) => {
-          if (preview && generation === previewGenerationRef.current) {
-            setLoadedPreview({ itemId: baseItem.id, preview });
-          }
-        })
-        .catch((error) => {
-          console.error("Failed to load preview:", error);
-        });
-    }, 80);
-
-    return () => {
-      window.clearTimeout(timer);
-      previewGenerationRef.current += 1;
-    };
-  }, [baseItem?.id]);
+  useSelectedItemPreview(baseItem?.id ?? null, setLoadedPreview);
 
   const {
     tabs: previewTabs,
