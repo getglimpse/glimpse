@@ -18,14 +18,17 @@
 //! - `IndexerRuntime`
 
 use std::sync::Arc;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Emitter, State};
 use tracing::{debug, error, info};
 
 use crate::app_state::SharedSettingsPath;
 use crate::models::settings::{AppSettings, PartialAppSettings, TargetGroup};
 use crate::shortcuts::register_global_shortcuts;
 use crate::store::indexer::runtime::IndexerRuntime;
-use crate::store::settings::{load_settings, normalize_settings, save_settings};
+use crate::store::settings::{
+    load_settings, normalize_settings, restore_settings_backup as restore_backup_file,
+    save_settings, settings_recovery_status, try_load_settings, SettingsRecoveryStatus,
+};
 
 /// Loads the current application settings.
 ///
@@ -48,7 +51,48 @@ pub fn get_settings(settings_path: State<SharedSettingsPath>) -> Result<AppSetti
 
     debug!(settings_path = %path.display(), "loading settings");
 
-    Ok(load_settings(&path))
+    try_load_settings(&path)
+}
+
+#[tauri::command]
+pub fn get_settings_recovery_status(
+    settings_path: State<SharedSettingsPath>,
+) -> Result<SettingsRecoveryStatus, String> {
+    let path = settings_path
+        .0
+        .lock()
+        .map_err(|error| error.to_string())?
+        .clone();
+    Ok(settings_recovery_status(&path))
+}
+
+#[tauri::command]
+pub async fn restore_settings_backup(
+    app: AppHandle,
+    runtime: State<'_, Arc<IndexerRuntime>>,
+    settings_path: State<'_, SharedSettingsPath>,
+) -> Result<AppSettings, String> {
+    let path = settings_path
+        .0
+        .lock()
+        .map_err(|error| error.to_string())?
+        .clone();
+    let previous_settings = load_settings(&path);
+    let restored = restore_backup_file(&path)?;
+
+    if let Err(error) = app.emit(crate::store::settings_watch::SETTINGS_CHANGED_EVENT, ()) {
+        error!(error = %error, "failed to notify settings restore");
+    }
+
+    if let Err(error) = register_global_shortcuts(&app, &restored) {
+        error!(error = %error, "failed to reload shortcuts after settings restore");
+    }
+    if indexer_runtime_inputs_changed(&previous_settings, &restored) {
+        runtime
+            .apply_settings_update(&previous_settings, restored.clone())
+            .await?;
+    }
+    Ok(restored)
 }
 
 /// Updates application settings.
@@ -85,7 +129,7 @@ pub async fn set_settings(
         "updating settings"
     );
 
-    let previous_settings = load_settings(&path);
+    let previous_settings = try_load_settings(&path)?;
     let mut settings = previous_settings.clone();
 
     apply_partial_settings(&mut settings, partial);

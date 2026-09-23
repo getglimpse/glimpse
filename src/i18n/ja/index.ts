@@ -548,8 +548,19 @@ const ja = {
     },
     advanced: {
       title: "詳細設定",
-      description: "生の settings.json を開きます。",
+      description:
+        "settings.json を開くか、検証済みのバックアップから復元します。",
       openSettings: "settings.json を開く",
+      restoreBackup: "バックアップから復元",
+      restoreConfirm:
+        "検証済みのバックアップから settings.json を復元しますか？現在のファイルは別名で保管されます。",
+      restoreSuccess: "バックアップから設定を復元しました。",
+      restoreFailed: "設定の復元に失敗しました: {error}",
+      recoveryTitle: "設定の復旧が必要です",
+      recoveryDescription:
+        "設定ファイルを読み込めませんでした。修復するまで他の設定項目は操作できません。",
+      noValidBackup:
+        "有効なバックアップがありません。settings.json を開いて手動で修復してください。",
     },
     messages: {
       invalidTargetGroupName:

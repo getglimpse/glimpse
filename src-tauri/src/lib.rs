@@ -82,6 +82,8 @@ pub fn run() {
             commands::open::open_source_file,
             commands::action::run_item_command,
             commands::settings::get_settings,
+            commands::settings::get_settings_recovery_status,
+            commands::settings::restore_settings_backup,
             commands::settings::set_settings,
             commands::settings::open_settings_file,
             commands::settings::switch_next_target_group,

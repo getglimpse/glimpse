@@ -25,12 +25,16 @@
 //! - unsupported language values
 //! - duplicate command policy entries
 //!
-//! Invalid or unreadable settings fall back to [`AppSettings::default`].
+//! Invalid settings are never overwritten by an automatic save. A valid
+//! backup is used for read-only fallback, while IPC reads report the error.
 
+use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use std::fs;
-use std::path::Path;
+use std::io::Write;
+use std::path::{Path, PathBuf};
 use tracing::{debug, info, warn};
+use uuid::Uuid;
 
 use crate::models::settings::{
     AppSettings, CommandPolicyMode, IndexingSettings, KeybindingValue, TargetGroup,
@@ -41,13 +45,14 @@ use crate::models::settings::{
 /// If the file exists and can be parsed, the parsed settings are normalized
 /// before being returned.
 ///
-/// If the file cannot be read or parsed, default settings are returned.
-/// When the file is missing, this function also attempts to create it.
+/// If the file cannot be read or parsed, a valid backup is preferred over
+/// defaults for internal, read-only callers. IPC callers use
+/// [`try_load_settings`] to surface the error instead.
 ///
 /// # Behavior
 ///
 /// - Valid file → parse and normalize.
-/// - Invalid JSON → return normalized defaults.
+/// - Invalid JSON → use a valid backup, or in-memory defaults.
 /// - Missing file → save defaults and return defaults.
 ///
 /// # Notes
@@ -55,54 +60,108 @@ use crate::models::settings::{
 /// This function is intentionally forgiving because `settings.json` is
 /// user-editable.
 pub fn load_settings(path: &Path) -> AppSettings {
-    debug!(
-        settings_path = %path.display(),
-        "loading settings"
-    );
-
-    if let Ok(content) = fs::read_to_string(path) {
-        let settings = match serde_json::from_str::<AppSettings>(&content) {
-            Ok(settings) => {
-                debug!(
-                    settings_path = %path.display(),
-                    "settings parsed"
-                );
-                settings
-            }
-            Err(error) => {
-                warn!(
-                    settings_path = %path.display(),
-                    error = %error,
-                    "failed to parse settings; using defaults"
-                );
-                AppSettings::default()
-            }
-        };
-
-        return normalize_settings(settings);
+    match try_load_settings(path) {
+        Ok(settings) => return settings,
+        Err(error) => warn!(settings_path = %path.display(), %error, "failed to load settings"),
     }
 
-    warn!(
-        settings_path = %path.display(),
-        "settings file missing or unreadable; using defaults"
-    );
+    let backup = backup_path(path);
+    if let Ok(settings) = try_load_settings(&backup) {
+        warn!(backup_path = %backup.display(), "using settings backup in memory");
+        return settings;
+    }
 
     let settings = AppSettings::default();
+    if !path.exists() {
+        if let Err(error) = save_settings(path, &settings) {
+            warn!(settings_path = %path.display(), %error, "failed to create default settings file");
+        } else {
+            info!(settings_path = %path.display(), "default settings file created");
+        }
+    }
+    normalize_settings(settings)
+}
 
-    if let Err(error) = save_settings(path, &settings) {
-        warn!(
-            settings_path = %path.display(),
-            error = %error,
-            "failed to create default settings file"
-        );
-    } else {
-        info!(
-            settings_path = %path.display(),
-            "default settings file created"
-        );
+/// Strict settings read for IPC mutations and UI. Never silently substitutes
+/// defaults or a backup for a corrupt primary file.
+pub fn try_load_settings(path: &Path) -> Result<AppSettings, String> {
+    let content = fs::read(path)
+        .map_err(|error| format!("failed to read settings {}: {error}", path.display()))?;
+    serde_json::from_slice::<AppSettings>(&content)
+        .map(normalize_settings)
+        .map_err(|error| {
+            let backup = backup_path(path);
+            let recovery = if backup.is_file() {
+                format!(" A backup may be available at {}.", backup.display())
+            } else {
+                String::new()
+            };
+            format!(
+                "settings file {} is invalid: {error}. Fix it before saving.{recovery}",
+                path.display()
+            )
+        })
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SettingsRecoveryStatus {
+    pub needs_recovery: bool,
+    pub backup_available: bool,
+    pub error: Option<String>,
+}
+
+pub fn settings_recovery_status(path: &Path) -> SettingsRecoveryStatus {
+    let error = try_load_settings(path).err();
+    SettingsRecoveryStatus {
+        needs_recovery: error.is_some(),
+        backup_available: try_load_settings(&backup_path(path)).is_ok(),
+        error,
+    }
+}
+
+/// Restores only a validated backup. The current file is preserved verbatim
+/// under a unique sibling name before the atomic replacement.
+pub fn restore_settings_backup(path: &Path) -> Result<AppSettings, String> {
+    let backup = backup_path(path);
+    let backup_bytes = fs::read(&backup).map_err(|error| {
+        format!(
+            "failed to read settings backup {}: {error}",
+            backup.display()
+        )
+    })?;
+    let restored = serde_json::from_slice::<AppSettings>(&backup_bytes)
+        .map(normalize_settings)
+        .map_err(|error| format!("settings backup {} is invalid: {error}", backup.display()))?;
+
+    match fs::read(path) {
+        Ok(current) => {
+            let label = if try_load_settings(path).is_ok() {
+                "before-restore"
+            } else {
+                "corrupt"
+            };
+            let preserved = path.with_file_name(format!(
+                "{}.{}.{}",
+                path.file_name()
+                    .ok_or("settings path has no file name")?
+                    .to_string_lossy(),
+                label,
+                Uuid::new_v4()
+            ));
+            atomic_write(&preserved, &current)?;
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => {
+            return Err(format!(
+                "failed to preserve current settings {}: {error}",
+                path.display()
+            ));
+        }
     }
 
-    normalize_settings(settings)
+    atomic_write(path, &backup_bytes)?;
+    Ok(restored)
 }
 
 /// Ensures that the initial `settings.json` file exists.
@@ -160,7 +219,9 @@ pub fn ensure_default_settings(path: &Path, default_target_dir: &Path) -> Result
     Ok(())
 }
 
-/// Saves application settings as pretty-printed JSON.
+/// Saves application settings as pretty-printed JSON using a same-directory
+/// temporary file and atomic replacement. The previous valid version is
+/// retained in `settings.json.bak`.
 ///
 /// Parent directories are created automatically.
 ///
@@ -170,7 +231,8 @@ pub fn ensure_default_settings(path: &Path, default_target_dir: &Path) -> Result
 ///
 /// - the parent directory cannot be created
 /// - serialization fails
-/// - the file cannot be written
+/// - the existing file is invalid or unreadable
+/// - the temporary file cannot be written, synced, or renamed
 pub fn save_settings(path: &Path, settings: &AppSettings) -> Result<(), String> {
     debug!(
         settings_path = %path.display(),
@@ -198,14 +260,29 @@ pub fn save_settings(path: &Path, settings: &AppSettings) -> Result<(), String> 
         error.to_string()
     })?;
 
-    fs::write(path, content).map_err(|error| {
-        warn!(
-            settings_path = %path.display(),
-            error = %error,
-            "failed to write settings file"
-        );
-        error.to_string()
-    })?;
+    let previous = match fs::read(path) {
+        Ok(bytes) => {
+            serde_json::from_slice::<AppSettings>(&bytes).map_err(|error| {
+                format!(
+                    "refusing to overwrite invalid settings file {}: {error}",
+                    path.display()
+                )
+            })?;
+            Some(bytes)
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(error) => {
+            return Err(format!(
+                "failed to read existing settings {}: {error}",
+                path.display()
+            ));
+        }
+    };
+
+    if let Some(previous) = previous {
+        atomic_write(&backup_path(path), &previous)?;
+    }
+    atomic_write(path, content.as_bytes())?;
 
     debug!(
         settings_path = %path.display(),
@@ -213,6 +290,52 @@ pub fn save_settings(path: &Path, settings: &AppSettings) -> Result<(), String> 
     );
 
     Ok(())
+}
+
+fn backup_path(path: &Path) -> PathBuf {
+    let mut backup = path.as_os_str().to_os_string();
+    backup.push(".bak");
+    PathBuf::from(backup)
+}
+
+fn atomic_write(path: &Path, content: &[u8]) -> Result<(), String> {
+    let parent = path
+        .parent()
+        .ok_or("settings path has no parent directory")?;
+    let name = path.file_name().ok_or("settings path has no file name")?;
+    let temporary = parent.join(format!(
+        ".{}.{}.tmp",
+        name.to_string_lossy(),
+        Uuid::new_v4()
+    ));
+    let result = (|| -> Result<(), String> {
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&temporary)
+            .map_err(|error| format!("failed to create {}: {error}", temporary.display()))?;
+        file.write_all(content)
+            .map_err(|error| format!("failed to write {}: {error}", temporary.display()))?;
+        file.sync_all()
+            .map_err(|error| format!("failed to sync {}: {error}", temporary.display()))?;
+        drop(file);
+        fs::rename(&temporary, path).map_err(|error| {
+            format!(
+                "failed to replace {} with {}: {error}",
+                path.display(),
+                temporary.display()
+            )
+        })?;
+        #[cfg(unix)]
+        fs::File::open(parent)
+            .and_then(|directory| directory.sync_all())
+            .map_err(|error| format!("failed to sync {}: {error}", parent.display()))?;
+        Ok(())
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&temporary);
+    }
+    result
 }
 
 /// Normalizes loaded settings.
@@ -754,6 +877,228 @@ mod tests {
         assert!(settings.target_groups[0].active);
 
         fs::remove_dir_all(settings_dir).ok();
+    }
+
+    #[test]
+    fn save_replaces_settings_and_keeps_previous_valid_backup() {
+        let dir = unique_test_dir("atomic-backup");
+        let path = dir.join("settings.json");
+        let mut first = AppSettings::default();
+        first.theme = "first".into();
+        save_settings(&path, &first).unwrap();
+        let mut second = first.clone();
+        second.theme = "second".into();
+        save_settings(&path, &second).unwrap();
+
+        assert_eq!(try_load_settings(&path).unwrap().theme, "second");
+        assert_eq!(
+            try_load_settings(&backup_path(&path)).unwrap().theme,
+            "first"
+        );
+        assert!(fs::read_dir(&dir).unwrap().all(|entry| {
+            !entry
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .ends_with(".tmp")
+        }));
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn corrupt_primary_is_not_overwritten_and_backup_is_available_for_read_only_use() {
+        let dir = unique_test_dir("corrupt-backup");
+        let path = dir.join("settings.json");
+        let mut first = AppSettings::default();
+        first.theme = "first".into();
+        save_settings(&path, &first).unwrap();
+        let mut second = first.clone();
+        second.theme = "second".into();
+        save_settings(&path, &second).unwrap();
+        fs::write(&path, b"{ incomplete").unwrap();
+
+        assert!(try_load_settings(&path).unwrap_err().contains("invalid"));
+        assert_eq!(load_settings(&path).theme, "first");
+        assert!(save_settings(&path, &second)
+            .unwrap_err()
+            .contains("refusing"));
+        assert_eq!(fs::read(&path).unwrap(), b"{ incomplete");
+        assert_eq!(
+            try_load_settings(&backup_path(&path)).unwrap().theme,
+            "first"
+        );
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn interrupted_temporary_write_does_not_change_settings() {
+        let dir = unique_test_dir("interrupted-temp");
+        let path = dir.join("settings.json");
+        let settings = AppSettings::default();
+        save_settings(&path, &settings).unwrap();
+        let original = fs::read(&path).unwrap();
+        fs::write(dir.join(".settings.json.interrupted.tmp"), b"{ incomplete").unwrap();
+
+        assert_eq!(fs::read(&path).unwrap(), original);
+        assert!(try_load_settings(&path).is_ok());
+        save_settings(&path, &settings).unwrap();
+        assert!(try_load_settings(&path).is_ok());
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn failed_backup_replacement_leaves_primary_unchanged() {
+        let dir = unique_test_dir("backup-failure");
+        let path = dir.join("settings.json");
+        let first = AppSettings::default();
+        save_settings(&path, &first).unwrap();
+        let original = fs::read(&path).unwrap();
+        fs::create_dir(backup_path(&path)).unwrap();
+        let mut second = first.clone();
+        second.theme = "changed".into();
+
+        assert!(save_settings(&path, &second).is_err());
+        assert_eq!(fs::read(&path).unwrap(), original);
+        assert!(try_load_settings(&path).is_ok());
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn locked_primary_replacement_leaves_previous_settings_and_cleans_temporary_file() {
+        use std::os::windows::fs::OpenOptionsExt;
+
+        let dir = unique_test_dir("locked-primary");
+        let path = dir.join("settings.json");
+        let first = AppSettings::default();
+        save_settings(&path, &first).unwrap();
+        let original = fs::read(&path).unwrap();
+        // Permit reading/writing but deny the delete access required to replace
+        // an open destination on Windows.
+        let held = fs::OpenOptions::new()
+            .read(true)
+            .share_mode(0x0000_0001 | 0x0000_0002)
+            .open(&path)
+            .unwrap();
+        let mut second = first.clone();
+        second.theme = "changed".into();
+
+        assert!(save_settings(&path, &second).is_err());
+        assert_eq!(fs::read(&path).unwrap(), original);
+        assert_eq!(
+            try_load_settings(&backup_path(&path)).unwrap().theme,
+            first.theme
+        );
+        assert!(fs::read_dir(&dir).unwrap().all(|entry| {
+            !entry
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .ends_with(".tmp")
+        }));
+        drop(held);
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn corrupt_primary_and_backup_are_reported_without_overwriting_either() {
+        let dir = unique_test_dir("both-corrupt");
+        let path = dir.join("settings.json");
+        save_settings(&path, &AppSettings::default()).unwrap();
+        fs::write(&path, b"{ broken primary").unwrap();
+        fs::write(backup_path(&path), b"{ broken backup").unwrap();
+
+        let status = settings_recovery_status(&path);
+        assert!(status.needs_recovery);
+        assert!(!status.backup_available);
+        assert!(status.error.is_some());
+        assert_eq!(load_settings(&path).theme, AppSettings::default().theme);
+        assert!(restore_settings_backup(&path).is_err());
+        assert_eq!(fs::read(&path).unwrap(), b"{ broken primary");
+        assert_eq!(fs::read(backup_path(&path)).unwrap(), b"{ broken backup");
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn restore_valid_backup_preserves_corrupt_primary() {
+        let dir = unique_test_dir("restore-corrupt");
+        let path = dir.join("settings.json");
+        let mut first = AppSettings::default();
+        first.theme = "first".into();
+        save_settings(&path, &first).unwrap();
+        let mut second = first.clone();
+        second.theme = "second".into();
+        save_settings(&path, &second).unwrap();
+        let corrupt = b"{ incomplete";
+        fs::write(&path, corrupt).unwrap();
+
+        let status = settings_recovery_status(&path);
+        assert!(status.needs_recovery);
+        assert!(status.backup_available);
+        let restored = restore_settings_backup(&path).unwrap();
+        assert_eq!(restored.theme, "first");
+        assert_eq!(try_load_settings(&path).unwrap().theme, "first");
+        assert!(!settings_recovery_status(&path).needs_recovery);
+        let preserved = fs::read_dir(&dir)
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .find(|entry| {
+                entry
+                    .file_name()
+                    .unwrap()
+                    .to_string_lossy()
+                    .starts_with("settings.json.corrupt.")
+            })
+            .unwrap();
+        assert_eq!(fs::read(preserved).unwrap(), corrupt);
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn restore_valid_backup_preserves_valid_primary() {
+        let dir = unique_test_dir("restore-valid");
+        let path = dir.join("settings.json");
+        let mut first = AppSettings::default();
+        first.theme = "first".into();
+        save_settings(&path, &first).unwrap();
+        let mut second = first.clone();
+        second.theme = "second".into();
+        save_settings(&path, &second).unwrap();
+        let current = fs::read(&path).unwrap();
+
+        let status = settings_recovery_status(&path);
+        assert!(!status.needs_recovery);
+        assert!(status.backup_available);
+        assert_eq!(restore_settings_backup(&path).unwrap().theme, "first");
+        let preserved = fs::read_dir(&dir)
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .find(|entry| {
+                entry
+                    .file_name()
+                    .unwrap()
+                    .to_string_lossy()
+                    .starts_with("settings.json.before-restore.")
+            })
+            .unwrap();
+        assert_eq!(fs::read(preserved).unwrap(), current);
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn invalid_backup_cannot_replace_corrupt_primary() {
+        let dir = unique_test_dir("restore-invalid-backup");
+        let path = dir.join("settings.json");
+        save_settings(&path, &AppSettings::default()).unwrap();
+        fs::write(&path, b"{ corrupt primary").unwrap();
+        fs::write(backup_path(&path), b"{ corrupt backup").unwrap();
+
+        let status = settings_recovery_status(&path);
+        assert!(status.needs_recovery);
+        assert!(!status.backup_available);
+        assert!(restore_settings_backup(&path).is_err());
+        assert_eq!(fs::read(&path).unwrap(), b"{ corrupt primary");
+        fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]

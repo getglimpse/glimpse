@@ -541,8 +541,18 @@ const en = {
     },
     advanced: {
       title: "Advanced",
-      description: "Open the raw settings file.",
+      description: "Open the raw settings file or restore a validated backup.",
       openSettings: "Open settings.json",
+      restoreBackup: "Restore from backup",
+      restoreConfirm:
+        "Restore settings.json from the validated backup? The current file will be preserved separately.",
+      restoreSuccess: "Settings restored from backup.",
+      restoreFailed: "Failed to restore settings: {error}",
+      recoveryTitle: "Settings need recovery",
+      recoveryDescription:
+        "The settings file could not be loaded. Other settings controls are disabled until it is repaired.",
+      noValidBackup:
+        "No valid backup is available. Open settings.json to repair it manually.",
     },
     messages: {
       invalidTargetGroupName:

@@ -1746,13 +1746,42 @@ type RootTranslation = {
        */
       title: string;
       /**
-       * O​p​e​n​ ​t​h​e​ ​r​a​w​ ​s​e​t​t​i​n​g​s​ ​f​i​l​e​.
+       * O​p​e​n​ ​t​h​e​ ​r​a​w​ ​s​e​t​t​i​n​g​s​ ​f​i​l​e​ ​o​r​ ​r​e​s​t​o​r​e​ ​a​ ​v​a​l​i​d​a​t​e​d​ ​b​a​c​k​u​p​.
        */
       description: string;
       /**
        * O​p​e​n​ ​s​e​t​t​i​n​g​s​.​j​s​o​n
        */
       openSettings: string;
+      /**
+       * R​e​s​t​o​r​e​ ​f​r​o​m​ ​b​a​c​k​u​p
+       */
+      restoreBackup: string;
+      /**
+       * R​e​s​t​o​r​e​ ​s​e​t​t​i​n​g​s​.​j​s​o​n​ ​f​r​o​m​ ​t​h​e​ ​v​a​l​i​d​a​t​e​d​ ​b​a​c​k​u​p​?​ ​T​h​e​ ​c​u​r​r​e​n​t​ ​f​i​l​e​ ​w​i​l​l​ ​b​e​ ​p​r​e​s​e​r​v​e​d​ ​s​e​p​a​r​a​t​e​l​y​.
+       */
+      restoreConfirm: string;
+      /**
+       * S​e​t​t​i​n​g​s​ ​r​e​s​t​o​r​e​d​ ​f​r​o​m​ ​b​a​c​k​u​p​.
+       */
+      restoreSuccess: string;
+      /**
+       * F​a​i​l​e​d​ ​t​o​ ​r​e​s​t​o​r​e​ ​s​e​t​t​i​n​g​s​:​ ​{​e​r​r​o​r​}
+       * @param {unknown} error
+       */
+      restoreFailed: RequiredParams<"error">;
+      /**
+       * S​e​t​t​i​n​g​s​ ​n​e​e​d​ ​r​e​c​o​v​e​r​y
+       */
+      recoveryTitle: string;
+      /**
+       * T​h​e​ ​s​e​t​t​i​n​g​s​ ​f​i​l​e​ ​c​o​u​l​d​ ​n​o​t​ ​b​e​ ​l​o​a​d​e​d​.​ ​O​t​h​e​r​ ​s​e​t​t​i​n​g​s​ ​c​o​n​t​r​o​l​s​ ​a​r​e​ ​d​i​s​a​b​l​e​d​ ​u​n​t​i​l​ ​i​t​ ​i​s​ ​r​e​p​a​i​r​e​d​.
+       */
+      recoveryDescription: string;
+      /**
+       * N​o​ ​v​a​l​i​d​ ​b​a​c​k​u​p​ ​i​s​ ​a​v​a​i​l​a​b​l​e​.​ ​O​p​e​n​ ​s​e​t​t​i​n​g​s​.​j​s​o​n​ ​t​o​ ​r​e​p​a​i​r​ ​i​t​ ​m​a​n​u​a​l​l​y​.
+       */
+      noValidBackup: string;
     };
     messages: {
       /**
@@ -4068,13 +4097,41 @@ export type TranslationFunctions = {
        */
       title: () => LocalizedString;
       /**
-       * Open the raw settings file.
+       * Open the raw settings file or restore a validated backup.
        */
       description: () => LocalizedString;
       /**
        * Open settings.json
        */
       openSettings: () => LocalizedString;
+      /**
+       * Restore from backup
+       */
+      restoreBackup: () => LocalizedString;
+      /**
+       * Restore settings.json from the validated backup? The current file will be preserved separately.
+       */
+      restoreConfirm: () => LocalizedString;
+      /**
+       * Settings restored from backup.
+       */
+      restoreSuccess: () => LocalizedString;
+      /**
+       * Failed to restore settings: {error}
+       */
+      restoreFailed: (arg: { error: unknown }) => LocalizedString;
+      /**
+       * Settings need recovery
+       */
+      recoveryTitle: () => LocalizedString;
+      /**
+       * The settings file could not be loaded. Other settings controls are disabled until it is repaired.
+       */
+      recoveryDescription: () => LocalizedString;
+      /**
+       * No valid backup is available. Open settings.json to repair it manually.
+       */
+      noValidBackup: () => LocalizedString;
     };
     messages: {
       /**

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { toast } from "@/utils/toast";
 
-import { settingsApi } from "@/api/settings";
+import { settingsApi, type SettingsRecoveryStatus } from "@/api/settings";
 import {
   AppSettings,
   CommandPolicyMode,
@@ -80,6 +80,9 @@ export const SettingsPage = ({
 }: Props) => {
   const { LL } = useI18nContext();
   const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [recoveryStatus, setRecoveryStatus] =
+    useState<SettingsRecoveryStatus | null>(null);
+  const [restoring, setRestoring] = useState(false);
 
   const [whitelistInput, setWhitelistInput] = useState("");
   const [blacklistInput, setBlacklistInput] = useState("");
@@ -88,13 +91,53 @@ export const SettingsPage = ({
   const saveUiTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
-    settingsApi
-      .get()
-      .then(setSettings)
-      .catch((error) => {
+    let disposed = false;
+    const refresh = async () => {
+      try {
+        const loaded = await settingsApi.get();
+        if (!disposed) setSettings(loaded);
+      } catch (error) {
         console.error("Failed to load settings:", error);
-      });
+        if (!disposed) setSettings(null);
+      }
+      try {
+        const status = await settingsApi.getRecoveryStatus();
+        if (!disposed) setRecoveryStatus(status);
+      } catch (error) {
+        if (!disposed) {
+          setRecoveryStatus({
+            needsRecovery: true,
+            backupAvailable: false,
+            error: String(error),
+          });
+        }
+      }
+    };
+    void refresh();
+    const unlisten = settingsApi.onChanged(() => void refresh());
+    return () => {
+      disposed = true;
+      void unlisten.then((stop) => stop());
+    };
   }, []);
+
+  const restoreBackup = async () => {
+    if (!recoveryStatus?.backupAvailable || restoring) return;
+    if (!window.confirm(LL.settingsPage.advanced.restoreConfirm())) return;
+    setRestoring(true);
+    try {
+      const restored = await settingsApi.restoreBackup();
+      setSettings(restored);
+      setRecoveryStatus(await settingsApi.getRecoveryStatus());
+      toast.success(LL.settingsPage.advanced.restoreSuccess());
+    } catch (error) {
+      toast.error(
+        LL.settingsPage.advanced.restoreFailed({ error: String(error) }),
+      );
+    } finally {
+      setRestoring(false);
+    }
+  };
 
   useEffect(() => {
     return () => {
@@ -415,10 +458,7 @@ export const SettingsPage = ({
     }
   };
 
-  const changeTargetGroupActive = async (
-    groupId: string,
-    active: boolean,
-  ) => {
+  const changeTargetGroupActive = async (groupId: string, active: boolean) => {
     if (groupId === currentTargetGroupId && !active) {
       toast.error(LL.settingsPage.messages.currentTargetGroupMustBeActive());
 
@@ -555,59 +595,112 @@ export const SettingsPage = ({
   return (
     <div className="h-full w-full overflow-y-auto p-6 text-text-main">
       <div className="mx-auto max-w-3xl">
-        <AppearanceSettings
-          themeId={themeId}
-          themeOptions={themeOptions}
-          onThemeChange={onThemeChange}
-          onReloadThemes={onReloadThemes}
-          onSettingsChange={setSettings}
-        />
+        {recoveryStatus?.needsRecovery && (
+          <div
+            role="alert"
+            className="mb-6 rounded-md border border-red-500/50 bg-red-500/10 p-4"
+          >
+            <h2 className="font-semibold">
+              {LL.settingsPage.advanced.recoveryTitle()}
+            </h2>
+            <p className="mt-2 text-sm text-text-muted">
+              {LL.settingsPage.advanced.recoveryDescription()}
+            </p>
+            {recoveryStatus.error && (
+              <p className="mt-2 break-all text-xs text-red-300">
+                {recoveryStatus.error}
+              </p>
+            )}
+            {!recoveryStatus.backupAvailable && (
+              <p className="mt-2 text-sm text-red-300">
+                {LL.settingsPage.advanced.noValidBackup()}
+              </p>
+            )}
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => void restoreBackup()}
+                disabled={!recoveryStatus.backupAvailable || restoring}
+                className="rounded-md border border-red-500/60 px-3 py-2 text-sm disabled:opacity-50"
+              >
+                {LL.settingsPage.advanced.restoreBackup()}
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  void settingsApi
+                    .openFile()
+                    .catch((error) => toast.error(String(error)))
+                }
+                className="rounded-md border border-border-main px-3 py-2 text-sm"
+              >
+                {LL.settingsPage.advanced.openSettings()}
+              </button>
+            </div>
+          </div>
+        )}
+        <fieldset
+          disabled={!settings || !!recoveryStatus?.needsRecovery}
+          className="min-w-0 border-0 p-0"
+        >
+          <AppearanceSettings
+            themeId={themeId}
+            themeOptions={themeOptions}
+            onThemeChange={onThemeChange}
+            onReloadThemes={onReloadThemes}
+            onSettingsChange={setSettings}
+          />
 
-        <TargetGroupSettings
-          targetGroups={targetGroups}
-          currentTargetGroupId={currentTargetGroupId}
-          targetGroupNameInput={targetGroupNameInput}
-          onTargetGroupNameInputChange={setTargetGroupNameInput}
-          onAddTargetGroup={addTargetGroup}
-          onRenameTargetGroup={renameTargetGroup}
-          onRemoveTargetGroup={removeTargetGroup}
-          onAddTargetPath={addTargetPath}
-          onUpdateTargetPath={updateTargetPath}
-          onRemoveTargetPath={removeTargetPath}
-          onTargetGroupActiveChange={changeTargetGroupActive}
-          onMakeCurrentTargetGroup={makeCurrentTargetGroup}
-        />
+          <TargetGroupSettings
+            targetGroups={targetGroups}
+            currentTargetGroupId={currentTargetGroupId}
+            targetGroupNameInput={targetGroupNameInput}
+            onTargetGroupNameInputChange={setTargetGroupNameInput}
+            onAddTargetGroup={addTargetGroup}
+            onRenameTargetGroup={renameTargetGroup}
+            onRemoveTargetGroup={removeTargetGroup}
+            onAddTargetPath={addTargetPath}
+            onUpdateTargetPath={updateTargetPath}
+            onRemoveTargetPath={removeTargetPath}
+            onTargetGroupActiveChange={changeTargetGroupActive}
+            onMakeCurrentTargetGroup={makeCurrentTargetGroup}
+          />
 
-        <UiSettings
-          compactListItems={compactListItems}
-          closeToTray={ui.closeToTray ?? true}
-          language={language}
-          onCompactListItemsChange={changeCompactListItems}
-          onCloseToTrayChange={changeCloseToTray}
-          onLanguageChange={changeLanguage}
-        />
+          <UiSettings
+            compactListItems={compactListItems}
+            closeToTray={ui.closeToTray ?? true}
+            language={language}
+            onCompactListItemsChange={changeCompactListItems}
+            onCloseToTrayChange={changeCloseToTray}
+            onLanguageChange={changeLanguage}
+          />
 
-        <SecuritySettings
-          commands={commands}
-          whitelistInput={whitelistInput}
-          blacklistInput={blacklistInput}
-          onWhitelistInputChange={setWhitelistInput}
-          onBlacklistInputChange={setBlacklistInput}
-          onPolicyModeChange={changePolicyMode}
-          onAddCommand={addCommand}
-          onRemoveCommand={removeCommand}
-        />
+          <SecuritySettings
+            commands={commands}
+            whitelistInput={whitelistInput}
+            blacklistInput={blacklistInput}
+            onWhitelistInputChange={setWhitelistInput}
+            onBlacklistInputChange={setBlacklistInput}
+            onPolicyModeChange={changePolicyMode}
+            onAddCommand={addCommand}
+            onRemoveCommand={removeCommand}
+          />
 
-        <ExperimentalSettings
-          captureSelectedTextOnActivation={
-            experimental.captureSelectedTextOnActivation
-          }
-          onCaptureSelectedTextOnActivationChange={
-            changeCaptureSelectedTextOnActivation
-          }
-        />
+          <ExperimentalSettings
+            captureSelectedTextOnActivation={
+              experimental.captureSelectedTextOnActivation
+            }
+            onCaptureSelectedTextOnActivationChange={
+              changeCaptureSelectedTextOnActivation
+            }
+          />
+        </fieldset>
 
-        <AdvancedSettings />
+        <AdvancedSettings
+          backupAvailable={recoveryStatus?.backupAvailable ?? false}
+          restoring={restoring}
+          onRestore={() => void restoreBackup()}
+        />
       </div>
     </div>
   );

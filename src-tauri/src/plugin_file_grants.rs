@@ -372,4 +372,48 @@ mod tests {
         assert!(grants.open_input("other", &picked[0].token, false).is_err());
         std::fs::remove_dir_all(dir).unwrap();
     }
+
+    #[test]
+    fn file_outside_target_group_requires_an_explicit_native_grant() {
+        let dir = std::env::temp_dir().join(format!("glimpse-grants-{}", Uuid::new_v4()));
+        let target = dir.join("target-group");
+        let outside = dir.join("outside-target-group");
+        std::fs::create_dir_all(&target).unwrap();
+        std::fs::create_dir(&outside).unwrap();
+        let selected = outside.join("selected.txt");
+        std::fs::write(&selected, "selected outside target group").unwrap();
+        let grants = PluginFileGrants::default();
+
+        assert!(grants
+            .claim_drop("main", &[selected.to_string_lossy().into_owned()])
+            .is_err());
+        assert!(grants
+            .open_input("main", &selected.to_string_lossy(), false)
+            .is_err());
+        let picked = grants.grant_picked_inputs("main", &[selected]).unwrap();
+        assert!(grants.open_input("main", &picked[0].token, false).is_ok());
+        assert!(grants.open_input("other", &picked[0].token, false).is_err());
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn symlink_retargeting_after_selection_cannot_redirect_input_grant() {
+        let dir = std::env::temp_dir().join(format!("glimpse-grants-{}", Uuid::new_v4()));
+        std::fs::create_dir(&dir).unwrap();
+        let original = dir.join("original.txt");
+        let other = dir.join("other.txt");
+        let link = dir.join("chosen.txt");
+        std::fs::write(&original, "original").unwrap();
+        std::fs::write(&other, "other").unwrap();
+        std::os::unix::fs::symlink(&original, &link).unwrap();
+        let grants = PluginFileGrants::default();
+        let picked = grants.grant_picked_inputs("main", &[link.clone()]).unwrap();
+
+        std::fs::remove_file(&link).unwrap();
+        std::os::unix::fs::symlink(&other, &link).unwrap();
+        let (resolved, _) = grants.open_input("main", &picked[0].token, false).unwrap();
+        assert_eq!(resolved, original.canonicalize().unwrap());
+        std::fs::remove_dir_all(dir).unwrap();
+    }
 }

@@ -5,6 +5,12 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { AppSettings, PartialSettings } from "@/types";
 
 export const SETTINGS_CHANGED_EVENT = "settings-changed";
+
+export type SettingsRecoveryStatus = {
+  needsRecovery: boolean;
+  backupAvailable: boolean;
+  error: string | null;
+};
 /**
  * Backend API for application settings.
  *
@@ -32,6 +38,11 @@ export const settingsApi = {
    * @returns The complete application settings object.
    */
   get: () => invoke<AppSettings>("get_settings"),
+
+  getRecoveryStatus: () =>
+    invoke<SettingsRecoveryStatus>("get_settings_recovery_status"),
+
+  restoreBackup: () => invoke<AppSettings>("restore_settings_backup"),
 
   /**
    * Updates part of the application settings.
@@ -111,10 +122,7 @@ export const settingsApi = {
    *
    * @returns Updated application settings.
    */
-  switchNextTargetGroup: () =>
-    invoke<AppSettings>("switch_next_target_group"),
+  switchNextTargetGroup: () => invoke<AppSettings>("switch_next_target_group"),
 
-  onChanged: (handler: () => void) =>
-    listen(SETTINGS_CHANGED_EVENT, handler),
-
+  onChanged: (handler: () => void) => listen(SETTINGS_CHANGED_EVENT, handler),
 };
