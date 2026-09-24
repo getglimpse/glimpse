@@ -289,11 +289,42 @@ pub(crate) fn source_fingerprint_for_path(
 }
 
 fn path_is_in_target_dirs(path: &Path, target_dirs: &[PathBuf]) -> bool {
-    let path = canonical_or_original(path.to_path_buf());
+    target_root_for_path(target_dirs, path).is_some()
+}
+
+/// Finds the first configured root containing a path. For removed files, the
+/// existing ancestor is canonicalized so its path matches configured roots.
+fn target_root_for_path<'a>(
+    target_dirs: &'a [PathBuf],
+    path: &Path,
+) -> Option<(usize, &'a Path, PathBuf)> {
+    let path = resolved_path_for_root_lookup(path);
 
     target_dirs
         .iter()
-        .any(|target_dir| path.starts_with(target_dir))
+        .enumerate()
+        .find(|(_, target_dir)| path.starts_with(target_dir))
+        .map(|(index, root)| (index, root.as_path(), path))
+}
+
+fn resolved_path_for_root_lookup(path: &Path) -> PathBuf {
+    let mut ancestor = path;
+    let mut missing = Vec::new();
+
+    loop {
+        if let Ok(mut resolved) = ancestor.canonicalize() {
+            for component in missing.into_iter().rev() {
+                resolved.push(component);
+            }
+            return resolved;
+        }
+
+        let (Some(name), Some(parent)) = (ancestor.file_name(), ancestor.parent()) else {
+            return path.to_path_buf();
+        };
+        missing.push(name.to_os_string());
+        ancestor = parent;
+    }
 }
 
 /// Returns the current target group.
@@ -335,6 +366,43 @@ mod tests {
 
     fn unique_test_dir(name: &str) -> PathBuf {
         unique_test_path("glimpse_indexer_test_", &format!("_{name}"))
+    }
+
+    #[test]
+    fn target_root_lookup_uses_configured_order_and_resolved_paths() {
+        let base = unique_test_dir("roots");
+        let root = base.join("root");
+        let nested = root.join("nested");
+        let outside = base.join("outside");
+        fs::create_dir_all(&nested).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+
+        let nested_file = nested.join("note.md");
+        let outside_file = outside.join("note.md");
+        fs::write(&nested_file, "nested").unwrap();
+        fs::write(&outside_file, "outside").unwrap();
+
+        let roots = vec![root.canonicalize().unwrap(), nested.canonicalize().unwrap()];
+        let (index, matched_root, resolved_path) =
+            target_root_for_path(&roots, &root.join("..").join("root/nested/note.md")).unwrap();
+        assert_eq!(index, 0);
+        assert_eq!(matched_root, roots[0]);
+        assert_eq!(resolved_path, nested_file.canonicalize().unwrap());
+        assert_eq!(
+            source_id_for_path("work", index, matched_root, &resolved_path),
+            "work/0/nested/note.md"
+        );
+
+        let (index, _, resolved_path) =
+            target_root_for_path(&roots, &root.join("removed.md")).unwrap();
+        assert_eq!(index, 0);
+        assert_eq!(resolved_path, roots[0].join("removed.md"));
+        assert!(target_root_for_path(&roots, &root.join("..").join("outside/note.md")).is_none());
+        assert!(
+            target_root_for_path(&roots, &root.join("..").join("outside/removed.md")).is_none()
+        );
+
+        fs::remove_dir_all(base).unwrap();
     }
 
     #[tokio::test]

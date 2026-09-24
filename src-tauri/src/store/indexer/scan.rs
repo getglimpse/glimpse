@@ -2,7 +2,7 @@
 //!
 //! This module implements filesystem scanning for [`Indexer`].
 
-use super::{source_fingerprint_for_path, Indexer};
+use super::{source_fingerprint_for_path, target_root_for_path, Indexer};
 use crate::search::{SearchError, SourceReplacement};
 use crate::utils::path::{should_index_path, source_id_for_path};
 use chrono::Utc;
@@ -332,11 +332,8 @@ where
             return Ok(0);
         }
 
-        let Some((target_index, target_dir)) = self
-            .target_dirs
-            .iter()
-            .enumerate()
-            .find(|(_, target_dir)| path.starts_with(target_dir))
+        let Some((target_index, target_dir, resolved_path)) =
+            target_root_for_path(&self.target_dirs, path)
         else {
             warn!(
                 path = %path.display(),
@@ -345,15 +342,29 @@ where
             return Ok(0);
         };
 
+        if !should_index_path(&resolved_path, &self.settings.indexing) {
+            debug!(
+                path = %resolved_path.display(),
+                "resolved index path skipped by indexing settings"
+            );
+            return Ok(0);
+        }
+
         let group_name = self.settings.current_target_group_name();
 
         let fingerprint = fs::metadata(path)
             .map_err(SearchError::IoError)
             .and_then(|metadata| {
-                source_fingerprint_for_path(&group_name, target_index, target_dir, path, &metadata)
+                source_fingerprint_for_path(
+                    &group_name,
+                    target_index,
+                    target_dir,
+                    &resolved_path,
+                    &metadata,
+                )
             });
 
-        let items = match Self::parse_path(&group_name, target_index, target_dir, path) {
+        let items = match Self::parse_path(&group_name, target_index, target_dir, &resolved_path) {
             Ok(items) => {
                 debug!(
                     path = %path.display(),

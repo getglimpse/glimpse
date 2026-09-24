@@ -10,13 +10,13 @@ use crate::utils::path::{should_index_path, source_id_for_path};
 use notify_debouncer_full::{new_debouncer, notify::RecursiveMode, DebounceEventResult};
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
+    path::Path,
     time::{Duration, SystemTime},
 };
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 
-use super::{source_fingerprint_for_path, Indexer};
+use super::{source_fingerprint_for_path, target_root_for_path, Indexer};
 
 const INTERNAL_GLIMPSE_DIR: &str = ".glimpse";
 
@@ -117,7 +117,8 @@ where
                             continue;
                         }
 
-                        let Some((target_index, root)) = watched_root_for_path(&target_dirs, path)
+                        let Some((target_index, root, resolved_path)) =
+                            target_root_for_path(&target_dirs, path)
                         else {
                             warn!(path = ?path, "Failed to resolve watched root");
                             continue;
@@ -128,7 +129,7 @@ where
                             &group_name,
                             target_index,
                             root,
-                            path,
+                            &resolved_path,
                             &indexing_settings,
                             &mut modified_cache,
                         )
@@ -203,16 +204,6 @@ where
             }
         }
     }
-}
-
-fn watched_root_for_path<'a>(target_dirs: &'a [PathBuf], path: &Path) -> Option<(usize, &'a Path)> {
-    let canonical_path = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
-
-    target_dirs
-        .iter()
-        .enumerate()
-        .find(|(_, root)| canonical_path.starts_with(root))
-        .map(|(index, root)| (index, root.as_path()))
 }
 
 fn is_internal_glimpse_path(path: &Path) -> bool {

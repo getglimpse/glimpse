@@ -75,7 +75,7 @@ use crate::store::schema::{apply_pragmas, ensure_schema};
 use crate::store::settings::{load_settings, save_settings};
 use crate::utils::path::source_id_for_path;
 
-use super::{canonical_or_original, resolve_target_dirs, Indexer};
+use super::{canonical_or_original, resolve_target_dirs, target_root_for_path, Indexer};
 
 mod db_files;
 mod global_search;
@@ -341,10 +341,8 @@ impl IndexerRuntime {
         let target_dirs = resolve_target_dirs(&settings, self.fallback_target_dir.clone());
         let group_name = settings.current_target_group_name();
 
-        let Some((target_index, target_dir)) = target_dirs
-            .iter()
-            .enumerate()
-            .find(|(_, target_dir)| path.starts_with(target_dir))
+        let Some((target_index, target_dir, resolved_path)) =
+            target_root_for_path(&target_dirs, &path)
         else {
             warn!(
                 path = %path.display(),
@@ -353,7 +351,7 @@ impl IndexerRuntime {
             return Ok(());
         };
 
-        let source_id = source_id_for_path(&group_name, target_index, target_dir, &path);
+        let source_id = source_id_for_path(&group_name, target_index, target_dir, &resolved_path);
 
         debug!(
             path = %path.display(),
