@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import { previewApi } from "@/api/preview";
 
 import {
@@ -30,6 +37,12 @@ type OpenFileCreatorTabParams = {
   initialBody?: string;
 };
 
+type PreviewTabsState = {
+  pinnedTabs: PreviewTab[];
+  activeTabId: string;
+  lastActivePinnedTabId: string | null;
+};
+
 /**
  * Manages preview tabs for the currently selected item.
  *
@@ -50,11 +63,49 @@ type OpenFileCreatorTabParams = {
  * @param item Currently selected item shown in the live preview tab.
  */
 export const usePreviewTabs = (item: IndexItem | null) => {
-  const [pinnedTabs, setPinnedTabs] = useState<PreviewTab[]>([]);
-  const [activeTabId, setActiveTabId] = useState(LIVE_PREVIEW_TAB_ID);
-  const [lastActivePinnedTabId, setLastActivePinnedTabId] = useState<
-    string | null
-  >(null);
+  const [tabState, setTabState] = useState<PreviewTabsState>({
+    pinnedTabs: [],
+    activeTabId: LIVE_PREVIEW_TAB_ID,
+    lastActivePinnedTabId: null,
+  });
+  const { pinnedTabs, activeTabId, lastActivePinnedTabId } = tabState;
+  const setPinnedTabs: Dispatch<SetStateAction<PreviewTab[]>> = (update) => {
+    setTabState((current) => {
+      const nextPinnedTabs =
+        typeof update === "function" ? update(current.pinnedTabs) : update;
+
+      return nextPinnedTabs === current.pinnedTabs
+        ? current
+        : { ...current, pinnedTabs: nextPinnedTabs };
+    });
+  };
+  const setActiveTabId: Dispatch<SetStateAction<string>> = (update) => {
+    setTabState((current) => {
+      const nextActiveTabId =
+        typeof update === "function" ? update(current.activeTabId) : update;
+
+      return nextActiveTabId === current.activeTabId
+        ? current
+        : { ...current, activeTabId: nextActiveTabId };
+    });
+  };
+  const setLastActivePinnedTabId: Dispatch<
+    SetStateAction<string | null>
+  > = (update) => {
+    setTabState((current) => {
+      const nextLastActivePinnedTabId =
+        typeof update === "function"
+          ? update(current.lastActivePinnedTabId)
+          : update;
+
+      return nextLastActivePinnedTabId === current.lastActivePinnedTabId
+        ? current
+        : {
+            ...current,
+            lastActivePinnedTabId: nextLastActivePinnedTabId,
+          };
+    });
+  };
 
   /**
    * Imperative handles for rendered preview panels.
@@ -174,50 +225,47 @@ export const usePreviewTabs = (item: IndexItem | null) => {
     gjsonParseError,
   }: OpenFileEditorTabParams) => {
     const normalizedPath = normalizeFilePath(filePath);
-    let existingId: string | null = null;
+    const candidateId = `editor:${crypto.randomUUID()}`;
 
-    setPinnedTabs((prev) => {
-      const existing = prev.find(
+    setTabState((current) => {
+      const existing = current.pinnedTabs.find(
         (tab) =>
           tab.type === "fileEditor" &&
           tab.editor.filePath &&
           normalizeFilePath(tab.editor.filePath) === normalizedPath,
       );
 
-      if (existing) {
-        existingId = existing.id;
-        return prev;
-      }
+      const tabId = existing?.id ?? candidateId;
+      const nextPinnedTabs = existing
+        ? current.pinnedTabs
+        : [
+            ...current.pinnedTabs,
+            {
+              id: candidateId,
+              type: "fileEditor" as const,
+              editor: {
+                mode: "edit" as const,
+                filePath,
+                extension,
+                extensionLabel,
+                contentMode,
+                initialTitle,
+                initialBody,
+                initialGjsonDocument,
+                gjsonDocument,
+                gjsonParseError,
+                title: initialTitle.trim() || "Untitled",
+                dirty: false,
+              },
+            },
+          ];
 
-      const id = `editor:${crypto.randomUUID()}`;
-      existingId = id;
-
-      return [
-        ...prev,
-        {
-          id,
-          type: "fileEditor",
-          editor: {
-            mode: "edit",
-            filePath,
-            extension,
-            extensionLabel,
-            contentMode,
-            initialTitle,
-            initialBody,
-            initialGjsonDocument,
-            gjsonDocument,
-            gjsonParseError,
-            title: initialTitle.trim() || "Untitled",
-            dirty: false,
-          },
-        },
-      ];
+      return {
+        pinnedTabs: nextPinnedTabs,
+        activeTabId: tabId,
+        lastActivePinnedTabId: tabId,
+      };
     });
-
-    if (existingId) {
-      activatePreviewTab(existingId);
-    }
   };
 
   const openItemInspectorTab = (inspectedItem: IndexItem) => {

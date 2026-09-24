@@ -31,6 +31,12 @@
 
 `release:ready` の最後の clean-worktree 判定は未コミット差分があるため失敗します。OS 上の実際の shortcut 競合とプロセス異常終了は自動テストでは再現していません。
 
+## P3 対応状況（2026-09-24）
+
+唯一の P3 指摘を修正しました。preview tab の一覧、選択中 ID、最後に選択した pinned tab ID を同じ state で管理し、file editor tab の追加または再選択を一度の state 更新で確定するよう変更しています。state updater 内から外側の変数へ代入する処理は削除しました。
+
+新規 editor tab が直ちに選択されることと、同じファイルを区切り文字の異なる path で再度開いても tab を重複作成せず既存 tab を選択することを回帰テストで確認しています。最終検証は frontend 208 件と production build が成功しました。
+
 ## レビュー区分
 
 コード量が約 6.5 万行あるため、次の 6 セクションに分けて確認しました。
@@ -87,7 +93,9 @@ Issue: https://github.com/getglimpse/glimpse/issues/13
 - 少なくとも rename 成功直後に editor state を新 path へ更新し、以降の失敗から再試行できるようにする。
 - rename 成功・本文更新失敗の fault-injection テストを追加する。
 
-### [P3] state updater 内の代入に tab activation が依存している
+### [P3・対応済み] state updater 内の代入に tab activation が依存している
+
+Issue: https://github.com/getglimpse/glimpse/issues/18
 
 対象: `src/hooks/usePreviewTabs.ts:176-220`
 
