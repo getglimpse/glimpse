@@ -1,10 +1,8 @@
 import { useState } from "react";
 
-import { settingsApi } from "@/api/settings";
 import { themesApi } from "@/api/themes";
 import { ThemeOption } from "@/constants/themes";
 import { useI18nContext } from "@/i18n/I18nProvider";
-import { AppSettings } from "@/types";
 
 import { SettingsSection } from "./components/SettingsSection";
 import { ThemeList } from "./components/ThemeList";
@@ -15,7 +13,6 @@ type Props = {
   themeOptions: ThemeOption[];
   onThemeChange: (themeId: string) => void;
   onReloadThemes: () => Promise<void>;
-  onSettingsChange: (settings: AppSettings) => void;
 };
 
 export const AppearanceSettings = ({
@@ -23,9 +20,7 @@ export const AppearanceSettings = ({
   themeOptions,
   onThemeChange,
   onReloadThemes,
-  onSettingsChange,
 }: Props) => {
-
   const [isReloading, setIsReloading] = useState(false);
 
   const reloadThemes = async () => {
@@ -39,14 +34,8 @@ export const AppearanceSettings = ({
 
   const { LL } = useI18nContext();
 
-  const selectTheme = async (nextThemeId: string) => {
+  const selectTheme = (nextThemeId: string) => {
     onThemeChange(nextThemeId);
-
-    const nextSettings = await settingsApi.set({
-      theme: nextThemeId,
-    });
-
-    onSettingsChange(nextSettings);
   };
 
   return (

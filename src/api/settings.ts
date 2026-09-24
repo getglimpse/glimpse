@@ -11,6 +11,23 @@ export type SettingsRecoveryStatus = {
   backupAvailable: boolean;
   error: string | null;
 };
+
+// Preserve the order of rapid UI edits even when individual IPC calls take
+// different amounts of time to reach the backend.
+let settingsWriteQueue: Promise<void> = Promise.resolve();
+
+const enqueueSettingsWrite = (
+  partial: PartialSettings,
+): Promise<AppSettings> => {
+  const write = settingsWriteQueue.then(() =>
+    invoke<AppSettings>("set_settings", { partial }),
+  );
+  settingsWriteQueue = write.then(
+    () => undefined,
+    () => undefined,
+  );
+  return write;
+};
 /**
  * Backend API for application settings.
  *
@@ -58,10 +75,7 @@ export const settingsApi = {
    *
    * @returns The updated application settings.
    */
-  set: (partial: PartialSettings) =>
-    invoke<AppSettings>("set_settings", {
-      partial,
-    }),
+  set: enqueueSettingsWrite,
 
   /**
    * Opens the settings file using the operating system.

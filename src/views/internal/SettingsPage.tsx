@@ -8,6 +8,7 @@ import {
   CommandPolicyMode,
   CommandSettings,
   Language,
+  PartialSettings,
   TargetGroup,
 } from "@/types";
 import { ThemeOption } from "@/constants/themes";
@@ -88,17 +89,63 @@ export const SettingsPage = ({
   const [blacklistInput, setBlacklistInput] = useState("");
   const [targetGroupNameInput, setTargetGroupNameInput] = useState("");
 
-  const saveUiTimerRef = useRef<number | null>(null);
+  const settingsMutationRef = useRef(0);
+  const pendingSettingsWritesRef = useRef(0);
+
+  const savePartialSettings = async (partial: PartialSettings) => {
+    const mutation = ++settingsMutationRef.current;
+    pendingSettingsWritesRef.current += 1;
+    let failed = false;
+    try {
+      const saved = await settingsApi.set(partial);
+      if (mutation === settingsMutationRef.current) {
+        setSettings(saved);
+      }
+      return saved;
+    } catch (error) {
+      failed = true;
+      throw error;
+    } finally {
+      pendingSettingsWritesRef.current -= 1;
+      if (failed && mutation === settingsMutationRef.current) {
+        void settingsApi
+          .get()
+          .then((loaded) => {
+            if (
+              mutation === settingsMutationRef.current &&
+              pendingSettingsWritesRef.current === 0
+            ) {
+              setSettings(loaded);
+            }
+          })
+          .catch(console.error);
+      }
+    }
+  };
 
   useEffect(() => {
     let disposed = false;
     const refresh = async () => {
+      if (pendingSettingsWritesRef.current > 0) return;
+      const mutation = settingsMutationRef.current;
       try {
         const loaded = await settingsApi.get();
-        if (!disposed) setSettings(loaded);
+        if (
+          !disposed &&
+          mutation === settingsMutationRef.current &&
+          pendingSettingsWritesRef.current === 0
+        ) {
+          setSettings(loaded);
+        }
       } catch (error) {
         console.error("Failed to load settings:", error);
-        if (!disposed) setSettings(null);
+        if (
+          !disposed &&
+          mutation === settingsMutationRef.current &&
+          pendingSettingsWritesRef.current === 0
+        ) {
+          setSettings(null);
+        }
       }
       try {
         const status = await settingsApi.getRecoveryStatus();
@@ -139,14 +186,6 @@ export const SettingsPage = ({
     }
   };
 
-  useEffect(() => {
-    return () => {
-      if (saveUiTimerRef.current !== null) {
-        window.clearTimeout(saveUiTimerRef.current);
-      }
-    };
-  }, []);
-
   const commands = settings?.commands ?? DEFAULT_COMMANDS;
   const experimental = settings?.experimental ?? DEFAULT_EXPERIMENTAL;
   const ui = settings?.ui ?? DEFAULT_UI;
@@ -183,11 +222,12 @@ export const SettingsPage = ({
   };
 
   const updateCommands = async (nextCommands: CommandSettings) => {
-    const nextSettings = await settingsApi.set({
+    setSettings((current) =>
+      current ? { ...current, commands: nextCommands } : current,
+    );
+    await savePartialSettings({
       commands: nextCommands,
     });
-
-    setSettings(nextSettings);
   };
 
   const updateTargetGroups = async (
@@ -203,12 +243,19 @@ export const SettingsPage = ({
         : group,
     );
 
-    const nextSettings = await settingsApi.set({
+    setSettings((current) =>
+      current
+        ? {
+            ...current,
+            targetGroups: normalizedGroups,
+            currentTargetGroupId: nextCurrentId,
+          }
+        : current,
+    );
+    await savePartialSettings({
       targetGroups: normalizedGroups,
       currentTargetGroupId: nextCurrentId,
     });
-
-    setSettings(nextSettings);
   };
 
   const changePolicyMode = async (policyMode: CommandPolicyMode) => {
@@ -504,40 +551,10 @@ export const SettingsPage = ({
 
   const changeCompactListItems = (checked: boolean) => {
     onCompactListItemsChange(checked);
-
-    if (saveUiTimerRef.current !== null) {
-      window.clearTimeout(saveUiTimerRef.current);
-    }
-
-    saveUiTimerRef.current = window.setTimeout(async () => {
-      try {
-        const nextSettings = await settingsApi.set({
-          ui: {
-            compactListItems: checked,
-          },
-        });
-
-        setSettings(nextSettings);
-      } catch (error) {
-        console.error("Failed to save UI settings:", error);
-      }
-    }, 500);
   };
 
-  const changeLanguage = async (nextLanguage: Language) => {
+  const changeLanguage = (nextLanguage: Language) => {
     onLanguageChange(nextLanguage);
-
-    try {
-      const nextSettings = await settingsApi.set({
-        ui: {
-          language: nextLanguage,
-        },
-      });
-
-      setSettings(nextSettings);
-    } catch (error) {
-      console.error("Failed to save language setting:", error);
-    }
   };
 
   const changeCloseToTray = async (checked: boolean) => {
@@ -554,13 +571,11 @@ export const SettingsPage = ({
     );
 
     try {
-      const nextSettings = await settingsApi.set({
+      await savePartialSettings({
         ui: {
           closeToTray: checked,
         },
       });
-
-      setSettings(nextSettings);
     } catch (error) {
       console.error("Failed to save close-to-tray setting:", error);
     }
@@ -580,13 +595,11 @@ export const SettingsPage = ({
     );
 
     try {
-      const nextSettings = await settingsApi.set({
+      await savePartialSettings({
         experimental: {
           captureSelectedTextOnActivation: checked,
         },
       });
-
-      setSettings(nextSettings);
     } catch (error) {
       console.error("Failed to save experimental settings:", error);
     }
@@ -648,7 +661,6 @@ export const SettingsPage = ({
             themeOptions={themeOptions}
             onThemeChange={onThemeChange}
             onReloadThemes={onReloadThemes}
-            onSettingsChange={setSettings}
           />
 
           <TargetGroupSettings

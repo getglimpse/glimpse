@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -16,8 +17,9 @@ const settingsMocks = vi.hoisted(() => ({
   get: vi.fn(),
   getRecoveryStatus: vi.fn(),
   restoreBackup: vi.fn(),
+  set: vi.fn(),
   openFile: vi.fn(async () => undefined),
-  onChanged: vi.fn(async () => () => undefined),
+  onChanged: vi.fn(async (_handler: () => void) => () => undefined),
 }));
 const toastMocks = vi.hoisted(() => ({
   success: vi.fn(),
@@ -32,7 +34,19 @@ vi.mock("./settings/AppearanceSettings", () => ({
 vi.mock("./settings/TargetGroupSettings", () => ({
   TargetGroupSettings: () => null,
 }));
-vi.mock("./settings/UiSettings", () => ({ UiSettings: () => null }));
+vi.mock("./settings/UiSettings", () => ({
+  UiSettings: ({
+    closeToTray,
+    onCloseToTrayChange,
+  }: {
+    closeToTray: boolean;
+    onCloseToTrayChange: (value: boolean) => void;
+  }) => (
+    <button type="button" onClick={() => onCloseToTrayChange(!closeToTray)}>
+      {closeToTray ? "Tray on" : "Tray off"}
+    </button>
+  ),
+}));
 vi.mock("./settings/SecuritySettings", () => ({
   SecuritySettings: () => null,
 }));
@@ -62,10 +76,69 @@ afterEach(() => {
   settingsMocks.get.mockReset();
   settingsMocks.getRecoveryStatus.mockReset();
   settingsMocks.restoreBackup.mockReset();
+  settingsMocks.set.mockReset();
   settingsMocks.openFile.mockClear();
   settingsMocks.onChanged.mockClear();
   toastMocks.success.mockClear();
   toastMocks.error.mockClear();
+});
+
+it("does not revert a rapid toggle when an older save or reload finishes", async () => {
+  const settings = {
+    theme: "nord",
+    commands: {
+      policyMode: "blacklist",
+      whitelist: [],
+      blacklist: [],
+    },
+    targetGroups: [],
+    currentTargetGroupId: null,
+    ui: { compactListItems: false, closeToTray: true, language: "en" },
+  };
+  settingsMocks.get.mockResolvedValue(settings);
+  settingsMocks.getRecoveryStatus.mockResolvedValue({
+    needsRecovery: false,
+    backupAvailable: false,
+    error: null,
+  });
+  let resolveFirst!: (value: unknown) => void;
+  let resolveSecond!: (value: unknown) => void;
+  settingsMocks.set
+    .mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFirst = resolve;
+        }),
+    )
+    .mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveSecond = resolve;
+        }),
+    );
+  renderPage();
+
+  const trayButton = await screen.findByRole("button", { name: "Tray on" });
+  await waitFor(() => expect(trayButton.matches(":disabled")).toBe(false));
+  fireEvent.click(trayButton);
+  expect(screen.getByRole("button", { name: "Tray off" })).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Tray off" }));
+  expect(screen.getByRole("button", { name: "Tray on" })).toBeTruthy();
+  await act(async () => {
+    settingsMocks.onChanged.mock.calls[0][0]();
+    await Promise.resolve();
+  });
+  expect(screen.getByRole("button", { name: "Tray on" })).toBeTruthy();
+
+  await act(async () =>
+    resolveFirst({
+      ...settings,
+      ui: { ...settings.ui, closeToTray: false },
+    }),
+  );
+  expect(screen.getByRole("button", { name: "Tray on" })).toBeTruthy();
+  await act(async () => resolveSecond(settings));
+  expect(screen.getByRole("button", { name: "Tray on" })).toBeTruthy();
 });
 
 it("shows persistent recovery controls and restores a validated backup", async () => {

@@ -50,6 +50,7 @@ This page records the release history of Glimpse.
 
 * Global shortcut changes are now validated before registration, report registration errors, and restore the previous shortcuts when registration fails.
 * Invalid settings files are no longer silently replaced with defaults, preserving the file for repair or backup recovery.
+* Fixed rapid settings changes lagging or reverting: switches update immediately, saves run in order, and stale responses or file-change events no longer overwrite the latest choice.
 
 #### Indexing
 
