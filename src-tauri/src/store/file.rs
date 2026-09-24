@@ -800,7 +800,14 @@ fn ensure_new_file_path_is_in_configured_target_group(
         ));
     };
 
+    let relative_path = path
+        .strip_prefix(&ancestor)
+        .map_err(|error| format!("failed to resolve target file path: {error}"))?;
     let ancestor = canonicalize_existing_dir(ancestor)?;
+    // The requested file may not exist yet. Resolve its existing ancestor first
+    // so aliases such as /var -> /private/var and Windows short names cannot
+    // make an authorized path appear to be outside a canonicalized root.
+    let resolved_path = ancestor.join(relative_path);
 
     for group in &settings.target_groups {
         for root in &group.paths {
@@ -808,7 +815,7 @@ fn ensure_new_file_path_is_in_configured_target_group(
                 continue;
             };
 
-            if path_starts_with(&ancestor, &root) && path_starts_with(path, &root) {
+            if path_starts_with(&ancestor, &root) && path_starts_with(&resolved_path, &root) {
                 return Ok(());
             }
         }
@@ -1373,6 +1380,44 @@ mod tests {
         fs::remove_dir_all(settings_dir).ok();
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn create_text_file_at_path_resolves_directory_aliases_without_allowing_escape() {
+        use std::os::unix::fs::symlink;
+
+        let test_dir = unique_test_dir("aliases");
+        let target_dir = test_dir.join("target");
+        let outside_dir = test_dir.join("outside");
+        let target_alias = test_dir.join("target-alias");
+        let outside_alias = target_dir.join("outside-alias");
+        let settings_path = test_dir.join("settings.json");
+        fs::create_dir_all(&target_dir).unwrap();
+        fs::create_dir_all(&outside_dir).unwrap();
+        symlink(&target_dir, &target_alias).unwrap();
+        symlink(&outside_dir, &outside_alias).unwrap();
+        write_settings(&settings_path, &target_dir);
+
+        let requested_path = target_alias.join("docs").join("allowed.md");
+        let created = create_text_file_at_path(
+            &settings_path,
+            requested_path.to_string_lossy().into_owned(),
+            "allowed".into(),
+        )
+        .unwrap();
+        assert_same_path(created, target_dir.join("docs").join("allowed.md"));
+
+        let escaped_path = outside_alias.join("blocked.md");
+        assert!(create_text_file_at_path(
+            &settings_path,
+            escaped_path.to_string_lossy().into_owned(),
+            "blocked".into(),
+        )
+        .is_err());
+        assert!(!outside_dir.join("blocked.md").exists());
+
+        fs::remove_dir_all(test_dir).unwrap();
+    }
+
     #[test]
     fn create_text_file_at_path_rejects_parent_traversal() {
         let parent_dir = unique_test_dir("parent");
@@ -1894,7 +1939,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(Path::new(&saved_path), target_dir.join("New.md"));
+        assert_same_path(&saved_path, target_dir.join("New.md"));
         assert!(!old_path.exists());
         assert_eq!(fs::read_to_string(saved_path).unwrap(), "new body");
         fs::remove_dir_all(target_dir).ok();
@@ -1947,7 +1992,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(Path::new(&saved_path), file_path);
+        assert_same_path(&saved_path, &file_path);
         assert_eq!(fs::read_to_string(saved_path).unwrap(), "new body");
         fs::remove_dir_all(target_dir).ok();
         fs::remove_dir_all(settings_dir).ok();

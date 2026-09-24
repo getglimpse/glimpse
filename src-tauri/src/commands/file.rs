@@ -544,14 +544,20 @@ mod tests {
                 Err("injected old index deletion failure".into())
             },
             |path| async move {
-                assert_eq!(path, new_path);
+                assert_eq!(
+                    path.canonicalize().unwrap(),
+                    new_path.canonicalize().unwrap()
+                );
                 Err("injected index refresh failure".into())
             },
         )
         .await
         .unwrap();
 
-        assert_eq!(Path::new(&result), target.join("New.md"));
+        assert_eq!(
+            Path::new(&result).canonicalize().unwrap(),
+            target.join("New.md").canonicalize().unwrap()
+        );
         assert!(!target.join("Old.md").exists());
         assert_eq!(fs::read_to_string(&result).unwrap(), "new body");
         fs::remove_dir_all(root).unwrap();
