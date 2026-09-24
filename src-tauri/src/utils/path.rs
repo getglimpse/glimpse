@@ -260,16 +260,11 @@ mod tests {
 
     use crate::models::settings::IndexingSettings;
 
+    use crate::test_utils::fixtures::unique_test_path as fresh_test_path;
     use std::fs;
-    use std::time::{SystemTime, UNIX_EPOCH};
 
     fn unique_test_path(name: &str) -> PathBuf {
-        let unique = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-
-        std::env::temp_dir().join(format!("glimpse_path_test_{unique}_{name}"))
+        fresh_test_path("glimpse_path_test_", &format!("_{name}"))
     }
 
     fn test_settings() -> IndexingSettings {

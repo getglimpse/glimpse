@@ -1,20 +1,15 @@
 use super::*;
 
+use crate::test_utils::fixtures::unique_test_path;
 use std::fs::File;
 use std::io::Write;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::models::settings::{
     AppSettings, PluginInstallProvenance, PluginInstallSource, PluginSettings, PluginTrustRecord,
 };
 
 fn unique_test_dir(name: &str) -> PathBuf {
-    let unique = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_nanos();
-
-    std::env::temp_dir().join(format!("glimpse_plugin_store_test_{unique}_{name}"))
+    unique_test_path("glimpse_plugin_store_test_", &format!("_{name}"))
 }
 
 fn write_plugin_source(root: &Path, plugin_id: &str) {

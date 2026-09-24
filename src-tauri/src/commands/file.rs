@@ -509,8 +509,7 @@ mod tests {
 
     #[tokio::test]
     async fn index_failure_after_save_still_returns_new_path_and_keeps_saved_body() {
-        let root =
-            std::env::temp_dir().join(format!("glimpse-save-index-{}", uuid::Uuid::new_v4()));
+        let root = crate::test_utils::fixtures::unique_test_path("glimpse-save-index-", "");
         let target = root.join("target");
         fs::create_dir_all(&target).unwrap();
         let settings_path = root.join("settings.json");

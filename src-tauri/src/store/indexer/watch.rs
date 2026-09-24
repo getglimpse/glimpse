@@ -226,18 +226,12 @@ mod tests {
     use crate::models::settings::AppSettings;
     use crate::search::sqlite::SqliteEngine;
     use crate::test_utils::fixtures::create_test_db;
+    use crate::test_utils::fixtures::unique_test_path;
     use std::sync::{Arc, Mutex};
-    use std::time::UNIX_EPOCH;
 
     #[tokio::test]
     async fn failed_second_item_insert_rolls_back_and_same_mtime_can_retry() {
-        let dir = std::env::temp_dir().join(format!(
-            "glimpse_watch_atomic_replace_{}",
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
+        let dir = unique_test_path("glimpse_watch_atomic_replace_", "");
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("links.gjson");
         std::fs::write(

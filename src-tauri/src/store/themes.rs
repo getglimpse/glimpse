@@ -198,15 +198,10 @@ fn contains_theme_selector(css: &str, theme_id: &str) -> bool {
 mod tests {
     use super::*;
 
-    use std::time::{SystemTime, UNIX_EPOCH};
+    use crate::test_utils::fixtures::unique_test_path;
 
     fn unique_test_dir(name: &str) -> PathBuf {
-        let unique = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-
-        std::env::temp_dir().join(format!("glimpse_css_themes_test_{unique}_{name}"))
+        unique_test_path("glimpse_css_themes_test_", &format!("_{name}"))
     }
 
     fn sample_theme_css(id: &str) -> String {

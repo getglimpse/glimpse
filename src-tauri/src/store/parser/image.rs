@@ -120,17 +120,11 @@ mod tests {
     use super::*;
     use crate::models::Preview;
 
-    use std::env;
+    use crate::test_utils::fixtures::unique_test_path;
     use std::path::PathBuf;
-    use std::time::{SystemTime, UNIX_EPOCH};
 
     fn temp_dir(name: &str) -> PathBuf {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-
-        let dir = env::temp_dir().join(format!("glimpse-image-parser-test-{name}-{nanos}"));
+        let dir = unique_test_path(&format!("glimpse-image-parser-test-{name}-"), "");
         fs::create_dir_all(&dir).unwrap();
         dir
     }

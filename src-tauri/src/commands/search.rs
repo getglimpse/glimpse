@@ -408,8 +408,8 @@ fn new_path_is_in_group(path: &Path, group: &TargetGroup) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::fixtures::unique_test_path;
     use std::fs;
-    use std::time::{SystemTime, UNIX_EPOCH};
 
     struct TempDir {
         path: PathBuf,
@@ -422,11 +422,7 @@ mod tests {
     }
 
     fn temp_dir(name: &str) -> TempDir {
-        let unique = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!("glimpse_search_test_{name}_{unique}"));
+        let path = unique_test_path(&format!("glimpse_search_test_{name}_"), "");
 
         fs::create_dir_all(&path).unwrap();
 

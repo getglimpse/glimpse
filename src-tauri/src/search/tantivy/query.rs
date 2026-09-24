@@ -328,8 +328,7 @@ mod tests {
     use crate::search::tantivy::writer::{commit_index_mutation, upsert_items};
 
     fn temp_index_state() -> TantivyState {
-        let dir =
-            std::env::temp_dir().join(format!("glimpse-tantivy-query-{}", uuid::Uuid::new_v4()));
+        let dir = crate::test_utils::fixtures::unique_test_path("glimpse-tantivy-query-", "");
 
         open_or_create_index(&dir).expect("index should open")
     }

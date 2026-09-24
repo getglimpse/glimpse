@@ -1,4 +1,4 @@
-//! Test fixtures for backend database and search mapping tests.
+//! Shared backend test fixtures.
 //!
 //! This module provides shared helpers for tests that need:
 //!
@@ -6,6 +6,7 @@
 //! - production-compatible schema initialization
 //! - insertion of [`IndexItem`] values
 //! - mapping raw SQLite rows into [`SearchResult`]
+//! - unique temporary paths for filesystem tests
 //!
 //! The goal is to keep test setup close to production behavior.
 //! Schema creation is delegated to `store::schema`, so tests do not maintain
@@ -23,6 +24,13 @@ use crate::store::schema::{apply_pragmas, recreate_schema};
 
 use chrono::Utc;
 use rusqlite::{params, Connection};
+use std::path::PathBuf;
+
+/// Returns a unique temporary path. Callers create and clean up the file or directory.
+pub fn unique_test_path(prefix: &str, suffix: &str) -> PathBuf {
+    let unique = uuid::Uuid::new_v4();
+    std::env::temp_dir().join(format!("{prefix}{unique}{suffix}"))
+}
 
 /// Creates a fresh in-memory SQLite database using the current production schema.
 ///

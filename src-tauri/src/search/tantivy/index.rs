@@ -120,10 +120,7 @@ mod tests {
     use super::*;
 
     fn temp_index_dir(name: &str) -> std::path::PathBuf {
-        std::env::temp_dir().join(format!(
-            "glimpse-tantivy-index-{name}-{}",
-            uuid::Uuid::new_v4()
-        ))
+        crate::test_utils::fixtures::unique_test_path(&format!("glimpse-tantivy-index-{name}-"), "")
     }
 
     #[test]

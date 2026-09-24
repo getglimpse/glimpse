@@ -227,16 +227,11 @@ pub fn validate_command_path(path: &Path) -> Result<(), String> {
 mod tests {
     use super::*;
 
+    use crate::test_utils::fixtures::unique_test_path as fresh_test_path;
     use std::fs;
-    use std::time::{SystemTime, UNIX_EPOCH};
 
     fn unique_test_path(filename: &str) -> std::path::PathBuf {
-        let unique = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-
-        std::env::temp_dir().join(format!("glimpse_command_test_{unique}_{filename}"))
+        fresh_test_path("glimpse_command_test_", &format!("_{filename}"))
     }
 
     #[test]

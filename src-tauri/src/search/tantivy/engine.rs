@@ -602,10 +602,10 @@ mod tests {
     use crate::test_utils::fixtures::create_test_db;
 
     fn temp_index_dir(name: &str) -> PathBuf {
-        std::env::temp_dir().join(format!(
-            "glimpse-tantivy-engine-{name}-{}",
-            uuid::Uuid::new_v4()
-        ))
+        crate::test_utils::fixtures::unique_test_path(
+            &format!("glimpse-tantivy-engine-{name}-"),
+            "",
+        )
     }
 
     fn test_engine(name: &str) -> TantivyEngine {

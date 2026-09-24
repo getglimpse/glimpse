@@ -80,8 +80,7 @@ mod tests {
     use crate::search::tantivy::index::open_or_create_index;
 
     fn temp_index_state() -> TantivyState {
-        let dir =
-            std::env::temp_dir().join(format!("glimpse-tantivy-writer-{}", uuid::Uuid::new_v4()));
+        let dir = crate::test_utils::fixtures::unique_test_path("glimpse-tantivy-writer-", "");
 
         open_or_create_index(&dir).expect("index should open")
     }

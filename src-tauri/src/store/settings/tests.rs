@@ -1,15 +1,10 @@
 use super::*;
 
 use crate::models::settings::{AppSettings, KeybindingValue, TargetGroup};
-use std::time::{SystemTime, UNIX_EPOCH};
+use crate::test_utils::fixtures::unique_test_path;
 
 fn unique_test_dir(name: &str) -> std::path::PathBuf {
-    let unique = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_nanos();
-
-    std::env::temp_dir().join(format!("glimpse_settings_test_{unique}_{name}"))
+    unique_test_path("glimpse_settings_test_", &format!("_{name}"))
 }
 
 #[path = "tests_normalization.rs"]

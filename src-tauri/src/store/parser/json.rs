@@ -228,23 +228,15 @@ pub fn parse_json(path: &Path, source_id: &str) -> Result<Vec<IndexItem>, Search
 mod tests {
     use super::*;
 
+    use crate::test_utils::fixtures::unique_test_path;
     use std::fs;
-    use std::time::{SystemTime, UNIX_EPOCH};
 
     // -----------------------------
     // helper
     // -----------------------------
 
     fn create_temp_json(content: &str) -> std::path::PathBuf {
-        let filename = format!(
-            "glimpse_test_{}.json",
-            SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        );
-
-        let path = std::env::temp_dir().join(filename);
+        let path = unique_test_path("glimpse_test_", ".json");
 
         fs::write(&path, content).unwrap();
 

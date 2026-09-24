@@ -622,8 +622,7 @@ mod tests {
 
     #[tokio::test]
     async fn backup_restore_shortcut_failure_keeps_primary_settings() {
-        let dir =
-            std::env::temp_dir().join(format!("glimpse-restore-test-{}", uuid::Uuid::new_v4()));
+        let dir = crate::test_utils::fixtures::unique_test_path("glimpse-restore-test-", "");
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("settings.json");
         let (previous, backup_settings) = settings_transition();

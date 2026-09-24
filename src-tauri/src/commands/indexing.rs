@@ -88,21 +88,16 @@ pub fn get_indexing_stats_for_test(
 mod tests {
     use super::*;
 
+    use crate::test_utils::fixtures::unique_test_path;
     use std::fs;
     use std::sync::{Arc, Mutex};
-    use std::time::{SystemTime, UNIX_EPOCH};
 
     use chrono::Utc;
 
     use crate::models::indexing::WatchStatus;
 
     fn create_temp_settings_path() -> std::path::PathBuf {
-        let unique = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-
-        std::env::temp_dir().join(format!("glimpse_settings_test_{unique}.json"))
+        unique_test_path("glimpse_settings_test_", ".json")
     }
 
     #[test]

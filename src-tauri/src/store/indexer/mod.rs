@@ -321,9 +321,9 @@ fn current_target_group(settings: &AppSettings) -> Option<&TargetGroup> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::fixtures::unique_test_path;
     use std::fs;
     use std::sync::{Arc, Mutex};
-    use std::time::{SystemTime, UNIX_EPOCH};
 
     use chrono::Utc;
 
@@ -341,12 +341,7 @@ mod tests {
     }
 
     fn unique_test_dir(name: &str) -> PathBuf {
-        let unique = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-
-        std::env::temp_dir().join(format!("glimpse_indexer_test_{unique}_{name}"))
+        unique_test_path("glimpse_indexer_test_", &format!("_{name}"))
     }
 
     #[tokio::test]
@@ -354,7 +349,7 @@ mod tests {
         let conn = create_test_db();
         let engine = Arc::new(SqliteEngine::new(Arc::new(Mutex::new(conn))));
 
-        let missing_path = std::env::temp_dir().join("glimpse-missing-test.md");
+        let missing_path = unique_test_path("glimpse-missing-test-", ".md");
         let source_id = "Default/0/glimpse-missing-test.md".to_string();
 
         let item = IndexItem::new(

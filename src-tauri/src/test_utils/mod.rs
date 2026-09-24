@@ -10,6 +10,7 @@
 //!   - Production schema setup
 //!   - Test `IndexItem` insertion helpers
 //!   - Search result mapping fixtures
+//!   - Unique temporary paths for filesystem tests
 //!
 //! Test utilities should mimic production behavior whenever possible.
 //! Avoid maintaining separate schemas or duplicated business logic inside

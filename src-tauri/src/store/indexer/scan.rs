@@ -442,9 +442,9 @@ where
 mod tests {
     use super::*;
 
+    use crate::test_utils::fixtures::unique_test_path;
     use std::path::{Path, PathBuf};
     use std::sync::{Arc, Mutex};
-    use std::time::{SystemTime, UNIX_EPOCH};
 
     use async_trait::async_trait;
 
@@ -552,12 +552,7 @@ mod tests {
     }
 
     fn unique_test_dir(name: &str) -> PathBuf {
-        let unique = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-
-        std::env::temp_dir().join(format!("glimpse_scan_test_{unique}_{name}"))
+        unique_test_path("glimpse_scan_test_", &format!("_{name}"))
     }
 
     fn target_group(id: &str, path: &Path) -> TargetGroup {

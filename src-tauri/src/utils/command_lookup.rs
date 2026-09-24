@@ -221,18 +221,13 @@ fn candidates_for_command(dir: &Path, command: &str) -> Vec<PathBuf> {
 mod tests {
     use super::*;
 
+    use crate::test_utils::fixtures::unique_test_path;
     use std::fs;
     #[cfg(unix)]
     use std::os::unix::fs::PermissionsExt;
-    use std::time::{SystemTime, UNIX_EPOCH};
 
     fn unique_test_dir() -> PathBuf {
-        let unique = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-
-        std::env::temp_dir().join(format!("glimpse_command_lookup_test_{unique}"))
+        unique_test_path("glimpse_command_lookup_test_", "")
     }
 
     #[test]

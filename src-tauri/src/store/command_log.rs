@@ -174,23 +174,16 @@ pub fn read_command_execution_logs(
 mod tests {
     use super::*;
 
+    use crate::test_utils::fixtures::unique_test_path;
     use chrono::Utc;
     use std::fs;
-    use std::time::{SystemTime, UNIX_EPOCH};
 
     use crate::models::command_log::{
         CommandExecutionLog, CommandExecutionStage, CommandExecutionStatus,
     };
 
     fn unique_test_settings_path() -> std::path::PathBuf {
-        let unique = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-
-        std::env::temp_dir()
-            .join(format!("glimpse_command_log_test_{unique}"))
-            .join("settings.json")
+        unique_test_path("glimpse_command_log_test_", "").join("settings.json")
     }
 
     fn log_entry() -> CommandExecutionLog {

@@ -360,10 +360,11 @@ fn insert_grant(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::fixtures::unique_test_path;
 
     #[test]
     fn only_recent_native_drops_can_authorize_inputs() {
-        let dir = std::env::temp_dir().join(format!("glimpse-grants-{}", Uuid::new_v4()));
+        let dir = unique_test_path("glimpse-grants-", "");
         std::fs::create_dir(&dir).unwrap();
         let allowed = dir.join("allowed.txt");
         let denied = dir.join("denied.txt");
@@ -404,7 +405,7 @@ mod tests {
 
     #[test]
     fn output_grants_cover_only_selected_directory() {
-        let dir = std::env::temp_dir().join(format!("glimpse-grants-{}", Uuid::new_v4()));
+        let dir = unique_test_path("glimpse-grants-", "");
         let selected = dir.join("selected");
         let other = dir.join("other");
         std::fs::create_dir_all(&selected).unwrap();
@@ -452,7 +453,7 @@ mod tests {
 
     #[test]
     fn expired_grants_cannot_be_used_or_refreshed() {
-        let dir = std::env::temp_dir().join(format!("glimpse-grants-{}", Uuid::new_v4()));
+        let dir = unique_test_path("glimpse-grants-", "");
         std::fs::create_dir(&dir).unwrap();
         let input = dir.join("input.txt");
         std::fs::write(&input, "input").unwrap();
@@ -477,7 +478,7 @@ mod tests {
 
     #[test]
     fn replaced_output_directory_cannot_receive_a_granted_write() {
-        let dir = std::env::temp_dir().join(format!("glimpse-grants-{}", Uuid::new_v4()));
+        let dir = unique_test_path("glimpse-grants-", "");
         let selected = dir.join("selected");
         let moved = dir.join("moved");
         std::fs::create_dir_all(&selected).unwrap();
@@ -496,7 +497,7 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn output_creation_stays_on_original_directory_handle_after_path_swap() {
-        let dir = std::env::temp_dir().join(format!("glimpse-grants-{}", Uuid::new_v4()));
+        let dir = unique_test_path("glimpse-grants-", "");
         let selected = dir.join("selected");
         let moved = dir.join("moved");
         std::fs::create_dir_all(&selected).unwrap();
@@ -526,7 +527,7 @@ mod tests {
 
     #[test]
     fn native_picker_grants_selected_text_file_without_a_drop() {
-        let dir = std::env::temp_dir().join(format!("glimpse-picker-{}", Uuid::new_v4()));
+        let dir = unique_test_path("glimpse-picker-", "");
         std::fs::create_dir(&dir).unwrap();
         let selected = dir.join("selected.md");
         let rejected = dir.join("rejected.bin");
@@ -546,7 +547,7 @@ mod tests {
 
     #[test]
     fn file_outside_target_group_requires_an_explicit_native_grant() {
-        let dir = std::env::temp_dir().join(format!("glimpse-grants-{}", Uuid::new_v4()));
+        let dir = unique_test_path("glimpse-grants-", "");
         let target = dir.join("target-group");
         let outside = dir.join("outside-target-group");
         std::fs::create_dir_all(&target).unwrap();
@@ -570,7 +571,7 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn symlink_retargeting_after_selection_cannot_redirect_input_grant() {
-        let dir = std::env::temp_dir().join(format!("glimpse-grants-{}", Uuid::new_v4()));
+        let dir = unique_test_path("glimpse-grants-", "");
         std::fs::create_dir(&dir).unwrap();
         let original = dir.join("original.txt");
         let other = dir.join("other.txt");

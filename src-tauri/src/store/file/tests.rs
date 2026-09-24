@@ -6,8 +6,7 @@ use crate::models::settings::{AppSettings, TargetGroup};
 use crate::store::settings::save_settings;
 
 fn unique_test_dir(name: &str) -> PathBuf {
-    let unique = uuid::Uuid::new_v4();
-    std::env::temp_dir().join(format!("glimpse_file_test_{unique}_{name}"))
+    crate::test_utils::fixtures::unique_test_path("glimpse_file_test_", &format!("_{name}"))
 }
 
 fn target_group(id: &str, paths: Vec<PathBuf>) -> TargetGroup {

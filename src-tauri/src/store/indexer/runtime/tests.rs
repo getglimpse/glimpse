@@ -1,7 +1,7 @@
 use super::*;
 
+use crate::test_utils::fixtures::unique_test_path;
 use std::fs;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::models::settings::{AppSettings, TargetGroup};
 use crate::models::{IndexItem, Preview};
@@ -10,12 +10,7 @@ use crate::store::settings::save_settings;
 use chrono::Utc;
 
 fn unique_test_dir(name: &str) -> PathBuf {
-    let unique = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_nanos();
-
-    std::env::temp_dir().join(format!("glimpse_runtime_test_{unique}_{name}"))
+    unique_test_path("glimpse_runtime_test_", &format!("_{name}"))
 }
 
 fn target_group(id: &str, paths: Vec<PathBuf>) -> TargetGroup {
