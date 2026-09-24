@@ -643,30 +643,43 @@ mod tests {
         boost: f32,
         star: bool,
     ) {
+        add_synthetic_chunks(engine, id, text, [ordinal], boost, star);
+    }
+
+    fn add_synthetic_chunks(
+        engine: &TantivyEngine,
+        id: &str,
+        text: &str,
+        ordinals: impl IntoIterator<Item = u64>,
+        boost: f32,
+        star: bool,
+    ) {
         engine
             .with_state(|state| {
                 commit_index_mutation(state, |writer, fields| {
-                    let mut document = TantivyDocument::default();
+                    for ordinal in ordinals {
+                        let mut document = TantivyDocument::default();
 
-                    document.add_text(fields.id, id);
-                    document.add_text(fields.doc_kind, DOCUMENT_KIND_CHUNK);
+                        document.add_text(fields.id, id);
+                        document.add_text(fields.doc_kind, DOCUMENT_KIND_CHUNK);
 
-                    for field in fields.body.fields() {
-                        document.add_text(field, text);
+                        for field in fields.body.fields() {
+                            document.add_text(field, text);
+                        }
+
+                        document.add_text(fields.chunk_text, text);
+                        document.add_u64(fields.chunk_ordinal, ordinal);
+                        document.add_u64(fields.chunk_start_byte, 0);
+                        document.add_u64(fields.chunk_end_byte, text.len() as u64);
+                        document.add_u64(fields.star, if star { 1 } else { 0 });
+                        document.add_u64(fields.hidden, 0);
+                        document.add_i64(fields.updated_at, 0);
+                        document.add_f64(fields.boost, boost as f64);
+
+                        writer
+                            .add_document(document)
+                            .map_err(|error| SearchError::IndexError(error.to_string()))?;
                     }
-
-                    document.add_text(fields.chunk_text, text);
-                    document.add_u64(fields.chunk_ordinal, ordinal);
-                    document.add_u64(fields.chunk_start_byte, 0);
-                    document.add_u64(fields.chunk_end_byte, text.len() as u64);
-                    document.add_u64(fields.star, if star { 1 } else { 0 });
-                    document.add_u64(fields.hidden, 0);
-                    document.add_i64(fields.updated_at, 0);
-                    document.add_f64(fields.boost, boost as f64);
-
-                    writer
-                        .add_document(document)
-                        .map_err(|error| SearchError::IndexError(error.to_string()))?;
 
                     Ok(())
                 })
@@ -1017,9 +1030,7 @@ mod tests {
             .await
             .unwrap();
 
-        for ordinal in 1..=12 {
-            add_synthetic_chunk(&engine, "long-item", &pressure_text, ordinal, 1.0, false);
-        }
+        add_synthetic_chunks(&engine, "long-item", &pressure_text, 1..=12, 1.0, false);
 
         engine
             .upsert(markdown_item("starred-item", "Starred Body", "rankingpressure").set_star(true))

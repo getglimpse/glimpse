@@ -31,4 +31,5 @@ pub mod command_lookup;
 pub mod command_open;
 pub mod command_policy;
 pub mod path;
+pub(crate) mod path_access;
 pub mod trusted_directories;

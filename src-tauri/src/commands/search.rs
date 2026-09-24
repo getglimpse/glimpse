@@ -18,6 +18,10 @@ use crate::search::{
 };
 use crate::store::item_repository::list_items_by_source_path;
 use crate::store::settings::load_settings;
+use crate::utils::path_access::{
+    canonicalize_existing_dir, canonicalize_existing_file, nearest_existing_ancestor,
+    normalize_input_path, path_is_in_roots, path_starts_with,
+};
 use rusqlite::Connection;
 
 #[derive(Debug, Serialize)]
@@ -401,102 +405,6 @@ fn new_path_is_in_group(path: &Path, group: &TargetGroup) -> bool {
     })
 }
 
-fn nearest_existing_ancestor(path: &Path) -> Option<PathBuf> {
-    let mut current = path.parent()?.to_path_buf();
-
-    loop {
-        if current.exists() {
-            return Some(current);
-        }
-
-        if !current.pop() {
-            return None;
-        }
-    }
-}
-
-fn canonicalize_existing_file(path: impl AsRef<Path>) -> Result<PathBuf, String> {
-    let path = normalize_input_path(path);
-
-    if !path.exists() {
-        return Err(format!("file does not exist: {}", path.display()));
-    }
-
-    if !path.is_file() {
-        return Err(format!("path is not a file: {}", path.display()));
-    }
-
-    path.canonicalize()
-        .map(normalize_input_path)
-        .map_err(|error| format!("failed to canonicalize file: {}: {error}", path.display()))
-}
-
-fn canonicalize_existing_dir(path: impl AsRef<Path>) -> Result<PathBuf, String> {
-    let path = normalize_input_path(path);
-
-    if !path.exists() {
-        return Err(format!("directory does not exist: {}", path.display()));
-    }
-
-    if !path.is_dir() {
-        return Err(format!("path is not a directory: {}", path.display()));
-    }
-
-    path.canonicalize()
-        .map(normalize_input_path)
-        .map_err(|error| {
-            format!(
-                "failed to canonicalize directory: {}: {error}",
-                path.display()
-            )
-        })
-}
-
-fn path_is_in_roots(path: &Path, roots: &[String]) -> bool {
-    roots.iter().any(|root| {
-        canonicalize_existing_dir(root)
-            .map(|root| path_starts_with(path, &root))
-            .unwrap_or(false)
-    })
-}
-
-fn path_starts_with(path: &Path, root: &Path) -> bool {
-    normalize_comparison_path(path).starts_with(normalize_comparison_path(root))
-}
-
-fn normalize_input_path(path: impl AsRef<Path>) -> PathBuf {
-    let value = path.as_ref().to_string_lossy();
-
-    #[cfg(windows)]
-    {
-        let normalized = value
-            .strip_prefix(r"\\?\")
-            .or_else(|| value.strip_prefix(r"//?/"))
-            .unwrap_or(&value);
-
-        PathBuf::from(normalized)
-    }
-
-    #[cfg(not(windows))]
-    {
-        PathBuf::from(value.to_string())
-    }
-}
-
-fn normalize_comparison_path(path: &Path) -> PathBuf {
-    let path = normalize_input_path(path);
-
-    #[cfg(windows)]
-    {
-        PathBuf::from(path.to_string_lossy().to_lowercase())
-    }
-
-    #[cfg(not(windows))]
-    {
-        path
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -605,6 +513,40 @@ mod tests {
             error.contains("markdown link target is outside the source target group"),
             "{error}"
         );
+    }
+
+    #[test]
+    fn resolve_markdown_link_rejects_target_in_another_configured_group() {
+        let temp = temp_dir("another_group");
+        let source_root = temp.path.join("source-group");
+        let source_dir = source_root.join("notes");
+        let other_root = temp.path.join("other-group");
+        fs::create_dir_all(&source_dir).unwrap();
+        fs::create_dir_all(&other_root).unwrap();
+
+        let source = source_dir.join("source.md");
+        let target = other_root.join("target.md");
+        fs::write(&source, "[Target](../../other-group/target.md)").unwrap();
+        fs::write(&target, "# Target").unwrap();
+
+        let mut settings = settings_with_target_root(&source_root);
+        settings.target_groups.push(TargetGroup {
+            id: "other".to_string(),
+            name: "Other".to_string(),
+            paths: vec![other_root.to_string_lossy().to_string()],
+            active: true,
+        });
+
+        let conn = Connection::open_in_memory().unwrap();
+        let error = resolve_markdown_link_with_settings(
+            source.to_str().unwrap(),
+            "../../other-group/target.md",
+            &settings,
+            &conn,
+        )
+        .unwrap_err();
+
+        assert!(error.contains("markdown link target is outside the source target group"));
     }
 
     #[test]
