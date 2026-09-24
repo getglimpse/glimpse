@@ -633,12 +633,7 @@ pub fn read_plugin_entrypoint_source(
     entrypoint: &str,
 ) -> Result<PluginEntrypointSource, String> {
     let manifest_path = resolve_plugin_manifest_path(app_data_dir, plugin_id)?;
-    let plugin_root = manifest_path.parent().ok_or_else(|| {
-        format!(
-            "plugin manifest has no parent directory: {}",
-            manifest_path.display()
-        )
-    })?;
+    let plugin_root = plugin_root_for_manifest(&manifest_path)?;
     let manifest = load_plugin_manifest(&manifest_path)?;
     let relative_entry = match entrypoint {
         "main" => manifest
@@ -653,20 +648,13 @@ pub fn read_plugin_entrypoint_source(
             .unwrap_or("./page.js"),
         _ => return Err(format!("unsupported plugin entrypoint: {entrypoint}")),
     };
-    let entry_path = plugin_root.join(relative_entry);
-    let canonical_entry = resolve_plugin_child_file(plugin_root, &entry_path, "plugin entrypoint")?;
-
-    let source = fs::read_to_string(&canonical_entry).map_err(|error| {
-        format!(
-            "failed to read plugin entrypoint: {}: {error}",
-            canonical_entry.display()
-        )
-    })?;
+    let (path, source) =
+        read_plugin_child_source(plugin_root, relative_entry, "plugin entrypoint", None)?;
 
     Ok(PluginEntrypointSource {
         plugin_id: manifest.id,
         entrypoint: entrypoint.to_string(),
-        path: canonical_entry.display().to_string(),
+        path,
         source,
     })
 }
@@ -677,30 +665,19 @@ pub fn read_plugin_asset_source(
     asset: &str,
 ) -> Result<PluginAssetSource, String> {
     let manifest_path = resolve_plugin_manifest_path(app_data_dir, plugin_id)?;
-    let plugin_root = manifest_path.parent().ok_or_else(|| {
-        format!(
-            "plugin manifest has no parent directory: {}",
-            manifest_path.display()
-        )
-    })?;
+    let plugin_root = plugin_root_for_manifest(&manifest_path)?;
     let relative_path = match asset {
         "styles" => "styles.css",
         _ => return Err(format!("unsupported plugin asset: {asset}")),
     };
-    let asset_path = plugin_root.join(relative_path);
-    let canonical_asset = resolve_plugin_child_file(plugin_root, &asset_path, "plugin asset")?;
-    let source = fs::read_to_string(&canonical_asset).map_err(|error| {
-        format!(
-            "failed to read plugin asset: {}: {error}",
-            canonical_asset.display()
-        )
-    })?;
+    let (path, source) =
+        read_plugin_child_source(plugin_root, relative_path, "plugin asset", None)?;
     let manifest = load_plugin_manifest(&manifest_path)?;
 
     Ok(PluginAssetSource {
         plugin_id: manifest.id,
         asset: asset.to_string(),
-        path: canonical_asset.display().to_string(),
+        path,
         source,
     })
 }
@@ -710,41 +687,61 @@ pub fn read_plugin_readme_source(
     plugin_id: &str,
 ) -> Result<PluginReadmeSource, String> {
     let manifest_path = resolve_plugin_manifest_path(app_data_dir, plugin_id)?;
-    let plugin_root = manifest_path.parent().ok_or_else(|| {
-        format!(
-            "plugin manifest has no parent directory: {}",
-            manifest_path.display()
-        )
-    })?;
-    let readme_path = plugin_root.join("README.md");
-    let canonical_readme = resolve_plugin_child_file(plugin_root, &readme_path, "plugin README")?;
-    let metadata = canonical_readme.metadata().map_err(|error| {
-        format!(
-            "failed to inspect plugin README: {}: {error}",
-            canonical_readme.display()
-        )
-    })?;
-
-    if metadata.len() > PLUGIN_README_MAX_BYTES {
-        return Err(format!(
-            "plugin README is too large: {} bytes",
-            metadata.len()
-        ));
-    }
-
-    let source = fs::read_to_string(&canonical_readme).map_err(|error| {
-        format!(
-            "failed to read plugin README: {}: {error}",
-            canonical_readme.display()
-        )
-    })?;
+    let plugin_root = plugin_root_for_manifest(&manifest_path)?;
+    let (path, source) = read_plugin_child_source(
+        plugin_root,
+        "README.md",
+        "plugin README",
+        Some(PLUGIN_README_MAX_BYTES),
+    )?;
     let manifest = load_plugin_manifest(&manifest_path)?;
 
     Ok(PluginReadmeSource {
         plugin_id: manifest.id,
-        path: canonical_readme.display().to_string(),
+        path,
         source,
     })
+}
+
+fn plugin_root_for_manifest(manifest_path: &Path) -> Result<&Path, String> {
+    manifest_path.parent().ok_or_else(|| {
+        format!(
+            "plugin manifest has no parent directory: {}",
+            manifest_path.display()
+        )
+    })
+}
+
+fn read_plugin_child_source(
+    plugin_root: &Path,
+    relative_path: &str,
+    label: &str,
+    max_bytes: Option<u64>,
+) -> Result<(String, String), String> {
+    let child_path = plugin_root.join(relative_path);
+    let canonical_child = resolve_plugin_child_file(plugin_root, &child_path, label)?;
+
+    if let Some(max_bytes) = max_bytes {
+        let metadata = canonical_child.metadata().map_err(|error| {
+            format!(
+                "failed to inspect {label}: {}: {error}",
+                canonical_child.display()
+            )
+        })?;
+
+        if metadata.len() > max_bytes {
+            return Err(format!("{label} is too large: {} bytes", metadata.len()));
+        }
+    }
+
+    let source = fs::read_to_string(&canonical_child).map_err(|error| {
+        format!(
+            "failed to read {label}: {}: {error}",
+            canonical_child.display()
+        )
+    })?;
+
+    Ok((canonical_child.display().to_string(), source))
 }
 
 fn resolve_plugin_manifest_path(app_data_dir: &Path, plugin_id: &str) -> Result<PathBuf, String> {
@@ -824,12 +821,7 @@ fn plugin_manifest_fingerprint(
     manifest_path: &Path,
     manifest: &PluginManifest,
 ) -> Result<String, String> {
-    let plugin_root = manifest_path.parent().ok_or_else(|| {
-        format!(
-            "plugin manifest has no parent directory: {}",
-            manifest_path.display()
-        )
-    })?;
+    let plugin_root = plugin_root_for_manifest(manifest_path)?;
     let mut hasher = Sha256::new();
 
     hash_file_contents(&mut hasher, "manifest", manifest_path)?;
