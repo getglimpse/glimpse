@@ -8,9 +8,9 @@
 
 use chrono::{DateTime, Utc};
 use std::fs;
-use std::path::{Path, PathBuf};
-use url::Url;
+use std::path::Path;
 
+use super::common::markdown_file_preview;
 use crate::models::{IndexItem, Preview};
 use crate::utils::path::metadata_only_file_category;
 
@@ -43,8 +43,7 @@ pub fn parse_file_reference(path: &Path, source_id: &str) -> Option<IndexItem> {
     }
 
     let preview = if is_native_file_url_preview_category(category) {
-        let file_url = path_to_file_url(path);
-        let content = format!("![{}]({})", escape_markdown_alt(&title), file_url);
+        let content = markdown_file_preview(path, &title);
 
         Preview::Markdown { content }
     } else {
@@ -65,36 +64,6 @@ pub fn parse_file_reference(path: &Path, source_id: &str) -> Option<IndexItem> {
 
 fn is_native_file_url_preview_category(category: &str) -> bool {
     matches!(category, "pdf" | "audio" | "video")
-}
-
-fn path_to_file_url(path: &Path) -> String {
-    let normalized = normalize_windows_extended_path(path);
-
-    Url::from_file_path(&normalized)
-        .map(|url| url.to_string())
-        .unwrap_or_else(|_| {
-            let fallback = normalized.to_string_lossy().replace('\\', "/");
-
-            if fallback.starts_with('/') {
-                format!("file://{}", fallback)
-            } else {
-                format!("file:///{}", fallback)
-            }
-        })
-}
-
-fn normalize_windows_extended_path(path: &Path) -> PathBuf {
-    let text = path.to_string_lossy();
-    let normalized = text
-        .strip_prefix(r"\\?\")
-        .or_else(|| text.strip_prefix("//?/"))
-        .unwrap_or(&text);
-
-    PathBuf::from(normalized)
-}
-
-fn escape_markdown_alt(text: &str) -> String {
-    text.replace('[', "\\[").replace(']', "\\]")
 }
 
 #[cfg(test)]
@@ -170,9 +139,12 @@ mod tests {
 
     #[cfg(windows)]
     #[test]
-    fn path_to_file_url_removes_windows_extended_prefix() {
+    fn markdown_file_preview_removes_windows_extended_prefix() {
         let path = PathBuf::from(r"\\?\C:\Example\demo.mp4");
 
-        assert_eq!(path_to_file_url(&path), "file:///C:/Example/demo.mp4");
+        assert_eq!(
+            markdown_file_preview(&path, "demo.mp4"),
+            "![demo.mp4](file:///C:/Example/demo.mp4)"
+        );
     }
 }

@@ -33,9 +33,9 @@
 
 use chrono::{DateTime, Utc};
 use std::fs;
-use std::path::{Path, PathBuf};
-use url::Url;
+use std::path::Path;
 
+use super::common::markdown_file_preview;
 use crate::models::{IndexItem, Preview};
 
 /// Parses an image file into an [`IndexItem`].
@@ -81,9 +81,7 @@ pub fn parse_image(path: &Path, source_id: &str) -> Option<IndexItem> {
         .unwrap_or("image")
         .to_string();
 
-    let file_url = path_to_file_url(path);
-
-    let content = format!("![{}]({})", escape_markdown_alt(&title), file_url);
+    let content = markdown_file_preview(path, &title);
 
     Some(
         IndexItem::new(
@@ -95,62 +93,6 @@ pub fn parse_image(path: &Path, source_id: &str) -> Option<IndexItem> {
         .with_source_path(source_path)
         .with_tags(vec!["image".to_string()]),
     )
-}
-
-/// Converts a filesystem path to a `file://` URL.
-///
-/// The resulting URL is used for:
-///
-/// - Markdown image previews
-///
-/// This function attempts to use [`Url::from_file_path`] first and falls
-/// back to manual URL generation when conversion fails.
-fn path_to_file_url(path: &Path) -> String {
-    let normalized = normalize_windows_extended_path(path);
-
-    Url::from_file_path(&normalized)
-        .map(|url| url.to_string())
-        .unwrap_or_else(|_| {
-            let fallback = normalized.to_string_lossy().replace('\\', "/");
-
-            if fallback.starts_with('/') {
-                format!("file://{}", fallback)
-            } else {
-                format!("file:///{}", fallback)
-            }
-        })
-}
-
-/// Removes Windows extended path prefixes.
-///
-/// Examples:
-///
-/// ```text
-/// \\?\C:\images\a.png
-/// →
-/// C:\images\a.png
-/// ```
-///
-/// Non-Windows paths are returned unchanged.
-fn normalize_windows_extended_path(path: &Path) -> PathBuf {
-    let text = path.to_string_lossy();
-
-    let normalized = text
-        .strip_prefix(r"\\?\")
-        .or_else(|| text.strip_prefix("//?/"))
-        .unwrap_or(&text);
-
-    PathBuf::from(normalized)
-}
-
-/// Escapes characters that are special in Markdown image alt text.
-///
-/// Currently escapes:
-///
-/// - `[`
-/// - `]`
-fn escape_markdown_alt(text: &str) -> String {
-    text.replace('[', "\\[").replace(']', "\\]")
 }
 
 /// Returns whether a file extension is supported as an image.
@@ -179,6 +121,7 @@ mod tests {
     use crate::models::Preview;
 
     use std::env;
+    use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     fn temp_dir(name: &str) -> PathBuf {
@@ -256,12 +199,13 @@ mod tests {
 
     #[cfg(windows)]
     #[test]
-    fn path_to_file_url_removes_windows_extended_prefix() {
+    fn markdown_file_preview_removes_windows_extended_prefix() {
         let path = PathBuf::from(r"\\?\C:\Example\test.png");
 
-        let url = path_to_file_url(&path);
-
-        assert_eq!(url, "file:///C:/Example/test.png");
+        assert_eq!(
+            markdown_file_preview(&path, "test.png"),
+            "![test.png](file:///C:/Example/test.png)"
+        );
     }
 
     #[test]

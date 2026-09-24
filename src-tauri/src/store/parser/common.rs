@@ -8,6 +8,7 @@
 //! - Generate fallback titles from file paths.
 //! - Normalize metadata collections such as tags.
 //! - Parse quoted string values.
+//! - Build local file previews shared by image and file reference parsers.
 //!
 //! The functions in this module should remain:
 //!
@@ -18,7 +19,7 @@
 //! Parser-specific logic belongs to the individual parser modules
 //! (`markdown.rs`, `json.rs`, `image.rs`, etc.).
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use url::Url;
 
 /// Returns a fallback title from a filesystem path.
@@ -111,6 +112,36 @@ pub fn normalize_http_url(value: impl AsRef<str>) -> Option<String> {
     let parsed = Url::parse(value).ok()?;
 
     matches!(parsed.scheme(), "http" | "https").then(|| parsed.to_string())
+}
+
+/// Builds the Markdown image preview used by image and file reference parsers.
+pub(super) fn markdown_file_preview(path: &Path, title: &str) -> String {
+    format!(
+        "![{}]({})",
+        title.replace('[', "\\[").replace(']', "\\]"),
+        path_to_file_url(path)
+    )
+}
+
+fn path_to_file_url(path: &Path) -> String {
+    let text = path.to_string_lossy();
+    let normalized = text
+        .strip_prefix(r"\\?\")
+        .or_else(|| text.strip_prefix("//?/"))
+        .unwrap_or(&text);
+    let normalized = PathBuf::from(normalized);
+
+    Url::from_file_path(&normalized)
+        .map(|url| url.to_string())
+        .unwrap_or_else(|_| {
+            let fallback = normalized.to_string_lossy().replace('\\', "/");
+
+            if fallback.starts_with('/') {
+                format!("file://{}", fallback)
+            } else {
+                format!("file:///{}", fallback)
+            }
+        })
 }
 
 #[cfg(test)]
