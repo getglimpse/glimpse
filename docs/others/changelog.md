@@ -2,6 +2,70 @@
 
 This page records the release history of Glimpse.
 
+## v0.2.8
+
+### Added
+
+#### Plugins
+
+* Added Tool, Converter, and Viewer categories for plugin pages. Use `/` to search trusted plugin pages and tags such as `/#tool`, `/#converter`, or `/#viewer` to narrow the results.
+* Added a staged Converter workflow that lets you review selected or dropped files before running a conversion.
+* Added Create New and Overwrite output modes for Converters. Overwrite is limited to files dropped from the file system.
+* Added a configurable filename prefix for newly created converted files.
+* Added Form result history with copy, save-latest, save-all, and reset actions.
+* Search-bar plugin executions now appear in the matching open Playground history.
+
+#### Settings
+
+* Added validated settings backups and recovery controls for restoring `settings.json` after a load failure.
+
+### Changed
+
+#### Plugins
+
+* Converter input, results, and output mode now stay available while switching between plugin tabs.
+* Converter output mode labels now follow the Glimpse language setting and can be customized by plugins.
+* Cached plugin registry data so plugin pages become searchable sooner, then refresh the current search after loading completes.
+
+#### Reliability
+
+* File Editor title changes and content updates are now saved as one operation, with atomic file replacement and recovery on failure.
+* Settings writes are now atomic, and settings, runtime, and global-shortcut changes are rolled back together when an update fails.
+* File watcher updates now replace each indexed source transactionally and remain retryable after an indexing failure.
+
+### Fixed
+
+#### Plugins
+
+* Prevented duplicate Converter runs and kept staged files available when conversion or output saving fails.
+* Prevented unchanged plugin runtimes from being restarted or newly loaded runtimes from being activated twice during plugin reloads.
+
+#### Search and Preview
+
+* Prevented slow, outdated search responses from replacing newer results or clearing their loading state.
+* Prevented an outdated preview response from appearing after the selected item changes.
+* Made Preview Tab activation atomic so newly opened File Editor tabs are selected immediately and equivalent file paths reuse the existing tab.
+
+#### Settings and Shortcuts
+
+* Global shortcut changes are now validated before registration, report registration errors, and restore the previous shortcuts when registration fails.
+* Invalid settings files are no longer silently replaced with defaults, preserving the file for repair or backup recovery.
+
+#### Indexing
+
+* Fixed partially updated search indexes and suppressed retries after a file watcher update failed.
+
+### Security
+
+* Restricted plugin file reads, writes, and overwrites to short-lived capability grants created by file selection or drag and drop.
+* Added directory-scoped output grants, expiry, canonical-path checks, and symlink protections for plugin file operations.
+* Updated `rustls` to address RUSTSEC-2026-0285.
+
+### Tests
+
+* Added frontend and Rust regression coverage for asynchronous search and preview ordering, atomic editor saves, settings recovery, shortcut rollback, plugin reloads, Converter retries, file grants, and atomic indexing.
+* Added a Rust CI workflow and expanded release checks to run frontend tests, Rust formatting, Clippy, and Rust tests before publishing installers.
+
 ## v0.2.7
 
 ### Fixed

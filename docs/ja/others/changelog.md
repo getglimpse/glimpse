@@ -2,6 +2,70 @@
 
 このページでは、Glimpse のリリース履歴を記録しています。
 
+## v0.2.8
+
+### Added
+
+#### Plugins
+
+- plugin page に Tool、Converter、Viewer category を追加。`/` で trusted plugin page を検索し、`/#tool`、`/#converter`、`/#viewer` などの tag で絞り込めるようにした
+- 選択または drop した file を確認してから変換を実行する、Converter の staged workflow を追加
+- Converter に「新規作成」と「上書き」の output mode を追加。「上書き」は file system から drop した file のみに制限
+- 新規作成する変換済み file の filename prefix を設定できるようにした
+- Form の result history と、copy、最新結果の保存、全結果の保存、reset action を追加
+- 検索バーから実行した plugin action を、開いている対応 Playground の history に反映するようにした
+
+#### Settings
+
+- 検証済み settings backup と、読み込みに失敗した `settings.json` を復元する recovery control を追加
+
+### Changed
+
+#### Plugins
+
+- plugin tab を切り替えても Converter の input、result、output mode を保持するようにした
+- Converter の output mode label を Glimpse の language setting に連動させ、plugin 側でも customize できるようにした
+- plugin registry data を cache して plugin page をより早く検索可能にし、読み込み完了後に現在の検索を更新するようにした
+
+#### Reliability
+
+- File Editor の title change と content update を単一 operation で保存し、atomic file replacement と失敗時の recovery を行うようにした
+- settings を atomic write に変更し、更新失敗時は settings、runtime、global shortcut の変更をまとめて rollback するようにした
+- file watcher が source ごとの index を transaction で置換し、indexing failure 後も再試行できるようにした
+
+### Fixed
+
+#### Plugins
+
+- Converter の重複実行を防ぎ、変換または output 保存に失敗した場合も staged file を再試行用に保持するようにした
+- plugin reload 時に、変更のない runtime を再起動したり、新規 runtime を二重に activate したりしないようにした
+
+#### Search and Preview
+
+- 遅れて完了した古い検索 response が新しい結果や loading state を上書きする問題を修正
+- 選択 item の変更後に古い preview response が表示される問題を修正
+- Preview Tab の activation を atomic にし、新しい File Editor tab を即座に選択し、同じ file を表す path では既存 tab を再利用するようにした
+
+#### Settings and Shortcuts
+
+- global shortcut の変更を登録前に検証し、登録 error を通知して、失敗時には以前の shortcut を復元するようにした
+- 壊れた settings file を暗黙に default で置き換えず、修復または backup recovery 用に保持するようにした
+
+#### Indexing
+
+- file watcher の更新失敗後に index が部分更新状態になり、再試行も抑止される問題を修正
+
+### Security
+
+- plugin の file read、write、overwrite を、file 選択または drag and drop で発行される短時間有効な capability grant に制限
+- plugin file operation に directory scope の output grant、有効期限、canonical path check、symlink protection を追加
+- RUSTSEC-2026-0285 に対応するため `rustls` を更新
+
+### Tests
+
+- 非同期の search / preview 順序、atomic editor save、settings recovery、shortcut rollback、plugin reload、Converter retry、file grant、atomic indexing の frontend / Rust regression test を追加
+- Rust CI workflow を追加し、installer 公開前の release check に frontend test、Rust format、Clippy、Rust test を追加
+
 ## v0.2.7
 
 ### Fixed
