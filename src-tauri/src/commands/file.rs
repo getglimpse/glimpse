@@ -322,12 +322,25 @@ pub fn write_plugin_text_output(
     grants: State<PluginFileGrants>,
     payload: WritePluginTextOutputPayload,
 ) -> Result<String, String> {
-    let directory = grants.authorize(window.label(), &payload.grant_token, "output")?;
-    crate::store::file::write_text_file_in_directory(
-        directory.to_string_lossy().into_owned(),
+    let (directory_path, directory) = grants.open_output(window.label(), &payload.grant_token)?;
+    let written = crate::store::file::write_text_file_in_granted_directory(
+        &directory,
+        &directory_path,
         payload.file_name,
         payload.body,
-    )
+    )?;
+    if let Err(error) = grants.authorize(window.label(), &payload.grant_token, "output") {
+        let cleanup_error = Path::new(&written)
+            .file_name()
+            .and_then(|file_name| directory.remove_file(file_name).err());
+        return Err(match cleanup_error {
+            Some(cleanup_error) => format!(
+                "output directory changed during write: {error}; failed to remove new output: {cleanup_error}"
+            ),
+            None => format!("output directory changed during write: {error}"),
+        });
+    }
+    Ok(written)
 }
 
 #[tauri::command]

@@ -1,9 +1,12 @@
-//! Session-scoped file capabilities for plugin converters.
+//! Short-lived, window-scoped file capabilities for plugin converters.
 //!
 //! Paths supplied by the renderer are never sufficient authority: input files
 //! must first appear in a native drop event, and output directories must be
 //! selected by the backend dialog (or be the app's default Downloads folder).
+//! Output files are created relative to a verified directory handle.
 
+use cap_std::ambient_authority;
+use cap_std::fs::Dir;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
@@ -13,6 +16,7 @@ use std::time::{Duration, Instant};
 use uuid::Uuid;
 
 const DROP_CLAIM_WINDOW: Duration = Duration::from_secs(30);
+const GRANT_LIFETIME: Duration = Duration::from_secs(30 * 60);
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -32,6 +36,7 @@ struct Grant {
     window: String,
     kind: Kind,
     identity: Option<FileIdentity>,
+    issued_at: Instant,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -113,16 +118,17 @@ impl PluginFileGrants {
 
     pub fn grant_output(&self, window: &str, path: &Path) -> Result<PluginFileGrant, String> {
         let path = std::fs::canonicalize(path).map_err(|error| error.to_string())?;
-        if !path.is_dir() {
-            return Err("selected output path is not a directory".into());
-        }
+        let directory =
+            Dir::open_ambient_dir(&path, ambient_authority()).map_err(|error| error.to_string())?;
+        let identity = directory_identity(&directory)?;
         let mut inner = self.0.lock().map_err(|error| error.to_string())?;
+        prune_expired(&mut inner);
         Ok(insert_grant(
             &mut inner,
             window,
             path,
             Kind::OutputDirectory,
-            None,
+            Some(identity),
         ))
     }
 
@@ -135,16 +141,25 @@ impl PluginFileGrants {
             return Ok(None);
         };
         let mut inner = self.0.lock().map_err(|error| error.to_string())?;
-        if inner.grants.values().any(|grant| {
-            grant.window == window && grant.kind == Kind::OutputDirectory && grant.path == canonical
-        }) {
-            return Ok(Some(insert_grant(
-                &mut inner,
-                window,
-                canonical,
-                Kind::OutputDirectory,
-                None,
-            )));
+        prune_expired(&mut inner);
+        let existing = inner.grants.iter().find_map(|(token, grant)| {
+            if grant.window == window
+                && grant.kind == Kind::OutputDirectory
+                && grant.path == canonical
+            {
+                Some((token.clone(), grant.identity?))
+            } else {
+                None
+            }
+        });
+        if let Some((token, identity)) = existing {
+            if current_directory_identity(&canonical)? != identity {
+                return Ok(None);
+            }
+            return Ok(Some(PluginFileGrant {
+                path: canonical.to_string_lossy().into_owned(),
+                token,
+            }));
         }
         Ok(None)
     }
@@ -155,16 +170,46 @@ impl PluginFileGrants {
             "output" => Kind::OutputDirectory,
             _ => return Err("invalid file grant kind".into()),
         };
-        let inner = self.0.lock().map_err(|error| error.to_string())?;
+        let mut inner = self.0.lock().map_err(|error| error.to_string())?;
+        prune_expired(&mut inner);
         let grant = inner.grants.get(token).ok_or("invalid plugin file grant")?;
-        if grant.window != window || grant.kind != expected {
+        if grant.window != window
+            || grant.kind != expected
+            || grant.issued_at.elapsed() >= GRANT_LIFETIME
+        {
             return Err("plugin file grant is not valid for this operation".into());
         }
-        let canonical = std::fs::canonicalize(&grant.path).map_err(|error| error.to_string())?;
-        if canonical != grant.path {
+        let path = grant.path.clone();
+        let identity = grant.identity;
+        drop(inner);
+        let canonical = std::fs::canonicalize(&path).map_err(|error| error.to_string())?;
+        if canonical != path {
             return Err("plugin file grant target has changed".into());
         }
+        if expected == Kind::OutputDirectory
+            && Some(current_directory_identity(&canonical)?) != identity
+        {
+            return Err("plugin output directory has been replaced since selection".into());
+        }
         Ok(canonical)
+    }
+
+    pub fn open_output(&self, window: &str, token: &str) -> Result<(PathBuf, Dir), String> {
+        let path = self.authorize(window, token, "output")?;
+        let directory =
+            Dir::open_ambient_dir(&path, ambient_authority()).map_err(|error| error.to_string())?;
+        let actual_identity = directory_identity(&directory)?;
+        let mut inner = self.0.lock().map_err(|error| error.to_string())?;
+        prune_expired(&mut inner);
+        let grant = inner.grants.get(token).ok_or("invalid plugin file grant")?;
+        if grant.window != window
+            || grant.kind != Kind::OutputDirectory
+            || grant.issued_at.elapsed() >= GRANT_LIFETIME
+            || grant.identity != Some(actual_identity)
+        {
+            return Err("plugin output grant is not valid for this window".into());
+        }
+        Ok((path, directory))
     }
 
     pub fn open_input(
@@ -173,9 +218,13 @@ impl PluginFileGrants {
         token: &str,
         write: bool,
     ) -> Result<(PathBuf, File), String> {
-        let inner = self.0.lock().map_err(|error| error.to_string())?;
+        let mut inner = self.0.lock().map_err(|error| error.to_string())?;
+        prune_expired(&mut inner);
         let grant = inner.grants.get(token).ok_or("invalid plugin file grant")?;
-        if grant.window != window || grant.kind != Kind::Input {
+        if grant.window != window
+            || grant.kind != Kind::Input
+            || grant.issued_at.elapsed() >= GRANT_LIFETIME
+        {
             return Err("plugin input grant is not valid for this window".into());
         }
         let path = grant.path.clone();
@@ -201,6 +250,7 @@ fn insert_input_grants(
     window: &str,
     paths: Vec<PathBuf>,
 ) -> Result<Vec<PluginFileGrant>, String> {
+    prune_expired(inner);
     paths
         .into_iter()
         .map(|path| {
@@ -214,6 +264,26 @@ fn insert_input_grants(
             ))
         })
         .collect()
+}
+
+fn directory_identity(directory: &Dir) -> Result<FileIdentity, String> {
+    let file = directory
+        .try_clone()
+        .map_err(|error| error.to_string())?
+        .into_std_file();
+    file_identity(&file)
+}
+
+fn current_directory_identity(path: &Path) -> Result<FileIdentity, String> {
+    let directory =
+        Dir::open_ambient_dir(path, ambient_authority()).map_err(|error| error.to_string())?;
+    directory_identity(&directory)
+}
+
+fn prune_expired(inner: &mut Inner) {
+    inner
+        .grants
+        .retain(|_, grant| grant.issued_at.elapsed() < GRANT_LIFETIME);
 }
 
 #[cfg(windows)]
@@ -281,6 +351,7 @@ fn insert_grant(
             window: window.to_owned(),
             kind,
             identity,
+            issued_at: Instant::now(),
         },
     );
     result
@@ -345,11 +416,111 @@ mod tests {
             grants.authorize("main", &grant.token, "output").unwrap(),
             selected.canonicalize().unwrap()
         );
-        assert!(grants.existing_output("main", &selected).unwrap().is_some());
+        assert_eq!(
+            grants
+                .existing_output("main", &selected)
+                .unwrap()
+                .unwrap()
+                .token,
+            grant.token
+        );
         assert!(grants
             .existing_output("other", &selected)
             .unwrap()
             .is_none());
+        let (output_path, output_dir) = grants.open_output("main", &grant.token).unwrap();
+        let first = crate::store::file::write_text_file_in_granted_directory(
+            &output_dir,
+            &output_path,
+            "result.txt".into(),
+            "first".into(),
+        )
+        .unwrap();
+        let second = crate::store::file::write_text_file_in_granted_directory(
+            &output_dir,
+            &output_path,
+            "result.txt".into(),
+            "second".into(),
+        )
+        .unwrap();
+        assert_eq!(std::fs::read_to_string(first).unwrap(), "first");
+        assert_eq!(std::fs::read_to_string(second).unwrap(), "second");
+        drop(output_dir);
+        drop(grants);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn expired_grants_cannot_be_used_or_refreshed() {
+        let dir = std::env::temp_dir().join(format!("glimpse-grants-{}", Uuid::new_v4()));
+        std::fs::create_dir(&dir).unwrap();
+        let input = dir.join("input.txt");
+        std::fs::write(&input, "input").unwrap();
+        let grants = PluginFileGrants::default();
+        let input_grant = grants.grant_picked_inputs("main", &[input]).unwrap();
+        let output_grant = grants.grant_output("main", &dir).unwrap();
+        {
+            let mut inner = grants.0.lock().unwrap();
+            for grant in inner.grants.values_mut() {
+                grant.issued_at = Instant::now() - GRANT_LIFETIME - Duration::from_secs(1);
+            }
+        }
+
+        assert!(grants
+            .open_input("main", &input_grant[0].token, false)
+            .is_err());
+        assert!(grants.open_output("main", &output_grant.token).is_err());
+        assert!(grants.existing_output("main", &dir).unwrap().is_none());
+        drop(grants);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn replaced_output_directory_cannot_receive_a_granted_write() {
+        let dir = std::env::temp_dir().join(format!("glimpse-grants-{}", Uuid::new_v4()));
+        let selected = dir.join("selected");
+        let moved = dir.join("moved");
+        std::fs::create_dir_all(&selected).unwrap();
+        let grants = PluginFileGrants::default();
+        let grant = grants.grant_output("main", &selected).unwrap();
+
+        std::fs::rename(&selected, &moved).unwrap();
+        std::fs::create_dir(&selected).unwrap();
+        assert!(grants.open_output("main", &grant.token).is_err());
+        assert!(grants.existing_output("main", &selected).unwrap().is_none());
+
+        drop(grants);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn output_creation_stays_on_original_directory_handle_after_path_swap() {
+        let dir = std::env::temp_dir().join(format!("glimpse-grants-{}", Uuid::new_v4()));
+        let selected = dir.join("selected");
+        let moved = dir.join("moved");
+        std::fs::create_dir_all(&selected).unwrap();
+        let grants = PluginFileGrants::default();
+        let grant = grants.grant_output("main", &selected).unwrap();
+        let (output_path, output_dir) = grants.open_output("main", &grant.token).unwrap();
+        std::fs::rename(&selected, &moved).unwrap();
+        std::fs::create_dir(&selected).unwrap();
+
+        crate::store::file::write_text_file_in_granted_directory(
+            &output_dir,
+            &output_path,
+            "result.txt".into(),
+            "selected content".into(),
+        )
+        .unwrap();
+        assert_eq!(
+            std::fs::read_to_string(moved.join("result.txt")).unwrap(),
+            "selected content"
+        );
+        assert!(!selected.join("result.txt").exists());
+        assert!(grants.open_output("main", &grant.token).is_err());
+        drop(output_dir);
+        drop(grants);
         std::fs::remove_dir_all(dir).unwrap();
     }
 

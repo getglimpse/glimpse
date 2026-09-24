@@ -986,6 +986,13 @@ mod tests {
         assert!(save_settings(&path, &second).is_err());
         assert_eq!(fs::read(&path).unwrap(), original);
         assert!(try_load_settings(&path).is_ok());
+        assert!(fs::read_dir(&dir).unwrap().all(|entry| {
+            !entry
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .ends_with(".tmp")
+        }));
         fs::remove_dir_all(dir).unwrap();
     }
 

@@ -30,6 +30,7 @@
 //! Binary file editing is intentionally unsupported.
 
 use base64::{engine::general_purpose::STANDARD as BASE64_STANDARD, Engine};
+use cap_std::fs::{Dir, OpenOptions as CapabilityOpenOptions};
 use chrono::Local;
 use serde::Serialize;
 use std::fs;
@@ -415,8 +416,9 @@ pub fn default_download_directory() -> Result<String, String> {
     ))
 }
 
-pub fn write_text_file_in_directory(
-    directory: String,
+pub fn write_text_file_in_granted_directory(
+    directory: &Dir,
+    directory_path: &Path,
     file_name: String,
     body: String,
 ) -> Result<String, String> {
@@ -428,30 +430,40 @@ pub fn write_text_file_in_directory(
         ));
     }
 
-    let output_dir = canonicalize_existing_dir(directory)?;
     let file_name = safe_file_name_from_input(&file_name)?;
-    // create_new prevents a competing process from replacing the selected
-    // name with a symlink or existing file between the existence check and write.
-    for _ in 0..1000 {
-        let file_path = unique_file_path(&output_dir, &file_name);
-        match fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&file_path)
-        {
+    let file_name_path = Path::new(&file_name);
+    let stem = file_name_path
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .unwrap_or(&file_name);
+    let extension = file_name_path
+        .extension()
+        .and_then(|extension| extension.to_str());
+    let mut options = CapabilityOpenOptions::new();
+    options.write(true).create_new(true);
+    // The directory handle is the authority; a swapped path cannot redirect
+    // this create into an unselected directory.
+    for index in 1..=1000 {
+        let candidate = if index == 1 {
+            file_name.clone()
+        } else {
+            match extension {
+                Some(extension) => format!("{stem} {index}.{extension}"),
+                None => format!("{stem} {index}"),
+            }
+        };
+        match directory.open_with(&candidate, &options) {
             Ok(mut file) => {
-                file.write_all(body.as_bytes()).map_err(|error| {
-                    format!("failed to write file: {}: {error}", file_path.display())
-                })?;
+                if let Err(error) = file.write_all(body.as_bytes()) {
+                    drop(file);
+                    let _ = directory.remove_file(&candidate);
+                    return Err(format!("failed to write file: {candidate}: {error}"));
+                }
+                let file_path = directory_path.join(candidate);
                 return Ok(file_path.to_string_lossy().to_string());
             }
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
-            Err(error) => {
-                return Err(format!(
-                    "failed to create file: {}: {error}",
-                    file_path.display()
-                ))
-            }
+            Err(error) => return Err(format!("failed to create file: {candidate}: {error}")),
         }
     }
     Err("could not allocate a unique plugin output filename".into())
