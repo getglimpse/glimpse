@@ -12,7 +12,7 @@ use std::path::Path;
 
 use super::common::markdown_file_preview;
 use crate::models::{IndexItem, Preview};
-use crate::utils::path::metadata_only_file_category;
+use crate::utils::path::{metadata_only_file_category, source_path_string};
 
 /// Parses a file into a lightweight searchable reference.
 ///
@@ -20,10 +20,7 @@ use crate::utils::path::metadata_only_file_category;
 pub fn parse_file_reference(path: &Path, source_id: &str) -> Option<IndexItem> {
     let metadata = fs::metadata(path).ok()?;
     let updated_at: DateTime<Utc> = metadata.modified().ok()?.into();
-    let source_path = fs::canonicalize(path)
-        .unwrap_or_else(|_| path.to_path_buf())
-        .to_string_lossy()
-        .to_string();
+    let source_path = source_path_string(path);
     let title = path
         .file_name()
         .map(|name| name.to_string_lossy().to_string())

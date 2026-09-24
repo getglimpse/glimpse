@@ -64,7 +64,7 @@ use std::sync::{Arc, Mutex};
 use crate::models::indexing::{IndexingStats, WatchStatus};
 use crate::models::settings::{AppSettings, TargetGroup};
 use crate::search::{SearchEngine, SearchError, SourceFingerprint};
-use crate::utils::path::source_id_for_path;
+use crate::utils::path::{source_id_for_path, source_path_string};
 
 /// Filesystem indexer.
 ///
@@ -269,13 +269,6 @@ fn canonical_or_original(path: PathBuf) -> PathBuf {
     std::fs::canonicalize(&path).unwrap_or(path)
 }
 
-pub(crate) fn canonical_source_path(path: &Path) -> String {
-    fs::canonicalize(path)
-        .unwrap_or_else(|_| path.to_path_buf())
-        .to_string_lossy()
-        .to_string()
-}
-
 pub(crate) fn source_fingerprint_for_path(
     group_name: &str,
     target_index: usize,
@@ -284,7 +277,7 @@ pub(crate) fn source_fingerprint_for_path(
     metadata: &fs::Metadata,
 ) -> Result<SourceFingerprint, SearchError> {
     let modified_at = metadata.modified().map_err(SearchError::IoError)?.into();
-    let source_path = canonical_source_path(path);
+    let source_path = source_path_string(path);
     let source_id = source_id_for_path(group_name, target_index, root, path);
 
     Ok(SourceFingerprint::new(

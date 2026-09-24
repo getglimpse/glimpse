@@ -23,6 +23,7 @@ use std::fs;
 use std::path::Path;
 
 use crate::models::{IndexItem, Preview};
+use crate::utils::path::source_path_string;
 
 /// Returns a display title for a raw file.
 ///
@@ -93,10 +94,7 @@ pub fn parse_raw_file(path: &Path, source_id: &str) -> Option<IndexItem> {
 
     let updated_at: DateTime<Utc> = metadata.modified().ok()?.into();
 
-    let source_path = fs::canonicalize(path)
-        .unwrap_or_else(|_| path.to_path_buf())
-        .to_string_lossy()
-        .to_string();
+    let source_path = source_path_string(path);
 
     let content = fs::read_to_string(path).unwrap_or_else(|_| {
         format!(

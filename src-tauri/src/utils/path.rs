@@ -6,6 +6,7 @@
 //! Responsibilities:
 //!
 //! - Generate stable path IDs.
+//! - Format source paths stored in the search index.
 //! - Detect hidden files and directories.
 //! - Apply indexing ignore rules.
 //! - Exclude internal Glimpse files.
@@ -24,6 +25,17 @@ use crate::models::settings::IndexingSettings;
 
 use std::fs;
 use std::path::{Path, PathBuf};
+
+/// Formats a source path for indexed items and source fingerprints.
+///
+/// Preserve the original path when canonicalization fails, such as after a
+/// file disappears between discovery and indexing.
+pub(crate) fn source_path_string(path: &Path) -> String {
+    fs::canonicalize(path)
+        .unwrap_or_else(|_| path.to_path_buf())
+        .to_string_lossy()
+        .to_string()
+}
 
 /// Returns true if the file or directory is hidden.
 ///

@@ -451,7 +451,7 @@ mod tests {
     use crate::models::settings::{AppSettings, TargetGroup};
     use crate::models::IndexItem;
     use crate::search::{SearchEngine, SearchRequest, SearchResult, SourceFingerprint};
-    use crate::store::indexer::canonical_source_path;
+    use crate::utils::path::source_path_string;
 
     #[derive(Default)]
     struct RecordingEngine {
@@ -646,7 +646,7 @@ mod tests {
     }
 
     #[test]
-    fn canonical_source_path_matches_parser_source_path_format() {
+    fn source_path_string_matches_parser_source_path_format() {
         let target_dir = unique_test_dir("target");
         fs::create_dir_all(&target_dir).unwrap();
         let path = target_dir.join("note.md");
@@ -657,7 +657,7 @@ mod tests {
             .to_string_lossy()
             .to_string();
 
-        assert_eq!(canonical_source_path(&path), expected);
+        assert_eq!(source_path_string(&path), expected);
 
         fs::remove_dir_all(target_dir).ok();
     }

@@ -42,6 +42,7 @@ use crate::models::{IndexItem, JsonIndexFile, Preview};
 use crate::search::SearchError;
 use crate::store::parser::common::normalize_http_url;
 use crate::utils::command_open::sanitize_command;
+use crate::utils::path::source_path_string;
 
 use chrono::{DateTime, Utc};
 use std::fs;
@@ -141,10 +142,7 @@ pub fn parse_json(path: &Path, source_id: &str) -> Result<Vec<IndexItem>, Search
     // stable base id
     // -----------------------------
 
-    let source_path = fs::canonicalize(path)
-        .unwrap_or_else(|_| path.to_path_buf())
-        .to_string_lossy()
-        .to_string();
+    let source_path = source_path_string(path);
 
     // -----------------------------
     // build items

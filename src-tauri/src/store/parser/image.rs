@@ -37,6 +37,7 @@ use std::path::Path;
 
 use super::common::markdown_file_preview;
 use crate::models::{IndexItem, Preview};
+use crate::utils::path::source_path_string;
 
 /// Parses an image file into an [`IndexItem`].
 ///
@@ -70,10 +71,7 @@ use crate::models::{IndexItem, Preview};
 pub fn parse_image(path: &Path, source_id: &str) -> Option<IndexItem> {
     let metadata = fs::metadata(path).ok()?;
     let updated_at: DateTime<Utc> = metadata.modified().ok()?.into();
-    let source_path = std::fs::canonicalize(path)
-        .unwrap_or_else(|_| path.to_path_buf())
-        .to_string_lossy()
-        .to_string();
+    let source_path = source_path_string(path);
 
     let title = path
         .file_name()

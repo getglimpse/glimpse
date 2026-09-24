@@ -20,6 +20,7 @@ use crate::search::SearchError;
 use crate::store::parser::common::fallback_title;
 use crate::store::parser::frontmatter::parse_frontmatter;
 use crate::utils::command_open::sanitize_command;
+use crate::utils::path::source_path_string;
 use chrono::{DateTime, Utc};
 
 use std::fs;
@@ -153,10 +154,7 @@ pub fn parse_markdown_result(path: &Path, source_id: &str) -> Result<IndexItem, 
     // source path
     // -----------------------------
 
-    let source_path = fs::canonicalize(path)
-        .unwrap_or_else(|_| path.to_path_buf())
-        .to_string_lossy()
-        .to_string();
+    let source_path = source_path_string(path);
 
     // -----------------------------
     // construct item
