@@ -300,6 +300,20 @@ const en = {
         "Text inserted before the output extension (for example, notes.converted.txt). Blank uses .converted.",
       overwriteDroppedFilesOnly:
         "Overwrite requires files dropped from the file system",
+      pasteLabel: "Paste text to convert",
+      pastePlaceholder: "Paste text here",
+      convertText: "Convert text",
+      switchToTextInput: "Switch to text input",
+      switchToFileInput: "Switch to file input",
+      saveAll: "Save all",
+      actions: "Actions",
+      saved: "Saved",
+      copied: "Copied",
+      saveResult: "Save {name}",
+      copyResult: "Copy {name}",
+      removeResult: "Remove {name} from results",
+      permissionExpired:
+        "Original file permission expired or changed. Select and convert the original file again.",
     },
     sections: {
       remotePlugins: "Remote Plugins",

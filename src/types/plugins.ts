@@ -69,6 +69,8 @@ export type PluginConverterTab = PluginPageTabBase & {
   multiple?: boolean;
   maxBytes?: number;
   maxFiles?: number;
+  allowPaste?: boolean;
+  execution?: "auto" | "manual";
   outputModes?: Array<"create" | "overwrite">;
   outputDirectorySetting?: string;
   description?: string;

@@ -289,7 +289,7 @@ describe("pluginComponents", () => {
     ).toContain("overflow-x-hidden");
   });
 
-  it("preserves Converter input while switching page tabs", async () => {
+  it("preserves Converter results while switching page tabs", async () => {
     const { FileDropConverter, Tabs } = createPluginComponents(
       { convertFile: { handler: () => "converted" } },
       "file-converter-plugin",
@@ -319,7 +319,7 @@ describe("pluginComponents", () => {
         files: [new File(["hello"], "notes.txt", { type: "text/plain" })],
       },
     });
-    expect(screen.getAllByText("notes.txt")).toHaveLength(2);
+    expect(await screen.findByText("notes.converted.txt")).toBeTruthy();
 
     await waitFor(() => {
       expect(windowMocks.dragDropHandlers).toHaveLength(1);
@@ -330,8 +330,10 @@ describe("pluginComponents", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Converter" }));
 
-    expect(screen.getAllByText("notes.txt")).toHaveLength(2);
-    expect(screen.getByRole("button", { name: "Run" })).toBeTruthy();
+    expect(screen.getByText("notes.converted.txt")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Save notes.converted.txt" }),
+    ).toBeTruthy();
     await waitFor(() => {
       expect(windowMocks.dragDropHandlers).toHaveLength(1);
     });
@@ -613,241 +615,16 @@ describe("pluginComponents", () => {
     });
   });
 
-  it("converts a dropped file and writes the result to Downloads", async () => {
-    const convertFile = vi.fn((input) => {
-      expect(input).toMatchObject({
-        name: "notes.txt",
-        type: "text/plain",
-        size: 5,
-        text: "hello",
-      });
-
-      return {
-        fileName: "notes.converted.txt",
-        body: "HELLO\n",
-      };
-    });
-    const actions: PluginActions = {
-      convertFile: {
-        handler: convertFile,
-      },
-    };
-    const { FileDropConverter } = createPluginComponents(
-      actions,
-      "file-converter-plugin",
-    );
-
-    const { container } = render(
-      <FileDropConverter
-        action="convertFile"
-        emptyLabel="Drop here"
-        successLabel="Created"
-      />,
-    );
-
-    await waitFor(() => {
-      expect(fileMocks.fileApi.getDefaultDownloadDirectory).toHaveBeenCalled();
-    });
-
-    const dropZone = container.querySelector(
-      "[data-glimpse-plugin-file-drop-converter]",
-    );
-    expect(
-      dropZone?.contains(screen.getByRole("group", { name: "Output mode" })),
-    ).toBe(true);
-    expect(screen.getByRole("button", { name: "Create new" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Overwrite" })).toBeTruthy();
-    const file = new File(["hello"], "notes.txt", { type: "text/plain" });
-
-    fireEvent.drop(dropZone!, {
-      dataTransfer: {
-        files: [file],
-      },
-    });
-
-    expect(convertFile).not.toHaveBeenCalled();
-    expect(fileMocks.fileApi.writePluginTextOutput).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Run" }));
-
-    await waitFor(() => {
-      expect(fileMocks.fileApi.writePluginTextOutput).toHaveBeenCalledWith({
-        grantToken: "output-token",
-        fileName: "notes.converted.txt",
-        body: "HELLO\n",
-      });
-    });
-    await waitFor(() =>
-      expect(screen.queryByRole("button", { name: "Run" })).toBeNull(),
-    );
-    expect(screen.getByRole("heading", { name: "Results" })).toBeTruthy();
-    expect(screen.getByRole("columnheader", { name: "File" })).toBeTruthy();
-    expect(screen.getByRole("columnheader", { name: "Size" })).toBeTruthy();
-    expect(screen.getByRole("columnheader", { name: "Path" })).toBeTruthy();
-    expect(screen.getByText("notes.converted.txt")).toBeTruthy();
-    expect(screen.queryByText(/^Created:/)).toBeNull();
-
-    fireEvent.click(screen.getByRole("button", { name: "Reveal" }));
-
-    expect(openerMocks.openerApi.revealInExplorer).toHaveBeenCalledWith(
-      "C:/Users/j/Downloads/notes.converted.txt",
-    );
-
-    fireEvent.drop(dropZone!, {
-      dataTransfer: {
-        files: [new File(["next"], "next.txt", { type: "text/plain" })],
-      },
-    });
-
-    expect(screen.getByText("notes.converted.txt")).toBeTruthy();
-    expect(fileMocks.fileApi.writePluginTextOutput).toHaveBeenCalledTimes(1);
-
-    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
-
-    expect(screen.getByText("No output yet")).toBeTruthy();
-  });
-
-  it("uses Glimpse translations for the default converter output modes", async () => {
-    const { FileDropConverter } = createPluginComponents(
-      { convertFile: { handler: () => "converted" } },
-      "file-converter-plugin",
-    );
-
-    render(
-      <I18nProvider locale="ja">
-        <FileDropConverter action="convertFile" />
-      </I18nProvider>,
-    );
-
-    expect(await screen.findByRole("group", { name: "出力方法" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "新規作成" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "上書き" })).toBeTruthy();
-  });
-
-  it("converts a file selected with Choose File using a native input grant", async () => {
-    const convertFile = vi.fn(() => "CONVERTED");
+  it("converts a dropped file without saving until a result action is clicked", async () => {
+    const convertFile = vi.fn(() => ({
+      fileName: "notes.converted.txt",
+      body: "HELLO\n",
+    }));
     const { FileDropConverter } = createPluginComponents(
       { convertFile: { handler: convertFile } },
-      "file-converter-plugin",
-    );
-    render(<FileDropConverter action="convertFile" />);
-
-    fireEvent.click(screen.getByRole("button", { name: "Choose File" }));
-    expect(fileMocks.fileApi.selectPluginTextInputs).toHaveBeenCalledWith(
-      false,
-      ["txt", "md", "markdown"],
-    );
-    fireEvent.click(await screen.findByRole("button", { name: "Run" }));
-
-    await waitFor(() => {
-      expect(fileMocks.fileApi.readPluginTextInput).toHaveBeenCalledWith(
-        "picked-token",
-      );
-      expect(convertFile).toHaveBeenCalledWith(
-        expect.objectContaining({ name: "notes.txt", text: "hello from path" }),
-      );
-      expect(fileMocks.fileApi.writePluginTextOutput).toHaveBeenCalledWith({
-        grantToken: "output-token",
-        fileName: "notes.converted.txt",
-        body: "CONVERTED",
-      });
-    });
-  });
-
-  it("can overwrite a file selected with Choose File", async () => {
-    const { FileDropConverter } = createPluginComponents(
-      { convertFile: { handler: () => "OVERWRITTEN" } },
-      "file-converter-plugin",
-    );
-    render(<FileDropConverter action="convertFile" />);
-
-    fireEvent.click(screen.getByRole("button", { name: "Choose File" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Overwrite" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Run" }));
-
-    await waitFor(() => {
-      expect(fileMocks.fileApi.overwritePluginTextInput).toHaveBeenCalledWith({
-        grantToken: "picked-token",
-        body: "OVERWRITTEN",
-      });
-    });
-    await waitFor(() =>
-      expect(screen.queryByRole("button", { name: "Run" })).toBeNull(),
-    );
-  });
-
-  it("keeps the selected file for retry when conversion fails", async () => {
-    const { FileDropConverter } = createPluginComponents(
-      {
-        convertFile: {
-          handler: () => {
-            throw new Error("conversion failed");
-          },
-        },
-      },
-      "file-converter-plugin",
-    );
-    render(<FileDropConverter action="convertFile" />);
-
-    fireEvent.click(screen.getByRole("button", { name: "Choose File" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Run" }));
-
-    expect(await screen.findByText("conversion failed")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Run" })).toBeTruthy();
-  });
-
-  it("does not start the same selected file twice while execution is pending", async () => {
-    let finish!: (value: string) => void;
-    const pending = new Promise<string>((resolve) => {
-      finish = resolve;
-    });
-    const convertFile = vi.fn(() => pending);
-    const { FileDropConverter } = createPluginComponents(
-      { convertFile: { handler: convertFile } },
-      "file-converter-plugin",
-    );
-    render(<FileDropConverter action="convertFile" />);
-
-    fireEvent.click(screen.getByRole("button", { name: "Choose File" }));
-    const runButton = await screen.findByRole("button", { name: "Run" });
-    fireEvent.click(runButton);
-    fireEvent.click(runButton);
-    await waitFor(() => expect(convertFile).toHaveBeenCalledTimes(1));
-
-    finish("CONVERTED");
-    await waitFor(() =>
-      expect(screen.queryByRole("button", { name: "Run" })).toBeNull(),
-    );
-  });
-
-  it("keeps the selected file when the output picker is cancelled", async () => {
-    fileMocks.fileApi.getPluginOutputDirectoryGrant.mockResolvedValueOnce(null);
-    fileMocks.fileApi.selectOutputDirectory.mockResolvedValueOnce(null);
-    const { FileDropConverter } = createPluginComponents(
-      { convertFile: { handler: () => "converted" } },
-      "file-converter-plugin",
-    );
-    render(<FileDropConverter action="convertFile" />);
-
-    fireEvent.click(screen.getByRole("button", { name: "Choose File" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Run" }));
-
-    await waitFor(() =>
-      expect(fileMocks.fileApi.selectOutputDirectory).toHaveBeenCalled(),
-    );
-    expect(await screen.findByRole("button", { name: "Run" })).toBeTruthy();
-    expect(fileMocks.fileApi.writePluginTextOutput).not.toHaveBeenCalled();
-  });
-
-  it("requires a native picker when the saved output directory lacks a session grant", async () => {
-    fileMocks.fileApi.getPluginOutputDirectoryGrant.mockResolvedValueOnce(null);
-    const { FileDropConverter } = createPluginComponents(
-      { convertFile: { handler: () => "converted" } },
       "file-converter-plugin",
     );
     const { container } = render(<FileDropConverter action="convertFile" />);
-    await waitFor(() =>
-      expect(fileMocks.fileApi.getDefaultDownloadDirectory).toHaveBeenCalled(),
-    );
     fireEvent.drop(
       container.querySelector("[data-glimpse-plugin-file-drop-converter]")!,
       {
@@ -856,18 +633,286 @@ describe("pluginComponents", () => {
         },
       },
     );
-    fireEvent.click(screen.getByRole("button", { name: "Run" }));
-    await waitFor(() => {
-      expect(fileMocks.fileApi.selectOutputDirectory).toHaveBeenCalled();
+
+    expect(await screen.findByText("notes.converted.txt")).toBeTruthy();
+    expect(convertFile).toHaveBeenCalledTimes(1);
+    expect(fileMocks.fileApi.writePluginTextOutput).not.toHaveBeenCalled();
+    expect(screen.getByRole("columnheader", { name: "Actions" })).toBeTruthy();
+    expect(screen.getByText("6 B")).toBeTruthy();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Copy notes.converted.txt" }),
+    );
+    await waitFor(() =>
+      expect(clipboardMocks.copyText).toHaveBeenCalledWith("HELLO\n"),
+    );
+    expect(fileMocks.fileApi.writePluginTextOutput).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Save notes.converted.txt" }),
+    );
+    await waitFor(() =>
       expect(fileMocks.fileApi.writePluginTextOutput).toHaveBeenCalledWith({
-        grantToken: "selected-token",
+        grantToken: "output-token",
         fileName: "notes.converted.txt",
-        body: "converted",
-      });
-    });
+        body: "HELLO\n",
+      }),
+    );
+    expect(screen.getByText("Saved")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Reveal" }));
+    expect(openerMocks.openerApi.revealInExplorer).toHaveBeenCalledWith(
+      "C:/Users/j/Downloads/notes.converted.txt",
+    );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Remove notes.converted.txt from results",
+      }),
+    );
+    expect(screen.getByText("No output yet")).toBeTruthy();
   });
 
-  it("uses the configured filename prefix for converter-generated names", async () => {
+  it("offers localized output modes beside Results", async () => {
+    const { FileDropConverter } = createPluginComponents(
+      { convertFile: { handler: () => "converted" } },
+      "file-converter-plugin",
+    );
+    render(
+      <I18nProvider locale="ja">
+        <FileDropConverter action="convertFile" />
+      </I18nProvider>,
+    );
+    const group = await screen.findByRole("group", { name: "出力方法" });
+    expect(group.parentElement).toBe(
+      screen.getByRole("button", { name: "すべて保存" }).parentElement,
+    );
+    expect(screen.getByRole("button", { name: "新規作成" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "上書き" })).toBeTruthy();
+  });
+
+  it("overwrites only when the saved result maps to an authorized source", async () => {
+    const { FileDropConverter } = createPluginComponents(
+      { convertFile: { handler: () => "OVERWRITTEN" } },
+      "file-converter-plugin",
+    );
+    render(<FileDropConverter action="convertFile" />);
+    fireEvent.click(screen.getByRole("button", { name: "Choose File" }));
+    const save = await screen.findByRole("button", {
+      name: "Save notes.converted.txt",
+    });
+    expect(fileMocks.fileApi.overwritePluginTextInput).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Overwrite" }));
+    fireEvent.click(save);
+    await waitFor(() =>
+      expect(fileMocks.fileApi.overwritePluginTextInput).toHaveBeenCalledWith({
+        grantToken: "picked-token",
+        body: "OVERWRITTEN",
+      }),
+    );
+    expect(fileMocks.fileApi.writePluginTextOutput).not.toHaveBeenCalled();
+  });
+
+  it("converts a Tauri file drop and keeps its input grant for deferred overwrite", async () => {
+    const convertFile = vi.fn(() => ({
+      fileName: "notes.converted.txt",
+      body: "DONE",
+    }));
+    const { FileDropConverter } = createPluginComponents(
+      { convertFile: { handler: convertFile } },
+      "file-converter-plugin",
+    );
+    render(<FileDropConverter action="convertFile" />);
+    await waitFor(() =>
+      expect(windowMocks.dragDropHandlers.length).toBeGreaterThan(0),
+    );
+    windowMocks.dragDropHandlers[0]?.({
+      payload: { type: "drop", paths: ["C:/Inbox/notes.txt"] },
+    });
+    await screen.findByRole("button", { name: "Save notes.converted.txt" });
+    expect(fileMocks.fileApi.readPluginTextInput).toHaveBeenCalledWith(
+      "input-token",
+    );
+    expect(convertFile).toHaveBeenCalledWith(
+      expect.objectContaining({ sourcePath: "C:/Inbox/notes.txt" }),
+    );
+    expect(fileMocks.fileApi.overwritePluginTextInput).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Overwrite" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Save notes.converted.txt" }),
+    );
+    await waitFor(() =>
+      expect(fileMocks.fileApi.overwritePluginTextInput).toHaveBeenCalledWith({
+        grantToken: "input-token",
+        body: "DONE",
+      }),
+    );
+  });
+
+  it("asks for reconversion if the original grant expires before overwrite", async () => {
+    fileMocks.fileApi.overwritePluginTextInput.mockRejectedValueOnce(
+      new Error("invalid plugin file grant"),
+    );
+    const { FileDropConverter } = createPluginComponents(
+      { convertFile: { handler: () => "converted" } },
+      "file-converter-plugin",
+    );
+    render(<FileDropConverter action="convertFile" />);
+    fireEvent.click(screen.getByRole("button", { name: "Choose File" }));
+    await screen.findByRole("button", { name: "Save notes.converted.txt" });
+    fireEvent.click(screen.getByRole("button", { name: "Overwrite" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Save notes.converted.txt" }),
+    );
+    expect(
+      await screen.findByText(/Select and convert the original file again/),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Save notes.converted.txt" }),
+    ).toBeTruthy();
+  });
+
+  it("converts pasted text and copies without writing a file", async () => {
+    const convertFile = vi.fn(() => "CONVERTED");
+    const { FileDropConverter } = createPluginComponents(
+      { convertFile: { handler: convertFile } },
+      "file-converter-plugin",
+    );
+    render(<FileDropConverter action="convertFile" />);
+    expect(screen.queryByLabelText("Paste text to convert")).toBeNull();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Switch to text input" }),
+    );
+    expect(screen.queryByRole("button", { name: "Choose File" })).toBeNull();
+    expect(screen.queryByText("Paste text to convert")).toBeNull();
+    fireEvent.paste(screen.getByLabelText("Paste text to convert"), {
+      clipboardData: { getData: () => "hello" },
+    });
+    expect(await screen.findByText("pasted-text.converted.txt")).toBeTruthy();
+    expect(convertFile).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "pasted-text.txt", text: "hello" }),
+    );
+    expect(
+      (screen.getByRole("button", { name: "Overwrite" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Copy pasted-text.converted.txt" }),
+    );
+    await waitFor(() =>
+      expect(clipboardMocks.copyText).toHaveBeenCalledWith("CONVERTED"),
+    );
+    expect(fileMocks.fileApi.writePluginTextOutput).not.toHaveBeenCalled();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Switch to file input" }),
+    );
+    expect(screen.getByRole("button", { name: "Choose File" })).toBeTruthy();
+  });
+
+  it("keeps failed inputs for retry and ignores stale asynchronous conversions", async () => {
+    let finish!: (value: string) => void;
+    const pending = new Promise<string>((resolve) => {
+      finish = resolve;
+    });
+    const convertFile = vi
+      .fn()
+      .mockImplementationOnce(() => pending)
+      .mockImplementationOnce(() => "SECOND");
+    const { FileDropConverter } = createPluginComponents(
+      { convertFile: { handler: convertFile } },
+      "file-converter-plugin",
+    );
+    const { container } = render(<FileDropConverter action="convertFile" />);
+    const dropZone = container.querySelector(
+      "[data-glimpse-plugin-file-drop-converter]",
+    )!;
+    fireEvent.drop(dropZone, {
+      dataTransfer: {
+        files: [new File(["first"], "first.txt", { type: "text/plain" })],
+      },
+    });
+    await waitFor(() => expect(convertFile).toHaveBeenCalledTimes(1));
+    fireEvent.drop(dropZone, {
+      dataTransfer: {
+        files: [new File(["second"], "second.txt", { type: "text/plain" })],
+      },
+    });
+    expect(await screen.findByText("second.converted.txt")).toBeTruthy();
+    finish("FIRST");
+    await waitFor(() =>
+      expect(screen.queryByText("first.converted.txt")).toBeNull(),
+    );
+  });
+
+  it("keeps a failed conversion available for retry", async () => {
+    const convertFile = vi
+      .fn()
+      .mockImplementationOnce(() => {
+        throw new Error("conversion failed");
+      })
+      .mockImplementationOnce(() => "OK");
+    const { FileDropConverter } = createPluginComponents(
+      { convertFile: { handler: convertFile } },
+      "file-converter-plugin",
+    );
+    render(<FileDropConverter action="convertFile" />);
+    fireEvent.click(screen.getByRole("button", { name: "Choose File" }));
+    expect(await screen.findByText("conversion failed")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Run" }));
+    expect(await screen.findByText("notes.converted.txt")).toBeTruthy();
+  });
+
+  it("saves all unsaved rows and leaves failed rows for retry", async () => {
+    fileMocks.fileApi.writePluginTextOutput.mockRejectedValueOnce(
+      new Error("disk full"),
+    );
+    const { FileDropConverter } = createPluginComponents(
+      {
+        convertFile: {
+          handler: () => [
+            { fileName: "one.txt", body: "one" },
+            { fileName: "two.txt", body: "two" },
+          ],
+        },
+      },
+      "file-converter-plugin",
+    );
+    render(<FileDropConverter action="convertFile" />);
+    fireEvent.click(screen.getByRole("button", { name: "Choose File" }));
+    await screen.findByRole("button", { name: "Save one.txt" });
+    fireEvent.click(screen.getByRole("button", { name: "Save all" }));
+    await waitFor(() =>
+      expect(fileMocks.fileApi.writePluginTextOutput).toHaveBeenCalledTimes(2),
+    );
+    expect(screen.getByText("disk full")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Save one.txt" })).toBeTruthy();
+    expect(screen.getByText("Saved")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Save all" }));
+    await waitFor(() =>
+      expect(fileMocks.fileApi.writePluginTextOutput).toHaveBeenCalledTimes(3),
+    );
+  });
+
+  it("does not discard a result when the output picker is cancelled", async () => {
+    fileMocks.fileApi.getPluginOutputDirectoryGrant.mockResolvedValueOnce(null);
+    fileMocks.fileApi.selectOutputDirectory.mockResolvedValueOnce(null);
+    const { FileDropConverter } = createPluginComponents(
+      { convertFile: { handler: () => "converted" } },
+      "file-converter-plugin",
+    );
+    render(<FileDropConverter action="convertFile" />);
+    fireEvent.click(screen.getByRole("button", { name: "Choose File" }));
+    await screen.findByRole("button", { name: "Save notes.converted.txt" });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Save notes.converted.txt" }),
+    );
+    await waitFor(() =>
+      expect(fileMocks.fileApi.selectOutputDirectory).toHaveBeenCalled(),
+    );
+    expect(
+      screen.getByRole("button", { name: "Save notes.converted.txt" }),
+    ).toBeTruthy();
+    expect(fileMocks.fileApi.writePluginTextOutput).not.toHaveBeenCalled();
+  });
+
+  it("uses the configured filename prefix before a result is saved", async () => {
     await settingsMocks.settingsApi.set({
       plugins: {
         "file-converter-plugin": {
@@ -879,57 +924,85 @@ describe("pluginComponents", () => {
       { convertFile: { handler: () => "converted" } },
       "file-converter-plugin",
     );
-    const { container } = render(<FileDropConverter action="convertFile" />);
-    await waitFor(() =>
-      expect(fileMocks.fileApi.getDefaultDownloadDirectory).toHaveBeenCalled(),
+    render(<FileDropConverter action="convertFile" />);
+    fireEvent.click(screen.getByRole("button", { name: "Choose File" }));
+    expect(await screen.findByText("notes.ready.txt")).toBeTruthy();
+    expect(fileMocks.fileApi.writePluginTextOutput).not.toHaveBeenCalled();
+  });
+
+  it("rejects non-text files before invoking the converter", async () => {
+    const convertFile = vi.fn(() => "SHOULD NOT RUN");
+    const { FileDropConverter } = createPluginComponents(
+      { convertFile: { handler: convertFile } },
+      "file-converter-plugin",
     );
+    const { container } = render(<FileDropConverter action="convertFile" />);
     fireEvent.drop(
       container.querySelector("[data-glimpse-plugin-file-drop-converter]")!,
       {
         dataTransfer: {
-          files: [new File(["hello"], "notes.txt", { type: "text/plain" })],
+          files: [new File(["a,b"], "data.csv", { type: "text/csv" })],
         },
       },
     );
+    expect(
+      await screen.findByText("Only text and Markdown files are supported"),
+    ).toBeTruthy();
+    expect(convertFile).not.toHaveBeenCalled();
+  });
+
+  it("preserves explicit manual execution without saving on Run", async () => {
+    const convertFile = vi.fn(() => "converted");
+    const { FileDropConverter } = createPluginComponents(
+      { convertFile: { handler: convertFile } },
+      "file-converter-plugin",
+    );
+    render(<FileDropConverter action="convertFile" execution="manual" />);
+    fireEvent.click(screen.getByRole("button", { name: "Choose File" }));
+    expect(await screen.findByRole("button", { name: "Run" })).toBeTruthy();
+    expect(convertFile).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Run" }));
+    expect(
+      await screen.findByRole("button", { name: "Save notes.converted.txt" }),
+    ).toBeTruthy();
+    expect(fileMocks.fileApi.writePluginTextOutput).not.toHaveBeenCalled();
+  });
+
+  it("saves OutputDirectorySettings as a plugin preference", async () => {
+    const { OutputDirectorySettings } = createPluginComponents(
+      {},
+      "file-converter-plugin",
+    );
+    render(
+      <OutputDirectorySettings
+        label="Output directory"
+        chooseDirectoryLabel="Change Output Directory"
+      />,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Change Output Directory" }),
+    );
     await waitFor(() =>
-      expect(fileMocks.fileApi.writePluginTextOutput).toHaveBeenCalledWith({
-        grantToken: "output-token",
-        fileName: "notes.ready.txt",
-        body: "converted",
+      expect(settingsMocks.settingsApi.set).toHaveBeenCalledWith({
+        plugins: {
+          "file-converter-plugin": {
+            preferences: { downloadDirectory: "C:/Converted" },
+          },
+        },
       }),
     );
   });
 
-  it("replaces the template plugin's explicit .converted filename", async () => {
-    await settingsMocks.settingsApi.set({
-      plugins: {
-        "file-converter-plugin": {
-          preferences: { convertedFilePrefix: ".processed" },
-        },
-      },
-    });
-    const { FileDropConverter } = createPluginComponents(
-      {
-        convertFile: {
-          handler: () => ({
-            fileName: "notes.converted.html",
-            body: "<p>ok</p>",
-          }),
-        },
-      },
+  it("does not accept a typed path as an output permission", async () => {
+    const { OutputDirectorySettings } = createPluginComponents(
+      {},
       "file-converter-plugin",
     );
-    render(<FileDropConverter action="convertFile" />);
-    fireEvent.click(screen.getByRole("button", { name: "Choose File" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Run" }));
-    await waitFor(() =>
-      expect(fileMocks.fileApi.writePluginTextOutput).toHaveBeenCalledWith({
-        grantToken: "output-token",
-        fileName: "notes.processed.html",
-        body: "<p>ok</p>",
-      }),
-    );
+    render(<OutputDirectorySettings label="Output directory" />);
+    const input = (await screen.findByLabelText(
+      "Output directory",
+    )) as HTMLInputElement;
+    expect(input.readOnly).toBe(true);
   });
 
   it("saves a filename prefix and resets blank input to .converted", async () => {
@@ -950,248 +1023,6 @@ describe("pluginComponents", () => {
     fireEvent.change(input, { target: { value: "   " } });
     fireEvent.blur(input);
     await waitFor(() => expect(input.value).toBe(".converted"));
-    expect(settingsMocks.getSettings().plugins).toEqual({});
-  });
-
-  it("rejects non-text files in FileDropConverter", async () => {
-    const actions: PluginActions = {
-      convertFile: {
-        handler: () => "SHOULD NOT RUN",
-      },
-    };
-    const { FileDropConverter } = createPluginComponents(
-      actions,
-      "file-converter-plugin",
-    );
-
-    const { container } = render(<FileDropConverter action="convertFile" />);
-
-    await waitFor(() => {
-      expect(fileMocks.fileApi.getDefaultDownloadDirectory).toHaveBeenCalled();
-    });
-
-    const dropZone = container.querySelector(
-      "[data-glimpse-plugin-file-drop-converter]",
-    );
-    const file = new File(["a,b"], "data.csv", { type: "text/csv" });
-
-    fireEvent.drop(dropZone!, {
-      dataTransfer: {
-        files: [file],
-      },
-    });
-
-    expect(
-      await screen.findByText("Only text and Markdown files are supported"),
-    ).toBeTruthy();
-    expect(fileMocks.fileApi.writePluginTextOutput).not.toHaveBeenCalled();
-  });
-
-  it("accepts Markdown files in FileDropConverter", async () => {
-    const actions: PluginActions = {
-      convertFile: {
-        handler: vi.fn((input) => {
-          expect(input).toMatchObject({
-            name: "notes.md",
-            type: "text/markdown",
-            text: "# hello",
-          });
-
-          return {
-            fileName: "notes.converted.md",
-            body: "Success Converted!\n# hello",
-          };
-        }),
-      },
-    };
-    const { FileDropConverter } = createPluginComponents(
-      actions,
-      "file-converter-plugin",
-    );
-
-    const { container } = render(
-      <FileDropConverter action="convertFile" successLabel="Created" />,
-    );
-
-    await waitFor(() => {
-      expect(fileMocks.fileApi.getDefaultDownloadDirectory).toHaveBeenCalled();
-    });
-
-    const dropZone = container.querySelector(
-      "[data-glimpse-plugin-file-drop-converter]",
-    );
-    const file = new File(["# hello"], "notes.md", { type: "text/markdown" });
-
-    fireEvent.drop(dropZone!, {
-      dataTransfer: {
-        files: [file],
-      },
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: "Run" }));
-
-    await waitFor(() => {
-      expect(fileMocks.fileApi.writePluginTextOutput).toHaveBeenCalledWith({
-        grantToken: "output-token",
-        fileName: "notes.converted.md",
-        body: "Success Converted!\n# hello",
-      });
-    });
-  });
-
-  it("saves OutputDirectorySettings as a plugin preference", async () => {
-    const { OutputDirectorySettings } = createPluginComponents(
-      {},
-      "file-converter-plugin",
-    );
-
-    render(
-      <OutputDirectorySettings
-        label="Output directory"
-        chooseDirectoryLabel="Change Output Directory"
-      />,
-    );
-
-    fireEvent.click(
-      await screen.findByRole("button", {
-        name: "Change Output Directory",
-      }),
-    );
-
-    await waitFor(() => {
-      expect(settingsMocks.settingsApi.set).toHaveBeenCalledWith({
-        plugins: {
-          "file-converter-plugin": {
-            preferences: {
-              downloadDirectory: "C:/Converted",
-            },
-          },
-        },
-      });
-    });
-  });
-
-  it("does not accept a typed path as an output permission", async () => {
-    const { OutputDirectorySettings } = createPluginComponents(
-      {},
-      "file-converter-plugin",
-    );
-
-    render(<OutputDirectorySettings label="Output directory" />);
-
-    const input = (await screen.findByLabelText(
-      "Output directory",
-    )) as HTMLInputElement;
-
-    expect(input.readOnly).toBe(true);
-    expect(settingsMocks.settingsApi.set).not.toHaveBeenCalled();
-  });
-
-  it("converts a Tauri window file drop while preserving app drag-drop events", async () => {
-    const actions: PluginActions = {
-      convertFile: {
-        handler: (input) => {
-          expect(input).toMatchObject({
-            name: "notes.txt",
-            text: "hello from path",
-            sourcePath: "C:/Inbox/notes.txt",
-          });
-
-          return {
-            fileName: "notes.converted.txt",
-            body: "HELLO FROM PATH\n",
-          };
-        },
-      },
-    };
-    const { FileDropConverter } = createPluginComponents(
-      actions,
-      "file-converter-plugin",
-    );
-
-    render(<FileDropConverter action="convertFile" successLabel="Created" />);
-
-    await waitFor(() => {
-      expect(fileMocks.fileApi.getDefaultDownloadDirectory).toHaveBeenCalled();
-    });
-
-    windowMocks.dragDropHandlers[0]?.({
-      payload: {
-        type: "drop",
-        paths: ["C:/Inbox/notes.txt"],
-      },
-    });
-
-    expect(fileMocks.fileApi.readPluginTextInput).not.toHaveBeenCalled();
-    fireEvent.click(await screen.findByRole("button", { name: "Run" }));
-
-    await waitFor(() => {
-      expect(fileMocks.fileApi.readPluginTextInput).toHaveBeenCalledWith(
-        "input-token",
-      );
-      expect(fileMocks.fileApi.writePluginTextOutput).toHaveBeenCalledWith({
-        grantToken: "output-token",
-        fileName: "notes.converted.txt",
-        body: "HELLO FROM PATH\n",
-      });
-    });
-  });
-
-  it("overwrites dropped source paths only after explicit execution", async () => {
-    const actions: PluginActions = {
-      convertFile: {
-        handler: () => ({
-          fileName: "notes.txt",
-          body: "OVERWRITTEN\n",
-        }),
-      },
-    };
-    const { FileDropConverter } = createPluginComponents(
-      actions,
-      "file-converter-plugin",
-    );
-
-    const { container } = render(<FileDropConverter action="convertFile" />);
-
-    await waitFor(() => {
-      expect(fileMocks.fileApi.getDefaultDownloadDirectory).toHaveBeenCalled();
-    });
-
-    const dropZone = container.querySelector(
-      "[data-glimpse-plugin-file-drop-converter]",
-    );
-    expect(
-      dropZone?.contains(screen.getByRole("group", { name: "Output mode" })),
-    ).toBe(true);
-
-    const overwriteButton = screen.getByRole("button", { name: "Overwrite" });
-    expect((overwriteButton as HTMLButtonElement).disabled).toBe(false);
-    fireEvent.click(overwriteButton);
-    expect(overwriteButton.getAttribute("aria-pressed")).toBe("true");
-
-    await waitFor(() => {
-      expect(windowMocks.dragDropHandlers.length).toBeGreaterThan(0);
-    });
-    windowMocks.dragDropHandlers[0]?.({
-      payload: {
-        type: "drop",
-        paths: ["C:/Inbox/notes.txt"],
-      },
-    });
-
-    expect(overwriteButton.getAttribute("aria-pressed")).toBe("true");
-    expect(fileMocks.fileApi.overwritePluginTextInput).not.toHaveBeenCalled();
-
-    fireEvent.click(await screen.findByRole("button", { name: "Run" }));
-
-    await waitFor(() => {
-      expect(fileMocks.fileApi.overwritePluginTextInput).toHaveBeenCalledWith({
-        grantToken: "input-token",
-        body: "OVERWRITTEN\n",
-      });
-    });
-    expect(fileMocks.fileApi.writePluginTextOutput).not.toHaveBeenCalled();
-    expect(screen.getByText("C:/Inbox/notes.txt")).toBeTruthy();
   });
 
   it("does not auto-copy ActionPlayground results", async () => {

@@ -88,6 +88,8 @@ const StandardPluginTab = ({
         multiple={tab.multiple}
         maxBytes={tab.maxBytes}
         maxFiles={tab.maxFiles}
+        allowPaste={tab.allowPaste}
+        execution={tab.execution}
         outputModes={tab.outputModes}
         outputDirectoryPreference={
           tab.outputDirectorySetting ?? "outputDirectory"
