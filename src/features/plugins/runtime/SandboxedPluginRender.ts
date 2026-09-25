@@ -189,10 +189,11 @@ const deserializePluginProps = (
     (type === "iframe" || type === "DeferredFrame") &&
     typeof nextProps.src === "string"
   ) {
-    nextProps.src = deserializePluginAssetUrl(
+    nextProps.src = validatePluginAssetReference(
       nextProps.src,
       runtime,
       capabilityContext,
+      "asset",
     );
   }
 
@@ -201,10 +202,11 @@ const deserializePluginProps = (
     typeof nextProps.srcDoc === "string" &&
     typeof nextProps.srcDocBasePath === "string"
   ) {
-    const baseHref = deserializePluginAssetBaseHref(
+    const baseHref = validatePluginAssetReference(
       nextProps.srcDocBasePath,
       runtime,
       capabilityContext,
+      "asset-base",
     );
 
     if (baseHref) {
@@ -252,10 +254,11 @@ const deserializePluginPropValue = (
   return value;
 };
 
-const deserializePluginAssetUrl = (
+const validatePluginAssetReference = (
   value: string,
   runtime: Omit<LoadedPluginRuntime, "deactivate">,
   capabilityContext: Omit<PluginCapabilityContext, "token">,
+  token: "asset" | "asset-base",
 ): string | undefined => {
   const prefix = "glimpse-plugin-asset:";
 
@@ -282,47 +285,7 @@ const deserializePluginAssetUrl = (
     },
     sourcePath,
     {
-      token: "asset",
-      activeTabSourcePath: capabilityContext.activeTabSourcePath,
-      targetGroupId: capabilityContext.targetGroupId,
-      targetGroupPaths: capabilityContext.targetGroupPaths,
-    },
-  );
-
-  return undefined;
-};
-
-const deserializePluginAssetBaseHref = (
-  value: string,
-  runtime: Omit<LoadedPluginRuntime, "deactivate">,
-  capabilityContext: Omit<PluginCapabilityContext, "token">,
-): string | undefined => {
-  const prefix = "glimpse-plugin-asset:";
-
-  if (!value.startsWith(prefix)) {
-    return undefined;
-  }
-
-  const sourcePath = decodeURIComponent(value.slice(prefix.length));
-
-  if (runtime.fileReadScope !== "active-tab") {
-    return undefined;
-  }
-
-  assertPluginFileAccess(
-    {
-      id: runtime.pluginId,
-      name: runtime.pluginId,
-      version: runtime.version,
-      capabilities: {
-        files: {
-          read: runtime.fileReadScope,
-        },
-      },
-    },
-    sourcePath,
-    {
-      token: "asset-base",
+      token,
       activeTabSourcePath: capabilityContext.activeTabSourcePath,
       targetGroupId: capabilityContext.targetGroupId,
       targetGroupPaths: capabilityContext.targetGroupPaths,

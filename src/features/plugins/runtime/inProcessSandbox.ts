@@ -39,12 +39,45 @@ export const createInProcessPluginSandbox = (
     | Omit<PluginCapabilityContext, "token">
     | undefined;
 
+  const withCapabilityContext = async <T>(
+    sourcePath: string | null | undefined,
+    run: () => Promise<T>,
+  ): Promise<T> => {
+    currentCapabilityContext = {
+      activeTabSourcePath: sourcePath,
+      targetGroupId:
+        getPluginFileReadScope(plugin) === "target-group"
+          ? ((await getActiveTargetGroupSnapshot())?.id ?? null)
+          : null,
+      targetGroupPaths: [],
+    };
+
+    try {
+      return await run();
+    } finally {
+      currentCapabilityContext = undefined;
+    }
+  };
+
   const createContext = ({ sourcePath }: { sourcePath?: string | null }) => {
     if (!activePlugin || !mathApi) {
       throw new Error(`Plugin sandbox is not initialized: ${pluginId}`);
     }
 
     const contextPlugin = activePlugin;
+    async function getFileCapabilityContext(): Promise<PluginCapabilityContext> {
+      const targetGroupSnapshot =
+        getPluginFileReadScope(contextPlugin) === "target-group"
+          ? await getActiveTargetGroupSnapshot()
+          : undefined;
+      const capabilityContext = currentCapabilityContext ?? {
+        activeTabSourcePath: sourcePath,
+        targetGroupId: targetGroupSnapshot?.id ?? null,
+        targetGroupPaths: targetGroupSnapshot?.paths ?? [],
+      };
+
+      return { token: "test", ...capabilityContext };
+    }
 
     return {
       h: createSerializedPluginElement,
@@ -75,57 +108,24 @@ export const createInProcessPluginSandbox = (
       },
       math: mathApi,
       files: {
-        readText: async (nextSourcePath: string) => {
-          const targetGroupSnapshot =
-            getPluginFileReadScope(contextPlugin) === "target-group"
-              ? await getActiveTargetGroupSnapshot()
-              : undefined;
-          const capabilityContext = currentCapabilityContext ?? {
-            token: "test",
-            activeTabSourcePath: sourcePath,
-            targetGroupId: targetGroupSnapshot?.id ?? null,
-            targetGroupPaths: targetGroupSnapshot?.paths ?? [],
-          };
-
-          return readPluginTextFile(contextPlugin, nextSourcePath, {
-            token: "test",
-            ...capabilityContext,
-          });
-        },
-        readBinary: async (nextSourcePath: string) => {
-          const targetGroupSnapshot =
-            getPluginFileReadScope(contextPlugin) === "target-group"
-              ? await getActiveTargetGroupSnapshot()
-              : undefined;
-          const capabilityContext = currentCapabilityContext ?? {
-            token: "test",
-            activeTabSourcePath: sourcePath,
-            targetGroupId: targetGroupSnapshot?.id ?? null,
-            targetGroupPaths: targetGroupSnapshot?.paths ?? [],
-          };
-
-          return readPluginBinaryFile(contextPlugin, nextSourcePath, {
-            token: "test",
-            ...capabilityContext,
-          });
-        },
-        getMetadata: async (nextSourcePath: string) => {
-          const targetGroupSnapshot =
-            getPluginFileReadScope(contextPlugin) === "target-group"
-              ? await getActiveTargetGroupSnapshot()
-              : undefined;
-          const capabilityContext = currentCapabilityContext ?? {
-            token: "test",
-            activeTabSourcePath: sourcePath,
-            targetGroupId: targetGroupSnapshot?.id ?? null,
-            targetGroupPaths: targetGroupSnapshot?.paths ?? [],
-          };
-
-          return readPluginFileMetadata(contextPlugin, nextSourcePath, {
-            token: "test",
-            ...capabilityContext,
-          });
-        },
+        readText: async (nextSourcePath: string) =>
+          readPluginTextFile(
+            contextPlugin,
+            nextSourcePath,
+            await getFileCapabilityContext(),
+          ),
+        readBinary: async (nextSourcePath: string) =>
+          readPluginBinaryFile(
+            contextPlugin,
+            nextSourcePath,
+            await getFileCapabilityContext(),
+          ),
+        getMetadata: async (nextSourcePath: string) =>
+          readPluginFileMetadata(
+            contextPlugin,
+            nextSourcePath,
+            await getFileCapabilityContext(),
+          ),
         toAssetUrl: (nextSourcePath: string) =>
           `glimpse-plugin-asset:${encodeURIComponent(nextSourcePath)}`,
       },
@@ -209,20 +209,7 @@ export const createInProcessPluginSandbox = (
         throw new Error(`Missing action: ${actionId}`);
       }
 
-      currentCapabilityContext = {
-        activeTabSourcePath: null,
-        targetGroupId:
-          getPluginFileReadScope(plugin) === "target-group"
-            ? ((await getActiveTargetGroupSnapshot())?.id ?? null)
-            : null,
-        targetGroupPaths: [],
-      };
-
-      try {
-        return await action(input);
-      } finally {
-        currentCapabilityContext = undefined;
-      }
+      return withCapabilityContext(null, async () => action(input));
     },
     renderPage: async (pageId) => {
       const page = pages.get(pageId);
@@ -231,20 +218,9 @@ export const createInProcessPluginSandbox = (
         throw new Error(`Missing page: ${pageId}`);
       }
 
-      currentCapabilityContext = {
-        activeTabSourcePath: null,
-        targetGroupId:
-          getPluginFileReadScope(plugin) === "target-group"
-            ? ((await getActiveTargetGroupSnapshot())?.id ?? null)
-            : null,
-        targetGroupPaths: [],
-      };
-
-      try {
-        return serializeInProcessNode(await page(createContext({})));
-      } finally {
-        currentCapabilityContext = undefined;
-      }
+      return withCapabilityContext(null, async () =>
+        serializeInProcessNode(await page(createContext({}))),
+      );
     },
     renderViewer: async (viewerId, sourcePath) => {
       const viewer = viewers.get(viewerId);
@@ -253,22 +229,9 @@ export const createInProcessPluginSandbox = (
         throw new Error(`Missing viewer: ${viewerId}`);
       }
 
-      currentCapabilityContext = {
-        activeTabSourcePath: sourcePath,
-        targetGroupId:
-          getPluginFileReadScope(plugin) === "target-group"
-            ? ((await getActiveTargetGroupSnapshot())?.id ?? null)
-            : null,
-        targetGroupPaths: [],
-      };
-
-      try {
-        return serializeInProcessNode(
-          await viewer(createContext({ sourcePath })),
-        );
-      } finally {
-        currentCapabilityContext = undefined;
-      }
+      return withCapabilityContext(sourcePath, async () =>
+        serializeInProcessNode(await viewer(createContext({ sourcePath }))),
+      );
     },
     deactivate: async () => {
       const context = createContext({});
