@@ -4,7 +4,19 @@ This page records the release history of Glimpse.
 
 ## Unreleased
 
+### Added
+
+#### Plugins
+
+* Converter pages can convert pasted text using a text area opened from the drop area. Plugins can disable text input with `allowPaste: false`.
+* Converter Results show each output's filename and size, with Save, Copy, and Remove actions. Save all saves remaining outputs together.
+
 ### Changed
+
+#### Plugins
+
+* Selected, dropped, and pasted Converter inputs now start converting automatically. Plugins can retain the Run step with `execution: "manual"`.
+* Converter outputs remain in Results until removed or cleared. Create New and Overwrite apply when saving; pasted text cannot overwrite a source file.
 
 #### Backend internals
 
