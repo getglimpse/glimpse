@@ -13,7 +13,7 @@ use super::validation::{
     validate_non_empty, validate_optional_manifest_url, validate_relative_child_path,
     validate_supported_api_version, validate_version,
 };
-use super::{resolve_plugin_child_file, DEFAULT_PLUGIN_API_VERSION};
+use super::{source::resolve_plugin_child_file, DEFAULT_PLUGIN_API_VERSION};
 
 pub fn load_plugin_manifest(path: &Path) -> Result<PluginManifest, String> {
     let content = fs::read_to_string(path).map_err(|error| {
