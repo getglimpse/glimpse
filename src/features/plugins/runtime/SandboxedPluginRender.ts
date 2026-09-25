@@ -292,6 +292,7 @@ const validatePluginAssetReference = (
     },
   );
 
+  // Keep validated local asset URLs out of plugin-rendered frames.
   return undefined;
 };
 

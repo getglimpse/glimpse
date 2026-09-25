@@ -279,216 +279,72 @@ export const removeCommittedTagAt = (input: string, tagIndex: number) => {
   );
 };
 
-export const removeUnstarFilter = (input: string) => {
+type SearchFilter = keyof Pick<
+  SearchSyntaxParts,
+  "unstar" | "hidden" | "reverse" | "internal" | "pluginPlayground"
+>;
+
+const updateSearchFilter = (
+  input: string,
+  filter: SearchFilter,
+  action: "remove" | "toggle",
+) => {
   const { search, command } = splitCommand(input);
-  const { hidden, reverse, internal, pluginPlayground, body } =
-    splitSearchSyntax(search);
-  const { committedTags, looseSearch } = tokenizeSearchBody(body);
+  const syntax = splitSearchSyntax(search);
+  const { committedTags, looseSearch } = tokenizeSearchBody(syntax.body);
+  const nextSyntax = {
+    ...syntax,
+    [filter]: action === "toggle" ? !syntax[filter] : false,
+  };
+
+  if (action === "toggle" && filter === "internal") {
+    nextSyntax.pluginPlayground = false;
+  } else if (action === "toggle" && filter === "pluginPlayground") {
+    nextSyntax.internal = false;
+  }
 
   return buildSearch(
-    false,
-    hidden,
-    reverse,
-    internal,
-    pluginPlayground,
-    "",
+    nextSyntax.unstar,
+    nextSyntax.hidden,
+    nextSyntax.reverse,
+    nextSyntax.internal,
+    nextSyntax.pluginPlayground,
+    nextSyntax.unstar ? syntax.separator : "",
     committedTags,
     looseSearch,
     command,
   );
 };
 
-export const toggleUnstarFilter = (input: string) => {
-  const { search, command } = splitCommand(input);
-  const {
-    unstar,
-    hidden,
-    reverse,
-    internal,
-    pluginPlayground,
-    separator,
-    body,
-  } = splitSearchSyntax(search);
-  const { committedTags, looseSearch } = tokenizeSearchBody(body);
+export const removeUnstarFilter = (input: string) =>
+  updateSearchFilter(input, "unstar", "remove");
 
-  return buildSearch(
-    !unstar,
-    hidden,
-    reverse,
-    internal,
-    pluginPlayground,
-    !unstar ? separator : "",
-    committedTags,
-    looseSearch,
-    command,
-  );
-};
+export const toggleUnstarFilter = (input: string) =>
+  updateSearchFilter(input, "unstar", "toggle");
 
-export const removeHiddenFilter = (input: string) => {
-  const { search, command } = splitCommand(input);
-  const { unstar, reverse, internal, pluginPlayground, separator, body } =
-    splitSearchSyntax(search);
-  const { committedTags, looseSearch } = tokenizeSearchBody(body);
+export const removeHiddenFilter = (input: string) =>
+  updateSearchFilter(input, "hidden", "remove");
 
-  return buildSearch(
-    unstar,
-    false,
-    reverse,
-    internal,
-    pluginPlayground,
-    unstar ? separator : "",
-    committedTags,
-    looseSearch,
-    command,
-  );
-};
+export const removeReverseSearch = (input: string) =>
+  updateSearchFilter(input, "reverse", "remove");
 
-export const removeReverseSearch = (input: string) => {
-  const { search, command } = splitCommand(input);
-  const { unstar, hidden, internal, pluginPlayground, separator, body } =
-    splitSearchSyntax(search);
-  const { committedTags, looseSearch } = tokenizeSearchBody(body);
+export const removeInternalFilter = (input: string) =>
+  updateSearchFilter(input, "internal", "remove");
 
-  return buildSearch(
-    unstar,
-    hidden,
-    false,
-    internal,
-    pluginPlayground,
-    unstar ? separator : "",
-    committedTags,
-    looseSearch,
-    command,
-  );
-};
+export const removePluginPlaygroundFilter = (input: string) =>
+  updateSearchFilter(input, "pluginPlayground", "remove");
 
-export const removeInternalFilter = (input: string) => {
-  const { search, command } = splitCommand(input);
-  const { unstar, hidden, reverse, pluginPlayground, separator, body } =
-    splitSearchSyntax(search);
-  const { committedTags, looseSearch } = tokenizeSearchBody(body);
+export const toggleHiddenFilter = (input: string) =>
+  updateSearchFilter(input, "hidden", "toggle");
 
-  return buildSearch(
-    unstar,
-    hidden,
-    reverse,
-    false,
-    pluginPlayground,
-    unstar ? separator : "",
-    committedTags,
-    looseSearch,
-    command,
-  );
-};
+export const toggleReverseSearch = (input: string) =>
+  updateSearchFilter(input, "reverse", "toggle");
 
-export const removePluginPlaygroundFilter = (input: string) => {
-  const { search, command } = splitCommand(input);
-  const { unstar, hidden, reverse, internal, separator, body } =
-    splitSearchSyntax(search);
-  const { committedTags, looseSearch } = tokenizeSearchBody(body);
+export const toggleInternalFilter = (input: string) =>
+  updateSearchFilter(input, "internal", "toggle");
 
-  return buildSearch(
-    unstar,
-    hidden,
-    reverse,
-    internal,
-    false,
-    unstar ? separator : "",
-    committedTags,
-    looseSearch,
-    command,
-  );
-};
-
-export const toggleHiddenFilter = (input: string) => {
-  const { search, command } = splitCommand(input);
-  const {
-    unstar,
-    hidden,
-    reverse,
-    internal,
-    pluginPlayground,
-    separator,
-    body,
-  } = splitSearchSyntax(search);
-  const { committedTags, looseSearch } = tokenizeSearchBody(body);
-
-  return buildSearch(
-    unstar,
-    !hidden,
-    reverse,
-    internal,
-    pluginPlayground,
-    unstar ? separator : "",
-    committedTags,
-    looseSearch,
-    command,
-  );
-};
-
-export const toggleReverseSearch = (input: string) => {
-  const { search, command } = splitCommand(input);
-  const {
-    unstar,
-    hidden,
-    reverse,
-    internal,
-    pluginPlayground,
-    separator,
-    body,
-  } = splitSearchSyntax(search);
-  const { committedTags, looseSearch } = tokenizeSearchBody(body);
-
-  return buildSearch(
-    unstar,
-    hidden,
-    !reverse,
-    internal,
-    pluginPlayground,
-    unstar ? separator : "",
-    committedTags,
-    looseSearch,
-    command,
-  );
-};
-
-export const toggleInternalFilter = (input: string) => {
-  const { search, command } = splitCommand(input);
-  const { unstar, hidden, reverse, internal, separator, body } =
-    splitSearchSyntax(search);
-  const { committedTags, looseSearch } = tokenizeSearchBody(body);
-
-  return buildSearch(
-    unstar,
-    hidden,
-    reverse,
-    !internal,
-    false,
-    unstar ? separator : "",
-    committedTags,
-    looseSearch,
-    command,
-  );
-};
-
-export const togglePluginPlaygroundFilter = (input: string) => {
-  const { search, command } = splitCommand(input);
-  const { unstar, hidden, reverse, pluginPlayground, separator, body } =
-    splitSearchSyntax(search);
-  const { committedTags, looseSearch } = tokenizeSearchBody(body);
-
-  return buildSearch(
-    unstar,
-    hidden,
-    reverse,
-    false,
-    !pluginPlayground,
-    unstar ? separator : "",
-    committedTags,
-    looseSearch,
-    command,
-  );
-};
+export const togglePluginPlaygroundFilter = (input: string) =>
+  updateSearchFilter(input, "pluginPlayground", "toggle");
 
 export const getTagCompletion = ({
   displayValue,
