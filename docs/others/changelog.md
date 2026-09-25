@@ -2,6 +2,22 @@
 
 This page records the release history of Glimpse.
 
+## Unreleased
+
+### Changed
+
+#### Backend internals
+
+* Split file storage, indexer runtime, plugin storage, and settings into focused modules, with their tests grouped by responsibility.
+* Centralized path access checks, target root resolution for indexing and file watching, and indexed source path formatting.
+* Shared Markdown preview generation, plugin child-file source loading, and temporary path fixtures used by Rust tests.
+
+#### Frontend internals
+
+* Split the installed plugin, remote plugin, and internal plugin pages into smaller components for installation controls, details, forms, and README rendering.
+* Split plugin runtime orchestration from sandbox communication, capability checks, rendering, and runtime state. Consolidated repeated capability context setup and asset reference validation.
+* Consolidated search filter updates into one parsing and rebuilding path while preserving filter combinations and input formatting.
+
 ## v0.2.8
 
 ### Added
