@@ -555,12 +555,19 @@ pub(super) fn validate_page_definition(
         }
 
         if tab_type == "converter" {
+            if let Some(allow_paste) = tab_object.get("allowPaste") {
+                if !allow_paste.is_boolean() {
+                    return Err(format!(
+                        "page converter tab {tab_id} allowPaste must be a boolean"
+                    ));
+                }
+            }
             if let Some(execution) = tab_object.get("execution") {
                 let execution = execution.as_str().ok_or_else(|| {
                     format!("page converter tab {tab_id} execution must be a string")
                 })?;
 
-                if execution != "manual" {
+                if !matches!(execution, "manual" | "auto") {
                     return Err(format!(
                         "page converter tab {tab_id} has unsupported execution: {execution}"
                     ));

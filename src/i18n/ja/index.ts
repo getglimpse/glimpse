@@ -304,6 +304,20 @@ const ja = {
         "拡張子の前に付ける文字列です（例: notes.converted.txt）。空欄なら .converted を使用します。",
       overwriteDroppedFilesOnly:
         "上書きにはファイルシステムからドロップしたファイルが必要です",
+      pasteLabel: "変換するテキストを貼り付け",
+      pastePlaceholder: "ここにテキストを貼り付け",
+      convertText: "テキストを変換",
+      switchToTextInput: "テキスト入力に切り替え",
+      switchToFileInput: "ファイル入力に切り替え",
+      saveAll: "すべて保存",
+      actions: "操作",
+      saved: "保存済み",
+      copied: "コピー済み",
+      saveResult: "{name} を保存",
+      copyResult: "{name} をコピー",
+      removeResult: "{name} を結果から削除",
+      permissionExpired:
+        "元ファイルへの権限が期限切れか、ファイルが変更されました。元ファイルを再選択して変換してください。",
     },
     sections: {
       remotePlugins: "リモートプラグイン",

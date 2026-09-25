@@ -484,11 +484,23 @@ fn page_converter_accepts_manual_execution_and_overwrite_mode() {
             "type": "converter",
             "action": "convert",
             "execution": "manual",
+            "allowPaste": true,
             "outputModes": ["create", "overwrite"]
         }]
     });
 
     validate_page_definition(&page, "converter-plugin").unwrap();
+    let auto = serde_json::json!({
+        "id": "plugin:converter-plugin",
+        "tabs": [{
+            "id": "convert",
+            "type": "converter",
+            "action": "convert",
+            "execution": "auto",
+            "allowPaste": false
+        }]
+    });
+    validate_page_definition(&auto, "converter-plugin").unwrap();
 }
 
 #[test]
@@ -511,6 +523,15 @@ fn page_converter_rejects_unsupported_execution_and_output_modes() {
             "outputModes": ["overwrite"]
         }]
     });
+    let invalid_paste = serde_json::json!({
+        "id": "plugin:converter-plugin",
+        "tabs": [{
+            "id": "convert",
+            "type": "converter",
+            "action": "convert",
+            "allowPaste": "yes"
+        }]
+    });
 
     assert_error_contains(
         validate_page_definition(&invalid_execution, "converter-plugin"),
@@ -519,5 +540,9 @@ fn page_converter_rejects_unsupported_execution_and_output_modes() {
     assert_error_contains(
         validate_page_definition(&missing_create, "converter-plugin"),
         "outputModes must include create",
+    );
+    assert_error_contains(
+        validate_page_definition(&invalid_paste, "converter-plugin"),
+        "allowPaste must be a boolean",
     );
 }

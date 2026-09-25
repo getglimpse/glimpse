@@ -11,12 +11,12 @@ Glimpse plugins fall into three main types based on what they do:
 | Type      | What it does                                                                   | Examples                                                 |
 | --------- | ------------------------------------------------------------------------------ | -------------------------------------------------------- |
 | Tool      | Opens a searchable page and runs an operation from text or form input          | Numeric calculations, date calculations, text processing |
-| Converter | Converts selected or dropped files and saves the results as files              | Markdown-to-HTML conversion, text file normalization     |
+| Converter | Converts selected or dropped files, or pasted text                             | Markdown-to-HTML conversion, text file normalization     |
 | Viewer    | Shows a file type that Glimpse does not handle by default in the Preview panel | CSV, PDF, and Office document previews                   |
 
 A Tool page can use a Playground for a single text input or a Form for several fields. A Converter uses a page designed for selecting or dropping files. A Viewer runs in the Preview panel instead of a plugin page.
 
-A Converter stages selected or dropped files so you can review the batch before clicking Run. Glimpse provides every Converter tab with a segmented control in the upper-right corner of the drop area for choosing between creating new files and overwriting the originals. You can select overwrite before dropping a file. For safety, overwrite can run only with files dropped from the file system.
+A Converter starts converting selected or dropped files asynchronously. To convert copied text, click the flip button at the lower-right of the drop area, then press Ctrl+V in the text area; pasted text is sent to the same action as a text file. A plugin can hide the flip button with `allowPaste: false`. Converted outputs stay in Results until you save, copy, or remove them. Each row has Save, Copy, and Remove actions, and Save all saves the remaining rows. The Create new / Overwrite control applies when saving. Overwrite requires an authorized original file and a one-to-one mapping between inputs and outputs; it is unavailable for pasted text. A converter can declare `execution: "manual"` to retain a Run step before creating Results.
 
 A plugin can combine more than one capability. For example, a Viewer can provide file previews while also including a page for its settings and usage information.
 

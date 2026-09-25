@@ -964,6 +964,19 @@ type RootTranslation = {
        * O​v​e​r​w​r​i​t​e​ ​r​e​q​u​i​r​e​s​ ​f​i​l​e​s​ ​d​r​o​p​p​e​d​ ​f​r​o​m​ ​t​h​e​ ​f​i​l​e​ ​s​y​s​t​e​m
        */
       overwriteDroppedFilesOnly: string;
+      pasteLabel: string;
+      pastePlaceholder: string;
+      convertText: string;
+      switchToTextInput: string;
+      switchToFileInput: string;
+      saveAll: string;
+      actions: string;
+      saved: string;
+      copied: string;
+      saveResult: RequiredParams<"name">;
+      copyResult: RequiredParams<"name">;
+      removeResult: RequiredParams<"name">;
+      permissionExpired: string;
     };
     sections: {
       /**
@@ -3335,6 +3348,19 @@ export type TranslationFunctions = {
        * Overwrite requires files dropped from the file system
        */
       overwriteDroppedFilesOnly: () => LocalizedString;
+      pasteLabel: () => LocalizedString;
+      pastePlaceholder: () => LocalizedString;
+      convertText: () => LocalizedString;
+      switchToTextInput: () => LocalizedString;
+      switchToFileInput: () => LocalizedString;
+      saveAll: () => LocalizedString;
+      actions: () => LocalizedString;
+      saved: () => LocalizedString;
+      copied: () => LocalizedString;
+      saveResult: (arg: { name: unknown }) => LocalizedString;
+      copyResult: (arg: { name: unknown }) => LocalizedString;
+      removeResult: (arg: { name: unknown }) => LocalizedString;
+      permissionExpired: () => LocalizedString;
     };
     sections: {
       /**
